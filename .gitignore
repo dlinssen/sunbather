@@ -1,0 +1,4 @@
+.DS_Store
+src/.DS_Store
+src/RT_tables/.DS_Store
+src/__pycache__/
