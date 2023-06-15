@@ -1,0 +1,1756 @@
+import numpy as np
+import pandas as pd
+import math
+import matplotlib.pyplot as plt
+import os
+import glob
+import sys
+import time
+import re
+from shutil import copyfile
+from itertools import cycle
+from scipy.interpolate import interp1d
+from scipy.signal import savgol_filter
+from scipy.signal import butter, filtfilt
+import scipy.stats as sps
+from scipy.ndimage import gaussian_filter1d
+from fractions import Fraction
+import configparser
+
+config = configparser.ConfigParser()
+cloupy_path = os.path.dirname(os.path.abspath(__file__)) #the absolute path where this code lives
+config.read(os.path.join(cloupy_path, 'config.ini'))
+cloudypath = config.get('General', 'cloudypath') #the path where the Cloudy installation is
+projectpath = config.get('General', 'projectpath') #the path where you save your simulations and do analysis
+planets_file_location = config.get('General', 'planetsfilelocation', fallback=projectpath+'/planets.txt') #full path to file that gives planet parameters
+cloudyruncommand = cloudypath+'/source/cloudy.exe -p' #the -p flag is important!
+
+#read this out globally instead of in the Planets class to do it only once:
+planets_file = pd.read_csv(planets_file_location, dtype={'name':str, 'full name':str, 'R [RJ]':np.float64,
+                            'Rstar [Rsun]':np.float64, 'a [AU]':np.float64, 'M [MJ]':np.float64, 'Mstar [Msun]':np.float64,
+                            'transit impact parameter':np.float64, 'SEDname':str}, comment='#')
+
+#define constants:
+c = 2.99792458e10 #cm/s
+h = 4.135667696e-15 #eV s, used to plot wavelengths in keV units
+mH = 1.674e-24 #g
+k = 1.381e-16 #erg/K
+AU = 1.49597871e13 #cm
+pc = 3.08567758e18 #cm
+RJ = 7.1492e9 #cm
+RE = 6.371e8 #cm
+Rsun = 69634000000 #cm
+Msun = 1.9891e33 #g
+MJ = 1.898e30 #g
+ME = 5.9722e26 #g
+G = 6.6743e-8 #cm3/g/s2
+Ldict = {'S':0, 'P':1, 'D':2, 'F':3, 'G':4, 'H':5, 'I':6, 'K':7, 'L':8,
+        'M':9, 'N':10, 'O':11, 'Q':12, 'R':13, 'T':14} #atom number of states per L orbital
+
+element_names = {'H':'hydrogen', 'He':'helium', 'Li':'lithium', 'Be':'beryllium', 'B':'boron', 'C':'carbon',
+                'N':'nitrogen', 'O':'oxygen', 'F':'fluorine', 'Ne':'neon', 'Na':'sodium',
+                'Mg':'magnesium', 'Al':'aluminium', 'Si':'silicon', 'P':'phosphorus',
+                'S':'sulphur', 'Cl':'chlorine', 'Ar':'argon', 'K':'potassium', 'Ca':'calcium',
+                'Sc':'scandium', 'Ti':'titanium', 'V':'vanadium', 'Cr':'chromium', 'Mn':'manganese',
+                'Fe':'iron', 'Co':'cobalt', 'Ni':'nickel', 'Cu':'copper', 'Zn':'zinc'}
+element_symbols = dict((reversed(item) for item in element_names.items())) #reverse dictionary mapping e.g. 'hydrogen'->'H'
+
+#The index no. until which the Cloudy .en and NIST energies agree. After that they will start to diverge (manually confirmed).
+#Some elements are missing as they have no lines in the NIST database and so there's no use saving their densities
+species_enlim = {'H':21, 'He':43, 'He+':55, 'Li':15, 'Li+':9, 'Li+2':15, 'Be':15, 'Be+':15, 'Be+2':9, 'Be+3':15,
+                'B':15, 'B+':15, 'B+2':15, 'B+3':13, 'B+4':15, 'C':15, 'C+':15, 'C+2':15, 'C+3':15, 'C+4':31, 'C+5':15,
+                'N':50, 'N+':15, 'N+2':15, 'N+3':15, 'N+4':15, 'N+5':8, 'N+6':15, 'O':29, 'O+':15, 'O+2':15, 'O+3':15,
+                'O+4':15, 'O+5':15, 'O+6':8, 'F+':7, 'F+2':15, 'F+3':15, 'F+4':5, 'F+5':15, 'F+6':15, 'Ne':15,
+                'Ne+':2, 'Ne+2':14, 'Ne+3':15, 'Ne+4':15, 'Ne+5':15, 'Ne+6':15, 'Na':15, 'Na+':15, 'Na+2':3, 'Na+3':9,
+                'Na+4':13, 'Na+5':9, 'Na+6':15, 'Mg':15, 'Mg+':15, 'Mg+2':15, 'Mg+3':3, 'Mg+4':15, 'Mg+5':15, 'Mg+6':15,
+                'Al':15, 'Al+':15, 'Al+2':15, 'Al+3':15, 'Al+4':3, 'Al+5':15, 'Al+6':15, 'Si':15, 'Si+':15, 'Si+2':15,
+                'Si+3':15, 'Si+4':15, 'Si+5':8, 'Si+6':15, 'P':15, 'P+':15, 'P+2':8, 'P+3':15, 'P+4':15, 'P+5':15,
+                'P+6':3, 'S':15, 'S+':15, 'S+2':15, 'S+3':15, 'S+4':15, 'S+5':15, 'S+6':15, 'Cl':15, 'Cl+':5, 'Cl+2':5,
+                'Cl+3':5, 'Cl+4':15, 'Cl+5':15, 'Cl+6':5, 'Ar':15, 'Ar+':15, 'Ar+2':15, 'Ar+3':15, 'Ar+4':15, 'Ar+5':15,
+                'Ar+6':14, 'K':15, 'K+':15, 'K+2':15, 'K+3':15, 'K+4':5, 'K+5':5, 'K+6':2, 'Ca':15, 'Ca+':15, 'Ca+2':15,
+                'Ca+3':15, 'Ca+4':5, 'Ca+5':15, 'Ca+6':15, 'Sc':15, 'Sc+':15, 'Sc+2':15,
+                'Sc+3':15, 'Sc+4':15, 'Sc+6':15, 'Ti':1, 'Ti+':1, 'Ti+2':15, 'Ti+3':15, 'Ti+5':2,
+                'V':1, 'V+':1, 'V+2':1, 'Cr':1, 'Cr+':15, 'Mn':15, 'Mn+':1,
+                'Fe':15, 'Fe+':80, 'Fe+2':25, 'Fe+4':25, 'Fe+6':9, 'Co':1, 'Co+':15,
+                'Co+2':15, 'Ni':15, 'Ni+':15, 'Ni+2':15, 'Ni+4':15, 'Cu':15, 'Cu+':1, 'Zn':1}
+
+
+def get_specieslist(max_ion=6, exclude_elements=[]):
+    '''
+    Inefficient function for returning a list of atomic and ionic species. Default returns all species up to 6+
+    for which we can do useful things (e.g. NIST has lines). The maximum ionization degree
+    can be changed, and specific species can be excluded.
+    '''
+
+    specieslist = list(species_enlim.keys()) #all species up to 6+
+
+    for element in exclude_elements:
+        specieslist = [sp for sp in specieslist if sp.split('+')[0] != element]
+
+    if max_ion == 5:
+        specieslist = [sp for sp in specieslist if ('+6' not in sp)]
+    if max_ion == 4:
+        specieslist = [sp for sp in specieslist if (('+5' not in sp) and ('+6' not in sp))]
+    if max_ion == 3:
+        specieslist = [sp for sp in specieslist if (('+4' not in sp) and ('+5' not in sp) and ('+6' not in sp))]
+    if max_ion == 2:
+        specieslist = [sp for sp in specieslist if (('+3' not in sp) and ('+4' not in sp) and ('+5' not in sp) and ('+6' not in sp))]
+    if max_ion == 1:
+        specieslist = [sp for sp in specieslist if (('+2' not in sp) and ('+3' not in sp) and ('+4' not in sp) and ('+5' not in sp) and ('+6' not in sp))]
+    if max_ion == 0:
+        specieslist = [sp for sp in specieslist if ('+' not in sp)]
+
+    return specieslist
+
+
+def get_mass(species):
+    '''
+    Returns the mass of an atomic or positive ion in g. For positive ions,
+    it just returns the mass of the atom, since the electron mass is negligible.
+    '''
+
+    atom = species.split('+')[0]
+
+    mass_dict = {'H':1.6735575e-24, 'He':6.646477e-24, 'Li':1.15e-23, 'Be':1.4965082e-23,
+            'B':1.795e-23, 'C':1.9945e-23, 'N':2.3259e-23, 'O':2.6567e-23,
+            'F':3.1547e-23, 'Ne':3.35092e-23, 'Na':3.817541e-23, 'Mg':4.0359e-23,
+            'Al':4.48038988e-23, 'Si':4.6636e-23, 'P':5.14331418e-23, 'S':5.324e-23,
+            'Cl':5.887e-23, 'Ar':6.6335e-23, 'K':6.49243e-23, 'Ca':6.6551e-23,
+            'Sc':7.4651042e-23, 'Ti':7.9485e-23, 'V':8.45904e-23, 'Cr':8.63416e-23,
+            'Mn':9.1226768e-23, 'Fe':9.2733e-23, 'Co':9.786087e-23, 'Ni':9.74627e-23,
+            'Cu':1.0552e-22, 'Zn':1.086e-22} #g
+
+    return mass_dict[atom]
+
+
+'''
+Functions that deal with processing Cloudy's output files
+'''
+
+
+def process_continuum(filename, nonzero=False):
+    '''
+    This function imports a continuum file, splits it if it is a grid,
+    renames the columns and adds a wav column. The flux units of the continuum
+    can be tricky, but they are found as follows:
+    Take the SED in spectral flux density, so Fnu instead of nuFnu, and
+    find the total area by integration. Then multiply with the frequency,
+    to get nuFnu, and normalize that by the total area found, and multiply
+    with the total luminosity. Those are the units of Cloudy.
+    If nonzero is true, the part with incident flux 0 is removed.
+    '''
+    con_df = pd.read_table(filename)
+    con_df.rename(columns={'#Cont  nu':'nu', 'net trans':'nettrans'}, inplace=True)
+    wav = c * 1e8 / con_df.nu #wav in AA
+    con_df.insert(1, "wav", wav)
+    if nonzero:
+        con_df = con_df[con_df.incident != 0]
+    return con_df
+
+
+def process_heating(filename, Rp=None, altmax=None):
+    '''
+    This function reads a .heat file up to the 2 most important heating rates,
+    and adds an altitude scale.
+    '''
+
+    heat = pd.read_table(filename, delimiter='\t',
+            usecols=range(8), names=['depth', 'temp', 'htot', 'ctot',
+            'htype1', 'hfrac1', 'htype2', 'hfrac2'], header=0)
+    if type(heat.depth.iloc[0]) == str: #in some cases there are no second rows
+        heat = heat[heat.depth.map(len)<12] #delete second rows
+        heat.depth = pd.to_numeric(heat.depth) #str to float
+    if Rp != None and altmax != None:
+        heat['alt'] = altmax * Rp - heat.depth
+
+    agents = list(set(np.concatenate((heat.htype1, heat.htype2))))
+    for agent in agents: #add columns for specific agents
+        heat[agent] = np.nan
+        heat.loc[heat.htype1 == agent, agent] = heat.hfrac1[heat.htype1 == agent]
+        heat.loc[heat.htype2 == agent, agent] = heat.hfrac2[heat.htype2 == agent]
+
+    return heat
+
+
+def process_cooling(filename, Rp=None, altmax=None):
+    '''
+    This function reads a .cool file up to the 2 most important cooling rates,
+    and adds an altitude scale.
+    '''
+
+    cool = pd.read_table(filename, delimiter='\t',
+            usecols=range(8), names=['depth', 'temp', 'htot', 'ctot',
+            'ctype1', 'cfrac1', 'ctype2', 'cfrac2'], comment='#')
+    if Rp != None and altmax != None:
+        cool['alt'] = altmax * Rp - cool.depth
+
+    agents = list(set(np.concatenate((cool.ctype1, cool.ctype2))))
+    for agent in agents: #add columns for specific agents
+        cool[agent] = np.nan
+        cool.loc[cool.ctype1 == agent, agent] = cool.cfrac1[cool.ctype1 == agent]
+        cool.loc[cool.ctype2 == agent, agent] = cool.cfrac2[cool.ctype2 == agent]
+
+    return cool
+
+
+def process_coolingH2(filename, Rp=None, altmax=None):
+    '''
+    This function reads a .coolH2 file, from the 'save H2 cooling' command,
+    which keeps track of cooling and heating processes unique to the
+    H2 molecule, when using the 'database H2' command.
+
+    From the source code "mole_h2_io.cpp" the columns are:
+
+    depth, Temp, ctot/htot, H2 destruction rate Solomon TH85,
+    H2 destruction rate Solomon big H2, photodis heating,
+    heating dissoc. electronic exited states,
+    cooling collisions in X (neg = heating),
+    "HeatDexc"=net heat, "-HeatDexc/abundance"=net cool per particle
+    '''
+
+    coolH2 = pd.read_table(filename, names=['depth', 'Te', 'ctot', 'desTH85',
+                            'desbigH2', 'phdisheat', 'eedisheat', 'collcool',
+                            'netheat', 'netcoolpp'], header=1)
+    if Rp != None and altmax != None:
+        coolH2['alt'] = altmax*Rp - coolH2['depth']
+
+    return coolH2
+
+
+def process_overview(filename, Rp=None, altmax=None, abundances=None):
+    '''
+    This function reads in an overview file, adds an altitude scale that is
+    more sensible than Cloudy's internal grid, and adds the mass density
+    that is sometimes more sensible than the Hydrogen number density.
+    '''
+
+    ovr = pd.read_table(filename)
+    ovr.rename(columns={'#depth':'depth'}, inplace=True)
+    ovr['rho'] = hden_to_rho(ovr.hden, abundances=abundances) #Hdens to total dens
+    if Rp != None and altmax != None:
+        ovr['alt'] = altmax * Rp - ovr['depth']
+    ovr['mu'] = calc_mu(ovr.rho, ovr.eden, abundances=abundances)
+
+    return ovr
+
+
+def process_den(filename, Rp=None, altmax=None):
+    '''
+    This function reads a .den file from the 'save species densities' command.
+    Usually this command includes neutral Helium He, as well as all calculated
+    levels, He[:], which includes the metastable state as He[2]
+    '''
+    den = pd.read_table(filename)
+    den.rename(columns={'#depth densities':'depth'}, inplace=True)
+
+    if Rp != None and altmax != None:
+        den['alt'] = altmax*Rp - den['depth']
+
+    return den
+
+
+def process_en(filename, rewrite=True):
+    '''
+    This function reads a .en file from the 'save species energies' command.
+    ALWAYS use that command alongside the 'save species densities' .den files,
+    since they give the associated energy of each level printed in the
+    densities file. Otherwise, it's not clear which levels exactly are He[52]
+    for example. This function returns a dictionary with the column names of
+    the .den file and the corresponding energies. This can then be used for
+    radiative transfer. Download lines data from NIST database, for each
+    line the energy of the lower level is given. The 'find_Ei_in_en_dict'
+    function defined below will then search the energy dictionary generated by
+    this function for the corresponding column name, such that the number
+    densities of the right level can be extracted from the .den file.
+    '''
+    en = pd.read_table(filename, float_precision='round_trip') #use round_trip to prevent exp numerical errors
+
+    if en.columns.values[0][0] == '#': #contition checks whether it has already been rewritten, if not, we do all following stuff:
+
+        for col in range(len(en.columns)): #we check if all columns are the same
+            if len(en.iloc[:,col].unique()) != 1:
+                raise Exception("In reading .en file, found a column with not identical values!"
+                        +" filename:", filename, "col:", col, "colname:", en.columns[col], "unique values:",
+                        en.iloc[:,col].unique())
+
+        en.rename(columns={en.columns.values[0] : en.columns.values[0][10:]}, inplace=True) #we rename the column
+
+        if rewrite: #and save if requested
+            '''
+            Reading in a large .en file with many identical rows every time,
+            that has been verified to contain only identical values can be time-consuming.
+            So if this keyword is true, after verifying that they are the same,
+            the .en file is rewritten with only the first column.
+            '''
+            en.iloc[[0],:].to_csv(filename, sep='\t', index=False, float_format='%.5e')
+
+    en_df = pd.DataFrame(index = en.columns.values)
+    en_df['species'] = [k.split('[')[0] for k in en_df.index.values] #we want to match 'He12' to species='He', for example
+    en_df['energy'] = en.iloc[0,:].values
+    en_df['configuration'] = ""
+    en_df['term'] = ""
+    en_df['J'] = ""
+
+
+    #the & set action takes the intersection of all unique species of the .en file, and those known with NIST levels
+    unique_species = list(set(en_df.species.values) & set(species_enlim.keys()))
+
+
+    for species in unique_species:
+        species_levels = pd.read_table(cloupy_path+'/RT_tables/'+species+'_levels_processed.txt') #get the NIST levels
+        species_energies = en_df[en_df.species == species].energy #get Cloudy's energies
+
+        atol = 0.00003 #tolerance of difference between Cloudy's and NISTs energy levels. They usually differ at the decimal level so we need some tolerance.
+        #For some species, the differences are a bit bigger. Probably a NIST update or something? Relax threshold here:
+        if species in ['Ne+4', 'Na+6', 'Si+4', 'Ni+6','F+6', 'Fe+6', 'Na+4', 'Ar+6',
+                        'P+5', 'Si+5', 'S+6', 'F+5', 'Ne+3', 'Ca+3', 'Ca+6', 'Mg+4', 'Ne+5', 'Na+5',
+                        'Mg+5', 'Si+6', 'O+6', 'Al+6', 'N+5', 'Mg+6', 'Al+5']:
+            #am I sure about B+3?
+            atol = 0.001
+
+        if species in ['B+4', 'N+6', 'C+4', 'B+3', 'Cl+6', 'Be+3', 'Si+2', 'C+5', 'Li+2']:
+            atol = 0.01
+
+        if species == 'Ne+6':
+            atol = 0.05
+
+        if not np.all(np.isclose(species_energies.iloc[:species_enlim[species]], species_levels.energy.iloc[:species_enlim[species]], rtol=0.0, atol=atol)):
+            for i in range(species_enlim[species]):
+                print(species_energies.iloc[i], species_levels.energy.iloc[i], np.isclose(species_energies.iloc[:species_enlim[species]], species_levels.energy.iloc[:species_enlim[species]], rtol=0.0, atol=atol)[i])
+            raise Exception("In ", filename, "while getting states for species", species,
+                    "I expected to be able to match the first", species_enlim[species],
+                    "levels, but I have an energy mismatch")
+
+
+        #if we got here, the exception was not triggered and we can assign the first species_enlim[species]
+        #columns to their expected values as given by the species_levels DataFrame (NIST)
+        first_iloc = np.where(en_df.species == species)[0][0] #iloc at which the species (e.g. He) starts.
+        en_df.iloc[first_iloc:first_iloc+species_enlim[species], en_df.columns.get_loc('configuration')] = species_levels.configuration.iloc[:species_enlim[species]].values
+        en_df.iloc[first_iloc:first_iloc+species_enlim[species], en_df.columns.get_loc('term')] = species_levels.term.iloc[:species_enlim[species]].values
+        en_df.iloc[first_iloc:first_iloc+species_enlim[species], en_df.columns.get_loc('J')] = species_levels.J.iloc[:species_enlim[species]].values
+
+    return en_df
+
+
+def find_line_lowerstate_in_en_df(species, lineinfo, en_df, printmessage=True):
+    '''
+    Also read 'process_en' explanation above.
+
+    This function finds the column name of the .den file that corresponds to
+    the ground state of the given line. So for example if species='He',
+    and we are looking for the metastable Helium line,
+    it will return 'He2' and the 'He2' column of the .den file thus contains
+    the number densities of the metastable helium atom.
+
+    !!!
+    Could I perhaps still find other terms based on energy level? I think that
+    will be difficult given that those are usually n levels without l resolved
+    and then the it will become difficult with statistical weights and such.
+    For atoms/ions with more than 2 electrons, so basically all neutral elements
+    after Helium, Cloudy seems to follow the J-resolved levels of NIST so for
+    those we can also use the configuration matching and don't need to match
+    lines by energy.
+    !!!
+    '''
+
+    en_df = en_df[en_df.species == species] #keep only the part for this species to not mix up the energy levels of different ones
+    match, lineweight = None, None #start with the assumption that we cannot match it
+
+    #check if the line originates from a J sublevel, a term, or only principal quantum number
+    if str(lineinfo['term_i']) != 'nan' and str(lineinfo['J_i']) != 'nan':
+        linetype = 'J' #then now match with configuration and term:
+        matchedrow = en_df[(en_df.configuration == lineinfo.conf_i) & (en_df.term == lineinfo.term_i) & (en_df.J == lineinfo.J_i)]
+        assert len(matchedrow) <= 1
+
+        if len(matchedrow) == 1:
+            match = matchedrow.index.item()
+            lineweight = 1. #since the Cloudy column is for this J specifically, we don't need to downweigh the density
+
+        elif len(matchedrow) == 0:
+            #the exact J was not found in Cloudy's levels, but maybe the term is there in Cloudy, just not resolved.
+            matchedtermrow = en_df[(en_df.configuration == lineinfo.conf_i) & (en_df.term == lineinfo.term_i)]
+
+            if len(matchedtermrow) == 1:
+                if str(matchedtermrow.J.values[0]) == 'nan': #this can only happen if the Cloudy level is a term with no J resolved.
+                    #then we use statistical weights to guess how many of the atoms in this term state would be in the J state of the level and use this as lineweight
+                    L = Ldict[''.join(x for x in matchedtermrow.loc[:,'term'].item() if x.isalpha())[-1]] #last letter in term string
+                    S = (float(re.search(r'\d+', matchedtermrow.loc[:,'term'].item()).group())-1.)/2. #first number in term string
+                    J_states = np.arange(np.abs(L-S), np.abs(L+S)+1, 1.0)
+                    J_statweights = 2*J_states + 1
+                    J_probweights = J_statweights / np.sum(J_statweights)
+
+                    lineweight = J_probweights[J_states == Fraction(lineinfo.loc['J_i'])][0]
+
+                    match = matchedtermrow.index.item()
+                else:
+                    if printmessage:
+                        print("One J level of the term is resolved, but not the one of this line.")
+
+            else:
+                if printmessage:
+                    print("Multiple J levels of the term are resolved, but not the one of this line.")
+
+    elif str(lineinfo['term_i']) != 'nan':
+        linetype = "LS"
+
+        if printmessage:
+            print("Currently not able to do lines originating from LS state without J number.")
+            print("Lower state configuration:", species, lineinfo.conf_i)
+    else:
+        linetype = "n"
+
+        if printmessage:
+            print("Currently not able to do lines originating from n state without term. This is not a problem "+
+                    'if this line is also in the NIST database with its different term components, such as for e.g. '+
+                    "H n=2, but only if they aren't such as for H n>6, or if they go to an upper level n>6 from any given level.")
+            print("Lower state configuration:", species, lineinfo.conf_i)
+
+        '''
+        If I do decide to make this functionality, for example by summing the densities of all sublevels of a
+        particular n, I also need to tweak the cleaning of Hydrogen lines algorithm. Right now, I remove
+        double lines only for the upper state, so e.g. for Ly alpha, I remove the separate 2p 3/2 and 2p 1/2 etc. component
+        and leave only the one line with upper state n=2.
+        I don't do this for lower states though, which is not a problem yet because the lower n state lines are ignored as
+        stated above. However if I make the functionality, I should also remove double lines in the lower level.
+        '''
+
+    return match, lineweight
+
+
+'''
+Miscellaneous functions
+'''
+
+def get_SED_norm_1AU(SEDname):
+    '''
+    Reads in a SED name in the data/SED/ folder of the Cloudy installation,
+    and returns the normalization in nuF(nu) and Ryd units.
+    You must then scale the nuF(nu) value to the planet distance and take the
+    log10, after which it can be used with the nuF(nu)= ... at ... Ryd command.
+
+    Assumes (and checks) that the SED is in wav (Å) and nuFnu/lambFlamb (erg/s/cm-2) units.
+    '''
+
+    with open(cloudypath+'data/SED/'+SEDname, 'r') as f:
+        for line in f:
+            if not line.startswith('#'): #skip through the comments at the top
+                assert ('angstrom' in line) or ('Angstrom' in line) #verify the units
+                assert 'nuFnu' in line #verify the units
+                break
+        data = np.genfromtxt(f, skip_header=1) #skip first line, which has extra words specifying the units
+
+    ang, nuFnu = data[-2,0], data[-2,1] #read out intensity somewhere
+    Ryd = 911.560270107676 / ang #convert wavelength in Å to energy in Ryd
+
+    return nuFnu, Ryd
+
+
+def find_atom(con_df, loc, freq=False):
+    '''
+    This function returns the name and location of the contributing species
+    to a line for given wavelength in nm,
+    or for given frequency in Hz is the keyword is True.
+    '''
+    if freq: #convert loc to wavelength nm units
+        loc = c_cms * 1e7 / loc
+    closest_bin = np.argmin(np.abs(con_df.wav - loc)) #give loc in nm
+    atom = con_df.lineID.iloc[closest_bin]
+    closest_loc = con_df.wav.iloc[closest_bin]
+    if freq: #convert back to frequency in Hz units
+        closest_loc = c_cms * 1e7 / closest_loc
+
+    return atom, closest_loc
+
+
+def speciesstring(specieslist, selected_levels=False):
+    '''
+    Takes a list of species names and returns a long string with those species
+    between quotes and [:] added (or [maxlevel] if selected_levels=True),
+    and \n between them, so that this string can be used in .den and .en files
+    '''
+
+    if not selected_levels: #so just all levels available in cloudy
+        speciesstr = '"'+specieslist[0]+'[:]"'
+        if len(specieslist) > 1:
+            for species in specieslist[1:]:
+                speciesstr += '\n"'+species+'[:]"'
+
+    elif selected_levels: #then we read out the max level from the species_enlim dictionary
+        speciesstr = '"'+specieslist[0]+'[:'+str(species_enlim[specieslist[0]])+']"'
+        if len(specieslist) > 1:
+            for species in specieslist[1:]:
+                speciesstr += '\n"'+species+'[:'+str(species_enlim[species])+']"'
+
+    return speciesstr
+
+
+def read_salz(planet:str, fH=0.9):
+    '''
+    This function reads the downloadable atmosphere structure files of
+    Salz et al. 2016. If just a planet name is given, will search in the
+    hydrogen_profiles folder. Otherwise, will use the specified path.
+    '''
+
+    if '/' in planet: #then probably a full path was specified
+        fullpath = planet
+    else: #check the hydrogen_profiles folder
+        fullpath = projectpath+'/hydrogen_profiles/salz/Salz_'+planet+'_structure.txt'
+
+    salzprof = pd.read_table(fullpath,
+                    header=36, skipfooter=1, sep='|', names=
+                    ['R', 'rho', 'v', 'p', 'Te', 'mu', 'GR', 'heatfrac', 'Hfrac',
+                    'H+frac', 'Hefrac', 'He+frac', 'He++frac'], engine='python')
+    salzprof['hden'] = salzprof.rho * (fH/(4-3*fH)) / mH
+
+    return salzprof
+
+
+def read_parker(plname, T, Mdot, dir='AO', filename=None):
+    '''
+    Reads a parker wind profile and returns it as a pandas Dataframe.
+    Arguments:
+        plname: [str]       planet name
+        T: [int/str]        temperature
+        Mdot: [float/str]   log10 of the mass-loss rate
+        dir: [str]          folder to use for the parker profile. This can be
+                            any folder name as long as it exists. So e.g. you
+                            can have a folder with pure H/He profiles named
+                            fH=0.9 or fH=0.99, or have a folder with Cloudy-
+                            produced parker profiles named z=10. The profiles
+                            made by A. Oklopcic are in the AO folder and this
+                            is (for now) the default path.
+        filename: [str]     filename to read, if given then plname, T, Mdot and
+                            dir are disregarded and the profile is read directly.
+    '''
+
+    if filename == None:
+        if isinstance(Mdot, float):
+            Mdot = "%.1f" %Mdot
+        filename = projectpath+'/parker_profiles/'+plname+'/'+dir+'/pprof_'+plname+'_T='+str(T)+'_M='+Mdot+'.txt'
+
+    pprof = pd.read_table(filename, names=['alt', 'rho', 'v', 'mu'], dtype=np.float64, comment='#')
+    pprof['drhodr'] = np.gradient(pprof['rho'], pprof['alt'])
+    return pprof
+
+
+def read_ates(path, fH='infer'):
+    if fH == 'infer':
+        input = np.genfromtxt(path+'input.inp')
+        fH = 1 - float(input[13])
+
+    filename = 'Hydro_ioniz_adv.txt'
+    if not os.path.isfile(path+filename): #then maybe there is a non-post-processed file
+        filename = 'Hydro_ioniz.txt'
+        if os.path.isfile(path+filename):
+            print("WARNING, reading in an ATES model that was not post-processed. Maybe it's not converged:")
+            print(path+filename)
+        #if not, pd.read_table will generate an error.
+
+    aprof = pd.read_table(path+filename, delim_whitespace=True,
+                            names=['R', 'rho', 'v', 'P', 'Te', 'htot', 'ctot', 'eta'])
+    aprof['rho'] *= mH #because rho was in units of the proton mass
+    aprof['v'] *= np.sqrt(k * aprof.Te.iloc[0] / mH) #because v was in scaled units
+    aprof['hden'] = aprof.rho * fH/(4-3*fH)/mH
+
+    return aprof
+
+
+def calc_alt(depth, altmax, Rp):
+    '''
+    This function returns the altitude scale in units of Rp for a depth
+    scale in cm. The altitude scale is much more intuitive than Cloudy's
+    internal illuminated-side-first grid.
+    '''
+
+    return ((altmax * Rp) - depth)/Rp
+
+
+def split_hashtaggrid(df):
+    '''
+    This function takes a Pandas dataframe that is split into different
+    iterations/grids, separated by '#####', and returns a list with the
+    individual dataframes.
+    '''
+    #find the delimiters, first column has ##### there
+    delim_indices = df[df.iloc[:,0].str.contains('#####')].index.values.tolist()
+    #insert -1 to get proper functionality for first grid block
+    delim_indices_l = delim_indices.insert(0,-1)
+    ar = [] #this will store the individual dataframes
+
+    for i in range(len(delim_indices)-1):
+        delim_index = delim_indices[i] + 1
+        delim_next = delim_indices[i+1]
+        current = df.iloc[delim_index:delim_next].copy() #split into dfs
+        current.iloc[:,0] = current.iloc[:,0].astype(float) #convert to float
+        ar.append(current)
+
+    return ar
+
+
+def calc_mu_onlyHHe(fHII, fHeII, fHeIII, nHe=0.1, mass=False):
+    '''
+    Calculates the mean molecular weight in amu, assuming only H, He and e-.
+    If mass = True, multiplies with mH to give mu in grams
+    '''
+
+    mu = (nHe*4 + (1-nHe)) / ((1-nHe)*(1+fHII) + nHe*(1+fHeII+2*fHeIII))
+    if mass:
+        mu *= mH
+
+    return mu
+
+
+def calc_mu(rho, ne, abundances=None, mass=False):
+    '''
+    Calculates the mean molecular weight, taking into account all elements and ions,
+    but NEGLECTING MOLECULES and the mass contributed by electrons.
+
+    Based on formula: mu = sum(ni*mi) / (sum(ni) + ne)   where ni and mi are the number density
+                                                        and mass of all elements
+                        then use ni = ntot * fi   and   ntot = rho / sum(fi*mi)
+                        to get:
+                        mu = sum(fi*mi) / (1 + (ne * sum(fi*mi))/rho)
+    '''
+
+    if abundances == None:
+        abundances = get_abundances()
+
+    sum_all = 0.
+    for element in abundances.keys():
+        sum_all += abundances[element] * get_mass(element)
+
+    mu = sum_all / (1 + ne*sum_all / rho) #mu in g
+    if not mass:
+        mu = mu / mH #mu in amu
+
+    return mu
+
+
+def get_zdict(z=1., zelem={}):
+    '''
+    Function that returns a dictionary of the scale factors of each element.
+    arguments:
+        z:          metallicity relative to solar (in linear units, i.e. z=1 is solar)
+                    scales all elements except hydrogen and helium with this factor
+        zelem:      dictionary of abundance scale factor for specific elements
+                    (e.g. {'C':2} to get double C abundance)
+    '''
+
+    assert 'H' not in zelem.keys(), "You cannot scale hydrogen, scale everything else instead."
+
+    zdict = {'He':1., 'Li':z, 'Be':z, 'B':z, 'C':z, 'N':z, 'O':z, 'F':z, 'Ne':z,
+    'Na':z, 'Mg':z, 'Al':z, 'Si':z, 'P':z, 'S':z, 'Cl':z, 'Ar':z, 'K':z, 'Ca':z,
+    'Sc':z, 'Ti':z, 'V':z, 'Cr':z, 'Mn':z, 'Fe':z, 'Co':z, 'Ni':z, 'Cu':z, 'Zn':z}
+
+    for element in zelem.keys():
+        zdict[element] *= zelem[element]
+
+    return zdict
+
+
+def get_abundances(zdict=None):
+    '''
+    Function that returns a dictionary of the fractional abundances of each element (sums to 1).
+    arguments:
+        zdict:      dictionary of all fractional abundance scale factors made with get_zdict()
+    '''
+
+    #solar abundance relative to hydrogen (Hazy table 7.1):
+    rel_abundances = {'H':1., 'He':0.1, 'Li':2.04e-9, 'Be':2.63e-11, 'B':6.17e-10,
+    'C':2.45e-4, 'N':8.51e-5, 'O':4.9e-4, 'F':3.02e-8, 'Ne':1e-4,
+    'Na':2.14e-6, 'Mg':3.47e-5, 'Al':2.95e-6, 'Si':3.47e-5, 'P':3.2e-7,
+    'S':1.84e-5, 'Cl':1.91e-7, 'Ar':2.51e-6, 'K':1.32e-7, 'Ca':2.29e-6,
+    'Sc':1.48e-9, 'Ti':1.05e-7, 'V':1e-8, 'Cr':4.68e-7, 'Mn':2.88e-7,
+    'Fe':2.82e-5, 'Co':8.32e-8, 'Ni':1.78e-6, 'Cu':1.62e-8, 'Zn':3.98e-8}
+
+    if zdict != None:
+        assert 'H' not in zdict.keys(), "You cannot scale hydrogen, scale everything else instead."
+        for element in zdict.keys():
+            rel_abundances[element] *= zdict[element]
+
+    total = sum(list(rel_abundances.values()))
+    abundances = {k: v / total for k, v in rel_abundances.items()}
+
+    return abundances
+
+
+def rho_to_hden(rho, abundances=None):
+    '''
+    Converts a total density rho in g/cm3 to a hydrogen number density in cm-3
+
+    Based on formula: rho = nH*mH + ntot*sum(fj*mj) where fj is the abundance(fraction) of element j (excluding H)
+                                                    and ntot=rho/sum(fi*mi) where i is every element (including H)
+            resulting in:
+                    nH = rho/mH * (1 - sum(fj*mj)/sum(fi*mi))
+    '''
+
+    if abundances == None:
+        abundances = get_abundances() #get a solar composition
+
+    sum_all = 0.
+    for element in abundances.keys():
+        sum_all += abundances[element] * get_mass(element)
+
+    sum_noH = sum_all - abundances['H'] * get_mass('H') #subtract hydrogen to get the sum without H
+
+    hden = rho/mH * (1 - sum_noH / sum_all)
+
+    return hden
+
+
+def hden_to_rho(hden, abundances=None):
+    '''
+    Converts a hydrogen number density in cm-3 to a total density rho in g/cm3
+    See rho_to_hden() for formula, just reversed here.
+    '''
+
+    if abundances == None:
+        abundances = get_abundances() #get a solar composition
+
+    sum_all = 0.
+    for element in abundances.keys():
+        sum_all += abundances[element] * get_mass(element)
+
+    sum_noH = sum_all - abundances['H'] * get_mass('H') #subtract hydrogen to get the sum without H
+
+    rho = hden*mH / (1 - sum_noH / sum_all)
+
+    return rho
+
+
+def clradius(semimajor_cm, planet_radius_cm, altmax, log=False):
+    '''
+    This function returns the distance from illuminated atmosphere to star,
+    which is just the semimajor axis, with the total altitude of the
+    atmosphere subtracted. Log value can be returned to use directly in Cloudy.
+    '''
+    radius = semimajor_cm - (altmax-1)*planet_radius_cm
+    if log:
+        radius = np.log10(radius)
+
+    return radius
+
+
+def blackbodySI(lamb, T, cst=1.):
+    '''
+    This function returns the blackbody flux for a given temperature and
+    wavelength. All SI units. Mulitplication by constant is optional.
+    '''
+
+    h_SI = 6.626e-34 #SI
+    c_SI = 2.998e8 #SI
+    kB_SI = 1.381e-23 #SI
+    return cst * 2*h_SI*c_SI**2 / (lamb**5 * (np.exp(h_SI*c_SI/(lamb*kB_SI*T)) - 1))
+
+
+def roche_radius(semimajor_AU, Mpl, Mstar):
+    '''
+    Returns the roche radius according to Antonija's formula.
+    This is a small planet-to-star mass approximation.
+    '''
+    return semimajor_AU*1.496e13*pow(Mpl/(3.0*(Mstar+Mpl)), 1.0/3.0)
+
+
+def round_decimals_down(number:float, decimals:int=2):
+    """
+    Returns a value rounded down to a specific number of decimal places.
+    """
+    if not isinstance(decimals, int):
+        raise TypeError("decimal places must be an integer")
+    elif decimals < 0:
+        raise ValueError("decimal places has to be 0 or more")
+    elif decimals == 0:
+        return math.floor(number)
+
+    factor = 10 ** decimals
+    return math.floor(number * factor) / factor
+
+
+def set_alt_ax(ax, altmax=8, labels=True):
+    '''
+    This code takes in an axis object and sets the xscale to a log scale
+    with readable ticks in non-scientific notation, in terms of planet radii.
+    '''
+
+    ax.set_xscale('log')
+    ax.set_xlim(1, altmax)
+    ticks = np.concatenate((np.arange(1, 2, 0.1), np.arange(2, altmax+1, 1)))
+    if altmax <= 3:
+        ticklabels = ['1', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9']
+        ticklabels2 = ["%i" %t for t in np.arange(2, altmax+1, 1).astype(int)]
+    elif altmax <= 10:
+        ticklabels = ['1', '', '', '', '', '1.5', '', '', '', '']
+        ticklabels2 = ["%i" %t for t in np.arange(2, altmax+1, 1).astype(int)]
+    elif altmax <= 14:
+        ticklabels = ['1', '', '', '', '', '', '', '', '', '', '2', '3', '4', '5', '', '7', '', '', '10']
+        ticklabels2 = ['']*(altmax-10)
+    else:
+        ticklabels = ['1', '', '', '', '', '', '', '', '', '', '2', '3', '4', '5', '', '7', '', '', '10']
+        ticklabels2 = ['']*(altmax-10)
+        ticklabels2b = np.arange(15, altmax+0.1, 5).astype(int)
+        index = 4
+        for t2b in ticklabels2b:
+            ticklabels2[index] = str(t2b)
+            index += 5
+
+    ticklabels = ticklabels + ticklabels2
+
+    ax.set_xticks(ticks)
+    if labels:
+        ax.set_xticklabels(ticklabels)
+        ax.set_xlabel(r'Radius [$R_p$]')
+    else:
+        ax.set_xticklabels([])
+
+
+def cl_table(r, rho, v, altmax, Rp, nmax, negtozero=False, copylastpoint=False, zdict=None):
+    '''
+    This function converts a density structure to the format read by Cloudy.
+    It also calculates PdV / (T mu) cooling rates for this density and
+    velocity structure and writes those to Cloudy's format.
+    This can be used with the 'cextra' command in Cloudy,
+    which multiplies with T and mu internally to get the real PdV cooling rate.
+    The grid is log-spaced.
+
+    Make sure rho is really g/cm^3 density, not just hydrogen, not number dens.
+    Make sure r is in cm, not in Rp units
+    Make sure v is in cm/s (so multiply with 1e5 if you have km/s units)
+    '''
+
+    for entity in [r, rho, v]:
+        if not isinstance(entity, np.ndarray):
+            raise Exception("Give r, rho, v as numpy array (= pd.Series.values)")
+
+    if not (len(r) == len(rho)) and (len(r) == len(v)):
+        raise Exception("Arrays don't have the same length.")
+
+    if altmax > r[-1]/Rp: #cut the data
+        altmax = r[-1]
+        print("Altmax is higher than the max of the model.\n"
+                +"Continuing with max of model:", altmax)
+
+    PdVT = calc_expansionTmu(r, rho, v)
+
+    if len(PdVT[PdVT < 0] > 0): #if there are negative values (heating)
+        if negtozero: #if we're aware of those, pass this argument and continue
+            print("I found negative cooling rates, which probably indicates "
+                    +"negative velocities. Are you sure you're not making "
+                    +"mistakes?\nI'll set those cooling rates to zero.")
+            PdVT[PdVT < 0] = 0
+        else: #otherwise, we're probably not aware and will stop here.
+            raise Exception("I found negative cooling rates, which probably indicates"
+                    +"negative velocities. Are you sure you're not making"
+                    +"mistakes?\nI'll abort now.")
+
+    advec = v*rho*(3/2)*k/mH #erg / s / cm2 / T, multiply with d(T/mu)/dR  in Cloudy
+
+    #interpolation functions. Always interpolate, to make log-spaced grid.
+    ifunc_rho = interp1d(r, rho, kind='linear', fill_value='extrapolate')
+    ifunc_PdVT = interp1d(r, PdVT, kind='linear', bounds_error=False, fill_value=0.)
+    ifunc_advec = interp1d(r, advec, kind='linear', bounds_error=False, fill_value=0.)
+
+    #altitude log-spaced grid
+    ialt = np.logspace(np.log10(Rp), np.log10(altmax*Rp), num=int(0.7*nmax))
+    #sample the illuminated side better to prevent Cloudy log-interpolation errors
+    r_ill1 = (ialt[-1] - ialt)[::-1]
+    r_ill2 = np.logspace(-2, np.log10(r_ill1[9]), num=(nmax-len(ialt)))
+    r_ill = np.concatenate((r_ill2, r_ill1[10:]))
+    ialt = ialt[-1] - r_ill[::-1]
+
+    ialt[0] = Rp #prevent float precision errors
+
+    #rho and PdVT on the new log-spaced grid
+    ihden = rho_to_hden(ifunc_rho(ialt), abundances=get_abundances(zdict)) #from rho to H number density
+    iPdVT = ifunc_PdVT(ialt)
+    iadvec = ifunc_advec(ialt)
+
+    #flip the r-scales such that we go from the illuminated face inwards
+    hden_ill = ihden[::-1]
+    PdVT_ill = iPdVT[::-1]
+    advec_ill = iadvec[::-1]
+
+    r_ill[0] = 1e-35 #first point cannot be zero if we take log
+    PdVT_ill[PdVT_ill == 0] = 1e-35 #set zero cooling to very low value because of log
+    advec_ill[advec_ill <= 0] = 1e-35 #set negative to small value since we can only have outflow.
+                                    #If every post-processing 3D stuff with both directions, this should be edited.
+
+    #stack in 2D table
+    hdenprof = np.log10(np.column_stack((r_ill, hden_ill)))
+    cextraprof = np.log10(np.column_stack((r_ill, PdVT_ill)))
+    advecprof = np.log10(np.column_stack((r_ill, advec_ill)))
+
+    if copylastpoint:
+        #copy the last point to prevent Cloudy's roundoff errors
+        hdenprof = np.append(hdenprof, [[hdenprof[-1,0]+0.01, hdenprof[-1,1]]], axis=0)
+        cextraprof = np.append(cextraprof, [[cextraprof[-1,0]+0.01, cextraprof[-1,1]]], axis=0)
+        advecprof = np.append(advecprof, [[advecprof[-1,0]+0.01, advecprof[-1,1]]], axis=0)
+
+    return hdenprof, cextraprof, advecprof
+
+
+def calc_advection(r, rho, v, T, mu):
+    '''
+    Requires that r is in the direction of v (i.e. usually in altitude scale).
+    '''
+    adv = - np.gradient(T/mu, r) * v*rho*(3/2)*k/mH  #erg / s / cm3, MIND THE MINUS SIGN!
+    return adv
+
+
+def calc_expansion(r, rho, v, T, mu):
+    '''
+    Requires that r is in the direction of v (i.e. usually in altitude scale).
+    '''
+    exp = -1 * np.gradient(rho, r) * T*v*k/(mH*mu) #erg / s / cm3
+    return exp #exp as positive values
+
+
+def calc_expansionTmu(r, rho, v):
+    '''
+    Similar to calc_expansion but here we don't multiply with T/mu
+    as that can be done internally in Cloudy.
+
+    Requires that r is in the direction of v (i.e. usually in altitude scale).
+    '''
+    expTmu = -1 * np.gradient(rho, r) * v*k/mH #erg / s / cm3
+    return expTmu #expTmu as positive values
+
+
+def alt_array_to_Cloudy(alt, quantity, altmax, Rp, nmax, log=True):
+    '''
+    alt array should not be in units of Rp, like how Salz reports them, but rather
+    in cm. So e.g. the base of the planet should be ~1e10 cm, instead of 1.0
+    '''
+
+    if isinstance(alt, pd.Series):
+        alt = alt.values
+    if isinstance(quantity, pd.Series):
+        quantity = quantity.values
+
+    assert alt[1] > alt[0] #should be in ascending alt order
+    assert alt[-1] - altmax*Rp > -1. #For extrapolation: the alt scale should extend at least to within 1 cm of altmax*Rp
+
+    if not np.isclose(alt[0], Rp, rtol=1e-2, atol=0.0):
+        print("\n(tools.alt_array_to_cloudy): Are you sure the altitude array starts at Rp? alt[0]/Rp =",
+                    alt[0]/Rp, "\n")
+
+    depth = altmax*Rp - alt
+    ifunc = interp1d(depth, quantity, fill_value='extrapolate')
+
+
+    Clgridr1 = np.logspace(np.log10(alt[0]), np.log10(altmax*Rp), num=int(0.8*nmax))
+    Clgridr1[0], Clgridr1[-1] = alt[0], altmax*Rp #reset these for potential log-numerical errors
+    Clgridr1 = (Clgridr1 - Clgridr1[0])
+    #sample the first 10 points better since Cloudy messes up with log-space interpolation there
+    Clgridr2 = np.logspace(-2, np.log10(Clgridr1[9]), num=(nmax-len(Clgridr1)))
+    Clgridr = np.concatenate((Clgridr2, Clgridr1[10:]))
+    Clgridr[0] = 1e-35
+
+    Clgridq = ifunc(Clgridr)
+    law = np.column_stack((Clgridr, Clgridq))
+    if log:
+        law[law[:,1]==0., 1] = 1e-100
+        law = np.log10(law)
+
+    return law
+
+
+def mirror_nans_at_array_edge(ar):
+    '''
+    Takes nans at the beginning or end of an array and replaces them with the
+    frist non-nan value.
+    '''
+    ind = np.where(~np.isnan(ar))[0]
+    first, last = ind[0], ind[-1]
+    ar[:first] = ar[first]
+    ar[last + 1:] = ar[last]
+
+
+def split_advection(adv):
+    '''
+    Splits advection rates into a positive heating and negative cooling rate.
+    '''
+    advheat, advcool = np.copy(adv), np.copy(adv)
+    advheat[advheat < 0.] = 0.
+    advcool[advcool > 0.] = 0.
+    advcool = -1 * advcool
+
+    return advheat, advcool
+
+
+def depth_array_1D_to_Cloudy(depth, quantity, altmax, Rp, nmax, log=True):
+    '''
+    Converts an array of some quantity vs depth to Cloudy array. This function
+    only works for a '1D' array, meaning it is e.g. the substellar point ray that
+    only probes the day side so that every point has an altitude, which is why
+    the altmax and Rp arguments are necessary.
+    Give depth in cm.
+    '''
+
+    assert depth[1] > depth[0] #should be in ascending depth order
+    assert depth[0] < 1.    #usually the depth grid we want to place on Cloudy grid is the output of some Cloudy run.
+                            #That one should start at 0.05 cm, which is fine to extrapolate to 1e-35 cm for the new table.
+                            #But if the depth grid starts at >1cm, check what's going on as it might cause problems.
+
+    alt = (altmax*Rp - depth)
+    law = alt_array_to_Cloudy(alt[::-1], quantity[::-1], altmax, Rp, nmax, log=log) #flip them to get ascending alt order
+
+    return law
+
+
+def project_1D_to_2D(r1, q1, Rp, numb=101, directional=False, cut_at=None, **kwargs):
+    '''
+    Projects a 1D sub-stellar solution to a 2D symmetric structure,
+    e.g. so that we can do RT with it. This function preserves the maximum altitude
+    of the 1D ray, so that the 2D output looks like a half circle. However,
+    the 2D quantity it outputs is a numpy arrays which must be 'rectangular'
+    so it sets values in the rectangle outside of the circle to 0. That will
+    ensure 0 density and no optical depth.
+
+    r1:             altitude values from planet core in cm (ascending!)
+    q1:             1D quantity to project.
+    Rp:             planet core radius in cm. needed because we start there, and not
+                    necessarily at the lowest r-value (which may be slightly r[0] != Rp)
+    numb:           the number of bins in the y-directtion (impact parameters)
+                    twice this number is used in the x-direction (l.o.s.)
+    directional:    True or False. Whether the quantity q is directional, so
+                    that we need to multiply with a projection factor, and
+                    add a minus sign in some bins.
+                    + = in direction away from observer (negative x), so e.g. for x-velocity,
+                    + values will be redshifted.
+    cut_at:          radius at which we 'cut' the 2D structure and set values to 0.
+                    e.g. to set density 0 outside roche radius.
+    '''
+
+    assert r1[1] > r1[0], "arrays must be in order of ascending altitude"
+
+    b = np.logspace(np.log10(0.1*Rp), np.log10(r1[-1] - 0.9*Rp), num=numb) + 0.9*Rp #impact parameters for 2D rays
+    #x = np.linspace(-r1[-1], r1[-1], num=2*numb) #x values for the 2D grid #decrepated linear grid, not 100% if other functions relied on x being spaced equally.
+    xos = np.logspace(np.log10(0.101*Rp), np.log10(r1[-1]+0.1*Rp), num=numb) - 0.1*Rp
+    x = np.concatenate((-xos[::-1], xos)) #log-spaced grid, innermost point is at 1.001 Rp
+    xx, bb = np.meshgrid(x, b)
+    rr = np.sqrt(bb**2 + xx**2) #radii from planet core in 2D
+
+    q2 = interp1d(r1, q1, fill_value=0., bounds_error=False)(rr)
+    if directional:
+        q2 = -q2 * xx / np.sqrt(xx**2 + bb**2) #need to add the minus because q is defined positive at negative x.
+
+    if cut_at != None:
+        q2[rr > cut_at] = 0.
+    if 'skip_alt_range' in kwargs:
+        assert kwargs['skip_alt_range'][0] < kwargs['skip_alt_range'][1]
+        q2[(rr > kwargs['skip_alt_range'][0]) & (rr < kwargs['skip_alt_range'][1])] = 0.
+    if 'skip_alt_range_dayside' in kwargs:
+        assert kwargs['skip_alt_range_dayside'][0] < kwargs['skip_alt_range_dayside'][1]
+        q2[(rr > kwargs['skip_alt_range_dayside'][0]) & (rr < kwargs['skip_alt_range_dayside'][1]) & (xx < 0.)] = 0.
+    if 'skip_alt_range_nightside' in kwargs:
+        assert kwargs['skip_alt_range_nightside'][0] < kwargs['skip_alt_range_nightside'][1]
+        q2[(rr > kwargs['skip_alt_range_nightside'][0]) & (rr < kwargs['skip_alt_range_nightside'][1]) & (xx > 0.)] = 0.
+
+    return b, x, q2
+
+
+'''
+Various smoothing functions
+'''
+
+def smooth_savgol(y, polyorder=3, iterations=1, **kwargs):
+    '''
+    Smooth an array with a savgol filter. Can either give the windows size,
+    or the fractional length of the array as size.
+    '''
+    if 'size' in kwargs:
+        size = kwargs['size']
+    elif 'fraction' in kwargs:
+        fraction = kwargs['fraction']
+        assert 0. < fraction < 1.
+        size = int(np.ceil(len(y)*fraction) // 2 * 2 + 1) #make it odd
+    else:
+        raise Exception("Please provide either 'size' or 'fraction' kwarg.")
+
+    ysmooth = savgol_filter(y, size, polyorder=polyorder)
+    for repetition in range(iterations-1):
+        ysmooth = savgol_filter(ysmooth, size, polyorder=polyorder)
+
+    return ysmooth
+
+
+def smooth_gaus(y, size):
+    return gaussian_filter1d(y, size)
+
+
+def smooth_gaus_savgol(y, **kwargs):
+    '''
+    Smooth a function using a gaussian filter, but smooth the edges with a
+    savgol filter since otherwise those are not handled well.
+    '''
+    if 'size' in kwargs:
+        size = kwargs['size']
+        size = max(3, size)
+    elif 'fraction' in kwargs:
+        fraction = kwargs['fraction']
+        assert 0. < fraction < 1.
+        size = int(np.ceil(len(y)*fraction) // 2 * 2 + 1) #make it odd
+        size = max(3, size)
+    else:
+        raise Exception("Please provide either 'size' or 'fraction' kwarg.")
+
+    ygaus = gaussian_filter1d(y, size)
+    ysavgol = savgol_filter(y, 2*int(size/2)+1, polyorder=2)
+
+    savgolweight = np.zeros(len(y))
+    savgolweight += sps.norm.pdf(range(len(y)), 0, size)
+    savgolweight += sps.norm.pdf(range(len(y)), len(y), size)
+    savgolweight /= np.max(savgolweight) #normalize
+    gausweight = 1 - savgolweight
+
+    ysmooth = ygaus * gausweight + ysavgol * savgolweight
+
+    return ysmooth
+
+
+def smooth_gaus_var(y, sizes):
+    '''
+    Smooth a function using a guassian filter, but use variable smoothing,
+    where each point gets it own smoothing size given by the sizes array.
+    '''
+
+    ysmooth = np.zeros_like(y)
+    for i in range(len(y)):
+        ygaus = gaussian_filter1d(y, sizes[i])
+        ysmooth[i] = ygaus[i]
+
+    return ysmooth
+
+
+def smooth_savgol_var(y, sizes, polyorder=3):
+    ysmooth = np.zeros_like(y)
+
+    for i in range(len(y)):
+        size_i = int(np.ceil(sizes[i]) // 2 * 2 + 1) #make it odd
+        ysmooth[i] = savgol_filter(y, size_i, polyorder=polyorder)[i]
+
+    return ysmooth
+
+
+def smooth_gaus_savgol_var(y, **kwargs):
+    ysmooth = np.zeros_like(y)
+
+    for i in range(len(y)):
+        if 'sizes' in kwargs:
+            ysmooth[i] = smooth_gaus_savgol(y, size=kwargs['sizes'][i])[i]
+        elif 'fractions' in kwargs:
+            ysmooth[i] = smooth_gaus_savgol(y, fraction=kwargs['fractions'][i])[i]
+
+    return ysmooth
+
+
+def smooth_butter_lpf(data, fs, order):
+    #from: https://medium.com/analytics-vidhya/how-to-filter-noise-with-a-low-pass-filter-python-885223e5e9b7
+    nyq = 0.5 * fs
+    normal_cutoff = 1 / nyq
+    b, a = butter(order, normal_cutoff, btype='low', analog=False)
+    y = filtfilt(b, a, data)
+    return y
+
+'''
+Cloudy I/O
+'''
+
+
+def find_SED_in_folder(folder):
+    '''
+    Searches folder for 1 SED file with extension .spec and returns its filename,
+    or None is none or multiple were found. Returns full path and just filename.
+    '''
+    SED_files = glob.glob(folder+'*.spec')
+    if len(SED_files) == 0:
+        print("Could not find an SED file in the specified dir.")
+        return None, None
+    elif len(SED_files) > 1:
+        print("Multiple SED files present in dir. I don't know which to choose, please specify with -SED argument.")
+        return None, None
+    else: #length is 1 and we found our SED
+        SED = SED_files[0].split('/')[-1] #fetch the SED filename
+        return SED_files[0], SED
+
+
+def copy_Sim(simname, newsimname):
+    '''
+    Copies all files of a Cloudy simulation to a new destination. The new simulation
+    can have a different name. It does not copy .txt files as these are the 'converged.txt'
+    files produced by my solveT code which are not part of the Sim. Also doesn't copy .png.
+    '''
+
+    files = glob.glob(simname+'.*')
+    for file in files:
+        if file[-4:] != '.txt' and file[-4:] != '.png':
+            newfile = newsimname + '.' + file.split('.')[-1]
+            copyfile(file, newfile)
+
+
+def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
+                        dlaw=None, tlaw=None, alaw=None, pTmulaw=None, cextra=None, hextra=None,
+                        coolextra=None, othercommands=None, outfiles=[], denspecies=[], selected_den_levels=False,
+                        constantT=None, double_tau=False):
+    '''
+    This function makes a copy of a Cloudy in file, and it will append
+    the given commands to this .in file.
+
+    For explanation of arguments, see write_Cloudy_in(). Not all of the commands
+    of write_Cloudy_in() are also in this function, as I only add commands when I
+    need them. Most commands can freely be added if needed here.
+    '''
+
+    if denspecies != []:
+        assert ".den" in outfiles and ".en" in outfiles
+    if ".den" in outfiles or ".en" in outfiles:
+        assert ".den" in outfiles and ".en" in outfiles and denspecies != []
+    if constantT != None:
+        assert not np.any(tlaw != None)
+
+    copyfile(oldsimname+".in", newsimname+".in")
+
+    with open(newsimname+".in", "a") as f:
+        if set_thickness:
+            f.write('\nstop thickness '+'{:.7f}'.format(dlaw[-1,0])+'\t#last dlaw point')
+        if ".ovr" in outfiles:
+            f.write('\nsave overview ".ovr" last')
+        if ".cool" in outfiles:
+            f.write('\nsave cooling ".cool" last')
+        if ".coolH2" in outfiles:
+            f.write('\nsave H2 cooling ".coolH2" last')
+        if ".heat" in outfiles:
+            f.write('\nsave heating ".heat" last')
+        if ".con" in outfiles:
+            f.write('\nsave continuum ".con" last units Hz')
+        if ".den" in outfiles: #then ".en" is always there as well.
+            f.write('\nsave species densities last ".den"\n'+speciesstring(denspecies, selected_levels=selected_den_levels)+"\nend")
+            f.write('\nsave species energies last ".en"\n'+speciesstring(denspecies, selected_levels=selected_den_levels)+"\nend")
+        if constantT != None:
+            f.write('\nconstant temperature t= '+str(constantT)+' linear')
+        if double_tau:
+            f.write('\ndouble optical depths    #so radiation does not escape into planet core freely')
+        if othercommands != None:
+            f.write("\n"+othercommands)
+        if np.any(dlaw != None):
+            f.write("\n# ========= density law    ================")
+            f.write("\n#depth sets distances from edge of cloud")
+            f.write("\ndlaw table depth\n")
+            np.savetxt(f, dlaw, fmt='%1.7f')
+            f.write('{:.7f}'.format(dlaw[-1,0]+0.1)+
+                        ' '+'{:.7f}'.format(dlaw[-1,1]))
+            f.write("\nend of dlaw #last point added to prevent roundoff")
+        if np.any(tlaw != None):
+            f.write("\n# ========= temperature law    ============")
+            f.write("\n#depth sets distances from edge of cloud")
+            f.write("\ntlaw table depth\n")
+            np.savetxt(f, tlaw, fmt='%1.7f')
+            f.write('{:.7f}'.format(tlaw[-1,0]+0.1)+
+                        ' '+'{:.7f}'.format(tlaw[-1,1]))
+            f.write("\nend of tlaw #last point added to prevent roundoff")
+        if np.any(alaw != None):
+            f.write("\n# ========= advection law     ================")
+            f.write("\n#depth sets distances from edge of cloud")
+            f.write("\nadvectiontable depth\n")
+            np.savetxt(f, alaw, fmt='%1.7f')
+            f.write('{:.7f}'.format(alaw[-1,0]+0.1)+
+                        ' '+'{:.7f}'.format(alaw[-1,1]))
+            f.write("\nend of advectiontable #last point added to prevent roundoff")
+        if np.any(pTmulaw != None):
+            f.write("\n# ========= previous T/mu law     ================")
+            f.write("\n#depth sets distances from edge of cloud")
+            f.write("\nprevTmu depth\n")
+            np.savetxt(f, pTmulaw, fmt='%1.7f')
+            f.write('{:.7f}'.format(pTmulaw[-1,0]+0.1)+
+                        ' '+'{:.7f}'.format(pTmulaw[-1,1]))
+            f.write("\nend of prevTmu #last point added to prevent roundoff")
+        if np.any(cextra != None):
+            f.write("\n# ========= cextra law     ================")
+            f.write("\n#depth sets distances from edge of cloud")
+            f.write("\ncextra table depth\n")
+            np.savetxt(f, cextra, fmt='%1.7f')
+            f.write('{:.7f}'.format(cextra[-1,0]+0.1)+
+                        ' '+'{:.7f}'.format(cextra[-1,1]))
+            f.write("\nend of cextra #last point added to prevent roundoff")
+        if np.any(hextra != None):
+            f.write("\n# ========= hextra law     ================")
+            f.write("\n#depth sets distances from edge of cloud")
+            f.write("\nhextra table depth\n")
+            np.savetxt(f, hextra, fmt='%1.7f')
+            f.write('{:.7f}'.format(hextra[-1,0]+0.1)+
+                        ' '+'{:.7f}'.format(hextra[-1,1]))
+            f.write("\nend of hextra #last point added to prevent roundoff")
+        if np.any(coolextra != None):
+            f.write("\n# ========= coolextra law     ================")
+            f.write("\n#depth sets distances from edge of cloud")
+            f.write("\ncoolextra table depth\n")
+            np.savetxt(f, coolextra, fmt='%1.7f')
+            f.write('{:.7f}'.format(coolextra[-1,0]+0.1)+
+                        ' '+'{:.7f}'.format(coolextra[-1,1]))
+            f.write("\nend of coolextra #last point added to prevent roundoff")
+
+
+def write_Cloudy_in(simname, title='Default title for Cloudy planet sim', flux_scaling=None,
+                    SED=None, set_thickness=True,
+                    dlaw=None, tlaw=None, alaw=None, pTmulaw=None, cextra=None, hextra=None,
+                    coolextra=None, othercommands=None, overwrite=False, iterate='convergence',
+                    nend=3000, outfiles=['.ovr', '.cool'], denspecies=[], selected_den_levels=False,
+                    constantT=None, double_tau=False, cosmic_rays=False, zdict=None, comments=None):
+    '''
+    This function writes a Cloudy .in file for simulating an exoplanet atmosphere.
+    Arguments:
+        simname:        path+name of Cloudy simulation (without extension)
+        title:          title of simulation
+        flux_scaling:   nuF(nu) value and at which energy of the SED (required!)
+                        should be given as a list with two values, e.g. [7.5, 0.3] meaning nuF(nu) = 7.5 at 0.3 Ryd
+        SED:            filename of SED (should be present in Cloudy's data/SED/ or in the folder of the simulation)
+        set_thickness:  if True, adds a 'stop thickness' argument based on the maximum depth reached in the given dlaw
+        dlaw:           density law (2D numpy array)
+        tlaw:           temperature law (2D numpy array)
+        alaw:           advectiontable law (2D numpy array). This is for a command that I added to
+                        the Cloudy source code.
+        pTmulaw:        'previous T/mu law' (2D numpy array). This if for a command that I added to
+                        the Cloudy source code.
+        cextra:         cextra law (2D numpy array). Note that this command functions differently in my
+                        Cloudy source code because I edited it to be able to add expansion cooling.
+        hextra:         hextra law (2D numpy array).
+        coolextra:      coolextra law (2D numpy array). This is for a command that I added to
+                        the Cloudy source code.
+        othercommands:  a string with any other commands to add that do not have their own treatment in this function.
+        overwrite:      boolean whether to overwrite if the .in file already exists.
+        iterate:        Cloudy's iterate command. Usually best to leave at convergence.
+        nend:           how many zones to include. Cloudy by default has 1400 but that is too few to handle
+                        some high-density profiles so I set it to 3000 standard.
+        outfiles:       which output files to produce
+        denspecies:     which species (atomic/ionic) to save the densities and energies of the excited levels for
+                        (to be used for both .en and .den output)
+        selected_den_levels:    boolean passed on to speciesstring() whether to include all excited levels or
+                                only those for which we know we can match Cloudy's output to NIST
+        constantT:      constant temperature to use
+        double_tau:     'double optical depths' command (useful for 1D simulations so that radiation does
+                        not escape the cloud/atmosphere at the back-side into the planet core)
+        cosmic_rays:    whether to include cosmic rays
+        zdict:          dictionary of scale factors for all elements
+        comments:       will be written at the top of the file with a #
+    '''
+
+    assert flux_scaling != None #we need this to proceed. Give in format [F,E] like nuF(nu) = F at E Ryd
+    assert SED != None
+    if denspecies != []:
+        assert ".den" in outfiles and ".en" in outfiles
+    if ".den" in outfiles or ".en" in outfiles:
+        assert ".den" in outfiles and ".en" in outfiles and denspecies != []
+    if not overwrite:
+        assert not os.path.isfile(simname+".in")
+    if constantT != None:
+        assert not np.any(tlaw != None)
+
+    with open(simname+".in", "w") as f:
+        if comments != None:
+            f.write(comments+'\n')
+        f.write('title '+title)
+        f.write("\n# ========= input spectrum ================")
+        f.write("\nnuF(nu) = "+str(flux_scaling[0])+" at "+str(flux_scaling[1])+" Ryd")
+        f.write('\ntable SED "'+SED+'"')
+        if cosmic_rays:
+            f.write('\ncosmic rays background')
+        f.write("\n# ========= chemistry      ================")
+        f.write("\n# solar abundances and metallicity is standard")
+        if zdict != None:
+            for element in zdict.keys():
+                if zdict[element] == 0.:
+                    f.write("\nelement "+element_names[element]+" off")
+                elif zdict[element] != 1.: #only write it to Cloudy if the scale factor is not 1
+                    f.write("\nelement scale factor "+element_names[element]+" "+str(zdict[element]))
+        f.write("\n# ========= other          ================")
+        f.write("\nset nend "+str(nend)+"   #models at high density need >1400 zones")
+        f.write("\nset temperature floor 5 linear")
+        f.write("\nstop temperature off     #otherwise it stops at 1e4 K")
+        if iterate == 'convergence':
+            f.write("\niterate to convergence")
+        else:
+            f.write("niterate "+str(iterate))
+        f.write("\nprint last iteration")
+        if set_thickness:
+            f.write('\nstop thickness '+'{:.7f}'.format(dlaw[-1,0])+'\t#last dlaw point')
+        if constantT != None:
+            f.write('\nconstant temperature t= '+str(constantT)+' linear')
+        if double_tau:
+            f.write('\ndouble optical depths    #so radiation does not escape into planet core freely')
+        if othercommands != None:
+            f.write("\n"+othercommands)
+        f.write("\n# ========= output         ================")
+        if ".ovr" in outfiles:
+            f.write('\nsave overview ".ovr" last')
+        if ".cool" in outfiles:
+            f.write('\nsave cooling ".cool" last')
+        if ".coolH2" in outfiles:
+            f.write('\nsave H2 cooling ".coolH2" last')
+        if ".heat" in outfiles:
+            f.write('\nsave heating ".heat" last')
+        if ".con" in outfiles:
+            f.write('\nsave continuum ".con" last units Hz')
+        if ".den" in outfiles: #then ".en" is always there as well.
+            f.write('\nsave species densities last ".den"\n'+speciesstring(denspecies, selected_levels=selected_den_levels)+"\nend")
+            f.write('\nsave species energies last ".en"\n'+speciesstring(denspecies, selected_levels=selected_den_levels)+"\nend")
+
+        if np.any(dlaw != None):
+            f.write("\n# ========= density law    ================")
+            f.write("\n#depth sets distances from edge of cloud")
+            f.write("\ndlaw table depth\n")
+            np.savetxt(f, dlaw, fmt='%1.7f')
+            f.write('{:.7f}'.format(dlaw[-1,0]+0.1)+
+                        ' '+'{:.7f}'.format(dlaw[-1,1]))
+            f.write("\nend of dlaw #last point added to prevent roundoff")
+        if np.any(tlaw != None):
+            f.write("\n# ========= temperature law    ============")
+            f.write("\n#depth sets distances from edge of cloud")
+            f.write("\ntlaw table depth\n")
+            np.savetxt(f, tlaw, fmt='%1.7f')
+            f.write('{:.7f}'.format(tlaw[-1,0]+0.1)+
+                        ' '+'{:.7f}'.format(tlaw[-1,1]))
+            f.write("\nend of tlaw #last point added to prevent roundoff")
+        if np.any(alaw != None):
+            f.write("\n# ========= advection law     ================")
+            f.write("\n#depth sets distances from edge of cloud")
+            f.write("\nadvectiontable depth\n")
+            np.savetxt(f, alaw, fmt='%1.7f')
+            f.write('{:.7f}'.format(alaw[-1,0]+0.1)+
+                        ' '+'{:.7f}'.format(alaw[-1,1]))
+            f.write("\nend of advectiontable #last point added to prevent roundoff")
+        if np.any(pTmulaw != None):
+            f.write("\n# ========= previous T/mu law     ================")
+            f.write("\n#depth sets distances from edge of cloud")
+            f.write("\nprevTmu depth\n")
+            np.savetxt(f, pTmulaw, fmt='%1.7f')
+            f.write('{:.7f}'.format(pTmulaw[-1,0]+0.1)+
+                        ' '+'{:.7f}'.format(pTmulaw[-1,1]))
+            f.write("\nend of prevTmu #last point added to prevent roundoff")
+        if np.any(cextra != None):
+            f.write("\n# ========= cextra law     ================")
+            f.write("\n#depth sets distances from edge of cloud")
+            f.write("\ncextra table depth\n")
+            np.savetxt(f, cextra, fmt='%1.7f')
+            f.write('{:.7f}'.format(cextra[-1,0]+0.1)+
+                        ' '+'{:.7f}'.format(cextra[-1,1]))
+            f.write("\nend of cextra #last point added to prevent roundoff")
+        if np.any(hextra != None):
+            f.write("\n# ========= hextra law     ================")
+            f.write("\n#depth sets distances from edge of cloud")
+            f.write("\nhextra table depth\n")
+            np.savetxt(f, hextra, fmt='%1.7f')
+            f.write('{:.7f}'.format(hextra[-1,0]+0.1)+
+                        ' '+'{:.7f}'.format(hextra[-1,1]))
+            f.write("\nend of hextra #last point added to prevent roundoff")
+        if np.any(coolextra != None):
+            f.write("\n# ========= coolextra law     ================")
+            f.write("\n#depth sets distances from edge of cloud")
+            f.write("\ncoolextra table depth\n")
+            np.savetxt(f, coolextra, fmt='%1.7f')
+            f.write('{:.7f}'.format(coolextra[-1,0]+0.1)+
+                        ' '+'{:.7f}'.format(coolextra[-1,1]))
+            f.write("\nend of coolextra #last point added to prevent roundoff")
+
+'''
+Useful classes
+'''
+
+class Parker:
+    def __init__(self, plname, T, Mdot, dir='AO', fH=None, zdict=None, SED=None, readin=True):
+        '''
+        Class that stores a Parker wind profile and its parameters
+
+        Arguments:
+            plname: [str] name of the planet
+            T: [int] isothermal temperature
+            Mdot: [str or float] log10 of the mass-loss rate in cgs
+            filename: [str] filename of the parker wind profile .txt file
+            fH: hydrogen fraction (for H/He-only profiles)
+            zdict: scale factor dictionary
+            SED: name of the spectrum used to construct the Parker profile
+            readin: [bool] whether to read in the Parker profile file.
+                            if you don't want to read in, use filename=''
+        '''
+        self.plname = plname
+        self.T = int(T)
+        if type(Mdot) == str:
+            self.Mdot = Mdot
+            self.Mdotf = float(Mdot)
+        elif type(Mdot) == float:
+            self.Mdot = "%.1f" % Mdot
+            self.Mdotf = Mdot
+        if fH != None:
+            self.fH = fH
+        if zdict != None:
+            self.zdict = zdict
+        if SED != None:
+            self.SED = SED
+        if readin:
+            self.prof = read_parker(plname, T, Mdot, dir=dir)
+
+
+class Planet:
+    '''
+    Class that saves parameters for a given planet.
+
+    Arguments:
+        name: [str] name of the planet. If this name appears in the 'planets.txt'
+                    file, the class will automatically load its parameters.
+
+        R: [float] optional, radius in cm
+        Rstar: [float] optional, radius of the host star in cm
+        a: [float] optional, semimajor axis in AU
+        M: [float] optional, mass in Jupiter Masses
+        Mstar: [float] optional, mass of the host star in solar masses
+        bp: [float] optional, transit impact parameter (dimensionless)
+        Rroche: [float] optional, Roche radius in cm,
+                if not given will be calculated based on other parameters.
+
+        If the planet name was found in 'planets.txt', but any of the other
+        parameters are given as well, those values will overwrite the values
+        of the 'planet.txt' file.
+    '''
+    def __init__(self, name, R=None, Rstar=None, a=None, M=None, Mstar=None, bp=None, Rroche=None, SEDname=None):
+        #check if we can fetch planet parameters from planets.txt:
+        if name in planets_file['name'].values or name in planets_file['full name'].values:
+            this_planet = planets_file[(planets_file['name'] == name) | (planets_file['full name'] == name)]
+            assert len(this_planet) == 1, "Multiple entries were found in planets.txt for this planet name."
+
+            self.R = this_planet['R [RJ]'].values[0] * RJ #in cm
+            self.Rstar = this_planet['Rstar [Rsun]'].values[0] *Rsun #in cm
+            self.a = this_planet['a [AU]'].values[0] #in AU
+            self.M = this_planet['M [MJ]'].values[0] #M_J
+            self.Mstar = this_planet['Mstar [Msun]'].values[0] #M_sun
+            self.bp = this_planet['transit impact parameter'].values[0] #dimensionless
+            self.name = this_planet['name'].values[0]
+            self.fullname = this_planet['full name'].values[0]
+            self.SEDname = this_planet['SEDname'].values[0].strip() #strip to remove whitespace from beginning and end
+
+        else:
+            print("Creating Planet object that's not in the database.")
+            self.name = name
+
+        #if they were specified, overwrite potential standard values stated above
+        if R != None:
+            self.R = R
+        if Rstar != None:
+            self.Rstar = Rstar
+        if a != None:
+            self.a = a
+        if M != None:
+            self.M = M
+        if Mstar != None:
+            self.Mstar = Mstar
+        if bp != None:
+            self.bp = bp
+        if SEDname != None:
+            self.SEDname = SEDname
+
+        self.Rroche = roche_radius(self.a, self.M * MJ, self.Mstar * Msun)
+        if Rroche != None:
+            self.Rroche = Rroche
+
+    def set_var(self, name=None, R=None, Rstar=None, a=None, M=None, Mstar=None, bp=None, Rroche=None, SEDname=None):
+        '''
+        If you want to edit some of the values after creation.
+        '''
+        if name != None:
+            self.name = name
+        if R != None:
+            self.R = R
+        if Rstar != None:
+            self.Rstar = Rstar
+        if a != None:
+            self.a = a
+        if M != None:
+            self.M = M
+        if Mstar != None:
+            self.Mstar = Mstar
+        if bp != None:
+            self.bp = bp
+        if Rroche != None:
+            self.Rroche = Rroche
+        if SEDname != None:
+            self.SEDname = SEDname
+
+
+class Sim:
+    '''
+    Main class for loading Cloudy simulations into Python.
+
+    Arguments:
+        simname: [str] name of the Cloudy simulation without extension.
+                    Usually safest to give the full path, i.e.
+                    '/Users/dion/src/cloudy/sims/1D/HD209458b/Tstruc_fiducial/parker_8000_10.0/converged'
+        altmax: [int] maximum altitude of the Cloudy simulation, in units of Rp (optional)
+        proceedFail: [bool] proceed even if the targeted Cloudy simulation did not exit OK.
+        files: [list] which output files to read in, e.g. 'con', 'heat', 'ovr'
+        planet: [Planet] object of the simulated planet
+        parker: [Parker] object of the simulated Parker wind profile
+
+    The main use of this class is that the different output files of Cloudy (which are
+    accordingly parsed) are easily accessible, i.e. self.ovr returns the '.ovr' file that
+    was saved with the 'save overview '.ovr'' command in Cloudy.
+    '''
+    def __init__(self, simname, altmax=None, proceedFail=False, files=['all'], planet=None, parker=None):
+        if not isinstance(simname, str):
+            raise TypeError("simname must be set to a string")
+        self.simname = simname
+
+        #check if the simulation did not crash.
+        succesful = False
+        with open(simname+'.out', 'r') as f:
+            if "Cloudy exited OK" in f.read():
+                succesful = True
+        if not succesful and not proceedFail:
+            raise FileNotFoundError("This simulation went wrong:", simname, "Check the .out file!")
+
+        #read the .in file to extract some sim info like changes to the chemical composition and altmax
+        self.disabled_elements = []
+        zelem = {}
+        with open(simname+'.in', 'r') as f:
+            for line in f:
+                if line[0] == '#': #look for sim info in comments
+                    if 'plname' in line:
+                        self.p = Planet(line.split('=')[-1].strip('\n'))
+                    if 'parker_T' in line:
+                        self.parker_T = int(line.split('=')[-1].strip('\n'))
+                    if 'parker_Mdot' in line:
+                        self.parker_Mdot = line.split('=')[-1].strip('\n')
+                    if 'parker_dir' in line:
+                        self.parker_dir = line.split('=')[-1].strip('\n')
+                    if 'altmax' in line:
+                        self.altmax = int(line.split('=')[1].strip('\n'))
+                if 'table SED' in line:
+                    self.SEDname = line.split('"')[1]
+                if 'element scale factor' in line.rstrip():
+                    zelem[element_symbols[line.split(' ')[3]]] = float(line.rstrip().split(' ')[-1])
+                elif 'element' in line.rstrip() and 'off' in line.rstrip():
+                    self.disabled_elements.append(element_symbols[line.split(' ')[1]])
+                    zelem[element_symbols[line.split(' ')[1]]] = 0.
+        self.zdict = get_zdict(zelem=zelem)
+        self.abundances = get_abundances(zdict=self.zdict)
+        if hasattr(self, 'p') and hasattr(self, 'parker_T') and hasattr(self, 'parker_Mdot') and hasattr(self, 'parker_dir'):
+            self.par = Parker(self.p.name, self.parker_T, self.parker_Mdot, self.parker_dir)
+        if parker != None:
+            assert isinstance(parker, Parker)
+            if hasattr(self, 'par'):
+                print("I had already read out the Parker object from the .in file, but I will overwrite that with the object you have given.")
+            self.par = parker
+
+
+        if altmax != None:
+            if not (isinstance(altmax, float) or isinstance(altmax, int)):
+                raise TypeError("altmax must be set to a float or int") #can it actually be a float? I'm not sure if my code can handle it - check and try.
+            if hasattr(self, 'altmax'):
+                if self.altmax != altmax:
+                    print("I read the altmax from the .in file, but the value you have explicitly passed is different. " \
+                            "I will use your value, but please make sure it is correct.")
+            self.altmax = altmax
+
+
+        if planet != None:
+            assert isinstance(planet, Planet)
+            if hasattr(self, 'planet'):
+                print("I had already read out the Planet object from the .in file, but I will overwrite that with the object you have given.")
+            self.p = planet
+            self.Rp = planet.R
+
+        if hasattr(self, 'p') and hasattr(self, 'SEDname'):
+            if self.p.SEDname != self.SEDname:
+                print("I read in the .in file that the SED used is", self.SEDname, "which is different from the one of your Planet object. " \
+                        "I will change the .SEDname attribute of the Planet object to match the one actually used in the simulation. Are you " \
+                        "sure that also the associated Parker wind profile is correct?")
+                self.p.set_var(SEDname = self.SEDname)
+
+        self.simfiles = [] #store the types of simulation files
+        #add the simulation files as methods
+        for simfile in glob.glob(simname+'.*', recursive=True):
+            filetype = simfile.split('.')[-1]
+            if filetype=='ovr' and ('ovr' in files or 'all' in files):
+                self.ovr = process_overview(self.simname+'.ovr', Rp=self.p.R, altmax=self.altmax, abundances=self.abundances)
+                self.simfiles.append('ovr')
+            if filetype=='con' and ('con' in files or 'all' in files):
+                self.con = process_continuum(self.simname+'.con')
+                self.simfiles.append('con')
+            if filetype=='heat' and ('heat' in files or 'all' in files):
+                self.heat = process_heating(self.simname+'.heat', Rp=self.p.R, altmax=self.altmax)
+                self.simfiles.append('heat')
+            if filetype=='cool' and ('cool' in files or 'all' in files):
+                self.cool = process_cooling(self.simname+'.cool', Rp=self.p.R, altmax=self.altmax)
+                self.simfiles.append('cool')
+            if filetype=='coolH2' and ('coolH2' in files or 'all' in files):
+                self.coolH2 = process_coolingH2(self.simname+'.coolH2', Rp=self.p.R, altmax=self.altmax)
+                self.simfiles.append('coolH2')
+            if filetype=='den' and ('den' in files or 'all' in files):
+                self.den = process_den(self.simname+'.den', Rp=self.p.R, altmax=self.altmax)
+                self.simfiles.append('den')
+            if filetype=='en' and ('en' in files or 'all' in files):
+                self.en = process_en(self.simname+'.en')
+                self.simfiles.append('en')
+            if filetype=='ionFe' and ('ionFe' in files or 'all' in files):
+                self.ionFe = process_ionization(self.simname+'.ionFe', Rp=self.p.R, altmax=self.altmax)
+                self.simfiles.append('ionFe')
+            if filetype=='ionNa' and ('ionNa' in files or 'all' in files):
+                self.ionNa = process_ionization(self.simname+'.ionNa', Rp=self.p.R, altmax=self.altmax)
+                self.simfiles.append('ionNa')
+
+        if hasattr(self, 'par'): #if a parker profile was either read out or manually added, we set the velocity structure in .ovr
+            if hasattr(self.par, 'prof'):
+                Sim.addv(self, self.par.prof.alt, self.par.prof.v)
+
+
+    def get_simfile(self, simfile):
+        assert simfile in self.simfiles
+
+        if simfile == 'ovr':
+            return self.ovr
+        elif simfile == 'con':
+            return self.con
+        elif simfile == 'heat':
+            return self.heat
+        elif simfile == 'cool':
+            return self.cool
+        elif simfile == 'coolH2':
+            return self.coolH2
+        elif simfile == 'den':
+            return self.den
+        elif simfile == 'en':
+            return self.en
+        elif simfile == 'ionFe':
+            return self.ionFe
+        elif simfile == 'ionNa':
+            return self.ionNa
+
+    def add_parker(self, parker):
+        '''
+        Adds a Parker profile object to the Sim, in case it wasn't added upon initialization.
+        '''
+        assert isinstance(parker, Parker)
+        self.par = parker
+        if hasattr(parker, 'prof'):
+            Sim.addv(self, parker.prof.alt, parker.prof.v)
+
+    def addv(self, alt, v, delete_negative=True):
+        '''
+        Adds velocity profile in cm/s on the Cloudy altitude grid. Will be added to the .ovr file,
+        but also available as the .v attribute for potential backwards compatability.
+        Called automatically when adding a Parker object to the sim.
+        '''
+        assert 'ovr' in self.simfiles
+
+        if delete_negative:
+            v[v < 0.] = 0.
+
+        self.ovr['v'] = interp1d(alt, v)(self.ovr.alt)
+
+        vseries = pd.Series(index=self.ovr.alt.index)
+        vseries[self.ovr.alt.index] = interp1d(alt, v)(self.ovr.alt)
+        self.v = vseries
+
+
+
+
+if __name__ == '__main__':
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.max_columns',None)

@@ -1,0 +1,1 @@
+ritz_wl_vac(A)	unc_ritz_wl	intens	Aki(s^-1)	fik	Acc	Ei(Ry)	Ek(Ry)	conf_i	term_i	J_i	conf_k	term_k	J_k	Type	tp_ref	line_ref	
