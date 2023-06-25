@@ -123,22 +123,25 @@ def get_mass(species):
     return mass_dict[atom]
 
 
+
+
+
 '''
 Functions that deal with processing Cloudy's output files
 '''
-
 
 def process_continuum(filename, nonzero=False):
     '''
     This function imports a continuum file, splits it if it is a grid,
     renames the columns and adds a wav column. The flux units of the continuum
-    can be tricky, but they are found as follows:
+    can be tricky to understand, but they are found as follows:
     Take the SED in spectral flux density, so Fnu instead of nuFnu, and
     find the total area by integration. Then multiply with the frequency,
     to get nuFnu, and normalize that by the total area found, and multiply
     with the total luminosity. Those are the units of Cloudy.
-    If nonzero is true, the part with incident flux 0 is removed.
+    If nonzero is True, the part with incident flux 0 is removed.
     '''
+
     con_df = pd.read_table(filename)
     con_df.rename(columns={'#Cont  nu':'nu', 'net trans':'nettrans'}, inplace=True)
     wav = c * 1e8 / con_df.nu #wav in AA
@@ -150,8 +153,8 @@ def process_continuum(filename, nonzero=False):
 
 def process_heating(filename, Rp=None, altmax=None):
     '''
-    This function reads a .heat file up to the 2 most important heating rates,
-    and adds an altitude scale.
+    This function reads a .heat file up to the 2 most important heating rates.
+    If Rp and altmax are given, it adds an altitude scale.
     '''
 
     heat = pd.read_table(filename, delimiter='\t',
@@ -174,8 +177,8 @@ def process_heating(filename, Rp=None, altmax=None):
 
 def process_cooling(filename, Rp=None, altmax=None):
     '''
-    This function reads a .cool file up to the 2 most important cooling rates,
-    and adds an altitude scale.
+    This function reads a .cool file up to the 2 most important cooling rates.
+    If Rp and altmax are given, it adds an altitude scale.
     '''
 
     cool = pd.read_table(filename, delimiter='\t',
@@ -219,9 +222,12 @@ def process_coolingH2(filename, Rp=None, altmax=None):
 
 def process_overview(filename, Rp=None, altmax=None, abundances=None):
     '''
-    This function reads in an overview file, adds an altitude scale that is
-    more sensible than Cloudy's internal grid, and adds the mass density
-    that is sometimes more sensible than the Hydrogen number density.
+    This function reads in an overview file.
+    If Rp and altmax are given, it adds an altitude scale.
+    It also adds the mass density (in addition to the hydrogen number density).
+    If the simulation has non-solar/default abundances, they must be specified
+    as an abundances dictionary made with the get_abundances() function, in
+    order for the hden -> rho conversion to be correct.
     '''
 
     ovr = pd.read_table(filename)
@@ -234,12 +240,11 @@ def process_overview(filename, Rp=None, altmax=None, abundances=None):
     return ovr
 
 
-def process_den(filename, Rp=None, altmax=None):
+def process_densities(filename, Rp=None, altmax=None):
     '''
     This function reads a .den file from the 'save species densities' command.
-    Usually this command includes neutral Helium He, as well as all calculated
-    levels, He[:], which includes the metastable state as He[2]
     '''
+
     den = pd.read_table(filename)
     den.rename(columns={'#depth densities':'depth'}, inplace=True)
 
@@ -249,7 +254,7 @@ def process_den(filename, Rp=None, altmax=None):
     return den
 
 
-def process_en(filename, rewrite=True):
+def process_energies(filename, rewrite=True):
     '''
     This function reads a .en file from the 'save species energies' command.
     ALWAYS use that command alongside the 'save species densities' .den files,
@@ -263,9 +268,10 @@ def process_en(filename, rewrite=True):
     this function for the corresponding column name, such that the number
     densities of the right level can be extracted from the .den file.
     '''
+
     en = pd.read_table(filename, float_precision='round_trip') #use round_trip to prevent exp numerical errors
 
-    if en.columns.values[0][0] == '#': #contition checks whether it has already been rewritten, if not, we do all following stuff:
+    if en.columns.values[0][0] == '#': #condition checks whether it has already been rewritten, if not, we do all following stuff:
 
         for col in range(len(en.columns)): #we check if all columns are the same
             if len(en.iloc[:,col].unique()) != 1:
@@ -334,23 +340,13 @@ def process_en(filename, rewrite=True):
 
 def find_line_lowerstate_in_en_df(species, lineinfo, en_df, printmessage=True):
     '''
-    Also read 'process_en' explanation above.
+    Also read 'process_energies' explanation above.
 
     This function finds the column name of the .den file that corresponds to
     the ground state of the given line. So for example if species='He',
     and we are looking for the metastable Helium line,
     it will return 'He2' and the 'He2' column of the .den file thus contains
     the number densities of the metastable helium atom.
-
-    !!!
-    Could I perhaps still find other terms based on energy level? I think that
-    will be difficult given that those are usually n levels without l resolved
-    and then the it will become difficult with statistical weights and such.
-    For atoms/ions with more than 2 electrons, so basically all neutral elements
-    after Helium, Cloudy seems to follow the J-resolved levels of NIST so for
-    those we can also use the configuration matching and don't need to match
-    lines by energy.
-    !!!
     '''
 
     en_df = en_df[en_df.species == species] #keep only the part for this species to not mix up the energy levels of different ones
@@ -406,6 +402,7 @@ def find_line_lowerstate_in_en_df(species, lineinfo, en_df, printmessage=True):
             print("Lower state configuration:", species, lineinfo.conf_i)
 
         '''
+        NOTE TO SELF:
         If I do decide to make this functionality, for example by summing the densities of all sublevels of a
         particular n, I also need to tweak the cleaning of Hydrogen lines algorithm. Right now, I remove
         double lines only for the upper state, so e.g. for Ly alpha, I remove the separate 2p 3/2 and 2p 1/2 etc. component
@@ -415,6 +412,8 @@ def find_line_lowerstate_in_en_df(species, lineinfo, en_df, printmessage=True):
         '''
 
     return match, lineweight
+
+
 
 
 '''
@@ -445,28 +444,12 @@ def get_SED_norm_1AU(SEDname):
     return nuFnu, Ryd
 
 
-def find_atom(con_df, loc, freq=False):
-    '''
-    This function returns the name and location of the contributing species
-    to a line for given wavelength in nm,
-    or for given frequency in Hz is the keyword is True.
-    '''
-    if freq: #convert loc to wavelength nm units
-        loc = c_cms * 1e7 / loc
-    closest_bin = np.argmin(np.abs(con_df.wav - loc)) #give loc in nm
-    atom = con_df.lineID.iloc[closest_bin]
-    closest_loc = con_df.wav.iloc[closest_bin]
-    if freq: #convert back to frequency in Hz units
-        closest_loc = c_cms * 1e7 / closest_loc
-
-    return atom, closest_loc
-
-
 def speciesstring(specieslist, selected_levels=False):
     '''
     Takes a list of species names and returns a long string with those species
     between quotes and [:] added (or [maxlevel] if selected_levels=True),
-    and \n between them, so that this string can be used in .den and .en files
+    and \n between them, so that this string can be used in a Cloudy input
+    script for .den and .en files.
     '''
 
     if not selected_levels: #so just all levels available in cloudy
@@ -484,28 +467,7 @@ def speciesstring(specieslist, selected_levels=False):
     return speciesstr
 
 
-def read_salz(planet:str, fH=0.9):
-    '''
-    This function reads the downloadable atmosphere structure files of
-    Salz et al. 2016. If just a planet name is given, will search in the
-    hydrogen_profiles folder. Otherwise, will use the specified path.
-    '''
-
-    if '/' in planet: #then probably a full path was specified
-        fullpath = planet
-    else: #check the hydrogen_profiles folder
-        fullpath = projectpath+'/hydrogen_profiles/salz/Salz_'+planet+'_structure.txt'
-
-    salzprof = pd.read_table(fullpath,
-                    header=36, skipfooter=1, sep='|', names=
-                    ['R', 'rho', 'v', 'p', 'Te', 'mu', 'GR', 'heatfrac', 'Hfrac',
-                    'H+frac', 'Hefrac', 'He+frac', 'He++frac'], engine='python')
-    salzprof['hden'] = salzprof.rho * (fH/(4-3*fH)) / mH
-
-    return salzprof
-
-
-def read_parker(plname, T, Mdot, dir='AO', filename=None):
+def read_parker(plname, T, Mdot, dir=None, filename=None):
     '''
     Reads a parker wind profile and returns it as a pandas Dataframe.
     Arguments:
@@ -516,11 +478,10 @@ def read_parker(plname, T, Mdot, dir='AO', filename=None):
                             any folder name as long as it exists. So e.g. you
                             can have a folder with pure H/He profiles named
                             fH=0.9 or fH=0.99, or have a folder with Cloudy-
-                            produced parker profiles named z=10. The profiles
-                            made by A. Oklopcic are in the AO folder and this
-                            is (for now) the default path.
-        filename: [str]     filename to read, if given then plname, T, Mdot and
-                            dir are disregarded and the profile is read directly.
+                            produced parker profiles named z=10.
+        filename: [str]     filename to read. If this argument is given then
+                            plname, T, Mdot and dir are disregarded and we
+                            directly read the specified profile.
     '''
 
     if filename == None:
@@ -531,73 +492,6 @@ def read_parker(plname, T, Mdot, dir='AO', filename=None):
     pprof = pd.read_table(filename, names=['alt', 'rho', 'v', 'mu'], dtype=np.float64, comment='#')
     pprof['drhodr'] = np.gradient(pprof['rho'], pprof['alt'])
     return pprof
-
-
-def read_ates(path, fH='infer'):
-    if fH == 'infer':
-        input = np.genfromtxt(path+'input.inp')
-        fH = 1 - float(input[13])
-
-    filename = 'Hydro_ioniz_adv.txt'
-    if not os.path.isfile(path+filename): #then maybe there is a non-post-processed file
-        filename = 'Hydro_ioniz.txt'
-        if os.path.isfile(path+filename):
-            print("WARNING, reading in an ATES model that was not post-processed. Maybe it's not converged:")
-            print(path+filename)
-        #if not, pd.read_table will generate an error.
-
-    aprof = pd.read_table(path+filename, delim_whitespace=True,
-                            names=['R', 'rho', 'v', 'P', 'Te', 'htot', 'ctot', 'eta'])
-    aprof['rho'] *= mH #because rho was in units of the proton mass
-    aprof['v'] *= np.sqrt(k * aprof.Te.iloc[0] / mH) #because v was in scaled units
-    aprof['hden'] = aprof.rho * fH/(4-3*fH)/mH
-
-    return aprof
-
-
-def calc_alt(depth, altmax, Rp):
-    '''
-    This function returns the altitude scale in units of Rp for a depth
-    scale in cm. The altitude scale is much more intuitive than Cloudy's
-    internal illuminated-side-first grid.
-    '''
-
-    return ((altmax * Rp) - depth)/Rp
-
-
-def split_hashtaggrid(df):
-    '''
-    This function takes a Pandas dataframe that is split into different
-    iterations/grids, separated by '#####', and returns a list with the
-    individual dataframes.
-    '''
-    #find the delimiters, first column has ##### there
-    delim_indices = df[df.iloc[:,0].str.contains('#####')].index.values.tolist()
-    #insert -1 to get proper functionality for first grid block
-    delim_indices_l = delim_indices.insert(0,-1)
-    ar = [] #this will store the individual dataframes
-
-    for i in range(len(delim_indices)-1):
-        delim_index = delim_indices[i] + 1
-        delim_next = delim_indices[i+1]
-        current = df.iloc[delim_index:delim_next].copy() #split into dfs
-        current.iloc[:,0] = current.iloc[:,0].astype(float) #convert to float
-        ar.append(current)
-
-    return ar
-
-
-def calc_mu_onlyHHe(fHII, fHeII, fHeIII, nHe=0.1, mass=False):
-    '''
-    Calculates the mean molecular weight in amu, assuming only H, He and e-.
-    If mass = True, multiplies with mH to give mu in grams
-    '''
-
-    mu = (nHe*4 + (1-nHe)) / ((1-nHe)*(1+fHII) + nHe*(1+fHeII+2*fHeIII))
-    if mass:
-        mu *= mH
-
-    return mu
 
 
 def calc_mu(rho, ne, abundances=None, mass=False):
@@ -718,52 +612,13 @@ def hden_to_rho(hden, abundances=None):
     return rho
 
 
-def clradius(semimajor_cm, planet_radius_cm, altmax, log=False):
-    '''
-    This function returns the distance from illuminated atmosphere to star,
-    which is just the semimajor axis, with the total altitude of the
-    atmosphere subtracted. Log value can be returned to use directly in Cloudy.
-    '''
-    radius = semimajor_cm - (altmax-1)*planet_radius_cm
-    if log:
-        radius = np.log10(radius)
-
-    return radius
-
-
-def blackbodySI(lamb, T, cst=1.):
-    '''
-    This function returns the blackbody flux for a given temperature and
-    wavelength. All SI units. Mulitplication by constant is optional.
-    '''
-
-    h_SI = 6.626e-34 #SI
-    c_SI = 2.998e8 #SI
-    kB_SI = 1.381e-23 #SI
-    return cst * 2*h_SI*c_SI**2 / (lamb**5 * (np.exp(h_SI*c_SI/(lamb*kB_SI*T)) - 1))
-
-
 def roche_radius(semimajor_AU, Mpl, Mstar):
     '''
-    Returns the roche radius according to Antonija's formula.
+    Returns the Roche / Hill radius.
     This is a small planet-to-star mass approximation.
     '''
+
     return semimajor_AU*1.496e13*pow(Mpl/(3.0*(Mstar+Mpl)), 1.0/3.0)
-
-
-def round_decimals_down(number:float, decimals:int=2):
-    """
-    Returns a value rounded down to a specific number of decimal places.
-    """
-    if not isinstance(decimals, int):
-        raise TypeError("decimal places must be an integer")
-    elif decimals < 0:
-        raise ValueError("decimal places has to be 0 or more")
-    elif decimals == 0:
-        return math.floor(number)
-
-    factor = 10 ** decimals
-    return math.floor(number * factor) / factor
 
 
 def set_alt_ax(ax, altmax=8, labels=True):
@@ -888,29 +743,15 @@ def cl_table(r, rho, v, altmax, Rp, nmax, negtozero=False, copylastpoint=False, 
     return hdenprof, cextraprof, advecprof
 
 
-def calc_advection(r, rho, v, T, mu):
-    '''
-    Requires that r is in the direction of v (i.e. usually in altitude scale).
-    '''
-    adv = - np.gradient(T/mu, r) * v*rho*(3/2)*k/mH  #erg / s / cm3, MIND THE MINUS SIGN!
-    return adv
-
-
-def calc_expansion(r, rho, v, T, mu):
-    '''
-    Requires that r is in the direction of v (i.e. usually in altitude scale).
-    '''
-    exp = -1 * np.gradient(rho, r) * T*v*k/(mH*mu) #erg / s / cm3
-    return exp #exp as positive values
-
-
 def calc_expansionTmu(r, rho, v):
     '''
-    Similar to calc_expansion but here we don't multiply with T/mu
-    as that can be done internally in Cloudy.
+    Calcules the expansion cooling term / (T/mu), so afterwards you can
+    multiply with the T/mu as given by Cloudy to obtain back the full
+    expansion cooling rate
 
     Requires that r is in the direction of v (i.e. usually in altitude scale).
     '''
+
     expTmu = -1 * np.gradient(rho, r) * v*k/mH #erg / s / cm3
     return expTmu #expTmu as positive values
 
@@ -952,29 +793,6 @@ def alt_array_to_Cloudy(alt, quantity, altmax, Rp, nmax, log=True):
         law = np.log10(law)
 
     return law
-
-
-def mirror_nans_at_array_edge(ar):
-    '''
-    Takes nans at the beginning or end of an array and replaces them with the
-    frist non-nan value.
-    '''
-    ind = np.where(~np.isnan(ar))[0]
-    first, last = ind[0], ind[-1]
-    ar[:first] = ar[first]
-    ar[last + 1:] = ar[last]
-
-
-def split_advection(adv):
-    '''
-    Splits advection rates into a positive heating and negative cooling rate.
-    '''
-    advheat, advcool = np.copy(adv), np.copy(adv)
-    advheat[advheat < 0.] = 0.
-    advcool[advcool > 0.] = 0.
-    advcool = -1 * advcool
-
-    return advheat, advcool
 
 
 def depth_array_1D_to_Cloudy(depth, quantity, altmax, Rp, nmax, log=True):
@@ -1049,40 +867,12 @@ def project_1D_to_2D(r1, q1, Rp, numb=101, directional=False, cut_at=None, **kwa
     return b, x, q2
 
 
-'''
-Various smoothing functions
-'''
-
-def smooth_savgol(y, polyorder=3, iterations=1, **kwargs):
-    '''
-    Smooth an array with a savgol filter. Can either give the windows size,
-    or the fractional length of the array as size.
-    '''
-    if 'size' in kwargs:
-        size = kwargs['size']
-    elif 'fraction' in kwargs:
-        fraction = kwargs['fraction']
-        assert 0. < fraction < 1.
-        size = int(np.ceil(len(y)*fraction) // 2 * 2 + 1) #make it odd
-    else:
-        raise Exception("Please provide either 'size' or 'fraction' kwarg.")
-
-    ysmooth = savgol_filter(y, size, polyorder=polyorder)
-    for repetition in range(iterations-1):
-        ysmooth = savgol_filter(ysmooth, size, polyorder=polyorder)
-
-    return ysmooth
-
-
-def smooth_gaus(y, size):
-    return gaussian_filter1d(y, size)
-
-
 def smooth_gaus_savgol(y, **kwargs):
     '''
     Smooth a function using a gaussian filter, but smooth the edges with a
     savgol filter since otherwise those are not handled well.
     '''
+
     if 'size' in kwargs:
         size = kwargs['size']
         size = max(3, size)
@@ -1108,84 +898,9 @@ def smooth_gaus_savgol(y, **kwargs):
     return ysmooth
 
 
-def smooth_gaus_var(y, sizes):
-    '''
-    Smooth a function using a guassian filter, but use variable smoothing,
-    where each point gets it own smoothing size given by the sizes array.
-    '''
-
-    ysmooth = np.zeros_like(y)
-    for i in range(len(y)):
-        ygaus = gaussian_filter1d(y, sizes[i])
-        ysmooth[i] = ygaus[i]
-
-    return ysmooth
-
-
-def smooth_savgol_var(y, sizes, polyorder=3):
-    ysmooth = np.zeros_like(y)
-
-    for i in range(len(y)):
-        size_i = int(np.ceil(sizes[i]) // 2 * 2 + 1) #make it odd
-        ysmooth[i] = savgol_filter(y, size_i, polyorder=polyorder)[i]
-
-    return ysmooth
-
-
-def smooth_gaus_savgol_var(y, **kwargs):
-    ysmooth = np.zeros_like(y)
-
-    for i in range(len(y)):
-        if 'sizes' in kwargs:
-            ysmooth[i] = smooth_gaus_savgol(y, size=kwargs['sizes'][i])[i]
-        elif 'fractions' in kwargs:
-            ysmooth[i] = smooth_gaus_savgol(y, fraction=kwargs['fractions'][i])[i]
-
-    return ysmooth
-
-
-def smooth_butter_lpf(data, fs, order):
-    #from: https://medium.com/analytics-vidhya/how-to-filter-noise-with-a-low-pass-filter-python-885223e5e9b7
-    nyq = 0.5 * fs
-    normal_cutoff = 1 / nyq
-    b, a = butter(order, normal_cutoff, btype='low', analog=False)
-    y = filtfilt(b, a, data)
-    return y
-
 '''
 Cloudy I/O
 '''
-
-
-def find_SED_in_folder(folder):
-    '''
-    Searches folder for 1 SED file with extension .spec and returns its filename,
-    or None is none or multiple were found. Returns full path and just filename.
-    '''
-    SED_files = glob.glob(folder+'*.spec')
-    if len(SED_files) == 0:
-        print("Could not find an SED file in the specified dir.")
-        return None, None
-    elif len(SED_files) > 1:
-        print("Multiple SED files present in dir. I don't know which to choose, please specify with -SED argument.")
-        return None, None
-    else: #length is 1 and we found our SED
-        SED = SED_files[0].split('/')[-1] #fetch the SED filename
-        return SED_files[0], SED
-
-
-def copy_Sim(simname, newsimname):
-    '''
-    Copies all files of a Cloudy simulation to a new destination. The new simulation
-    can have a different name. It does not copy .txt files as these are the 'converged.txt'
-    files produced by my solveT code which are not part of the Sim. Also doesn't copy .png.
-    '''
-
-    files = glob.glob(simname+'.*')
-    for file in files:
-        if file[-4:] != '.txt' and file[-4:] != '.png':
-            newfile = newsimname + '.' + file.split('.')[-1]
-            copyfile(file, newfile)
 
 
 def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
@@ -1456,21 +1171,22 @@ Useful classes
 '''
 
 class Parker:
-    def __init__(self, plname, T, Mdot, dir='AO', fH=None, zdict=None, SED=None, readin=True):
-        '''
-        Class that stores a Parker wind profile and its parameters
+    '''
+    Class that stores a Parker wind profile and its parameters
 
-        Arguments:
-            plname: [str] name of the planet
-            T: [int] isothermal temperature
-            Mdot: [str or float] log10 of the mass-loss rate in cgs
-            filename: [str] filename of the parker wind profile .txt file
-            fH: hydrogen fraction (for H/He-only profiles)
-            zdict: scale factor dictionary
-            SED: name of the spectrum used to construct the Parker profile
-            readin: [bool] whether to read in the Parker profile file.
-                            if you don't want to read in, use filename=''
-        '''
+    Arguments:
+        plname: [str] name of the planet
+        T: [int] isothermal temperature
+        Mdot: [str or float] log10 of the mass-loss rate in cgs
+        filename: [str] filename of the parker wind profile .txt file
+        fH: hydrogen fraction (for H/He-only profiles)
+        zdict: scale factor dictionary
+        SED: name of the spectrum used to construct the Parker profile
+        readin: [bool] whether to read in the Parker profile file.
+                        if you don't want to read in, use filename=''
+    '''
+
+    def __init__(self, plname, T, Mdot, dir='AO', fH=None, zdict=None, SED=None, readin=True):
         self.plname = plname
         self.T = int(T)
         if type(Mdot) == str:
@@ -1510,6 +1226,7 @@ class Planet:
         parameters are given as well, those values will overwrite the values
         of the 'planet.txt' file.
     '''
+
     def __init__(self, name, R=None, Rstar=None, a=None, M=None, Mstar=None, bp=None, Rroche=None, SEDname=None):
         #check if we can fetch planet parameters from planets.txt:
         if name in planets_file['name'].values or name in planets_file['full name'].values:
@@ -1592,6 +1309,7 @@ class Sim:
     accordingly parsed) are easily accessible, i.e. self.ovr returns the '.ovr' file that
     was saved with the 'save overview '.ovr'' command in Cloudy.
     '''
+
     def __init__(self, simname, altmax=None, proceedFail=False, files=['all'], planet=None, parker=None):
         if not isinstance(simname, str):
             raise TypeError("simname must be set to a string")
@@ -1683,10 +1401,10 @@ class Sim:
                 self.coolH2 = process_coolingH2(self.simname+'.coolH2', Rp=self.p.R, altmax=self.altmax)
                 self.simfiles.append('coolH2')
             if filetype=='den' and ('den' in files or 'all' in files):
-                self.den = process_den(self.simname+'.den', Rp=self.p.R, altmax=self.altmax)
+                self.den = process_densities(self.simname+'.den', Rp=self.p.R, altmax=self.altmax)
                 self.simfiles.append('den')
             if filetype=='en' and ('en' in files or 'all' in files):
-                self.en = process_en(self.simname+'.en')
+                self.en = process_energies(self.simname+'.en')
                 self.simfiles.append('en')
             if filetype=='ionFe' and ('ionFe' in files or 'all' in files):
                 self.ionFe = process_ionization(self.simname+'.ionFe', Rp=self.p.R, altmax=self.altmax)
@@ -1726,6 +1444,7 @@ class Sim:
         '''
         Adds a Parker profile object to the Sim, in case it wasn't added upon initialization.
         '''
+        
         assert isinstance(parker, Parker)
         self.par = parker
         if hasattr(parker, 'prof'):
@@ -1737,6 +1456,7 @@ class Sim:
         but also available as the .v attribute for potential backwards compatability.
         Called automatically when adding a Parker object to the sim.
         '''
+
         assert 'ovr' in self.simfiles
 
         if delete_negative:
@@ -1747,10 +1467,3 @@ class Sim:
         vseries = pd.Series(index=self.ovr.alt.index)
         vseries[self.ovr.alt.index] = interp1d(alt, v)(self.ovr.alt)
         self.v = vseries
-
-
-
-
-if __name__ == '__main__':
-    pd.set_option('display.max_rows', None)
-    pd.set_option('display.max_columns',None)
