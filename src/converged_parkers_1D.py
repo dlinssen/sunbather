@@ -42,7 +42,7 @@ def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):
     return clconv
 
 
-def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, a='real', zdict=None, pdir='AO', altmax=8, save_sp=[]):
+def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, zdict=None, pdir='AO', altmax=8, save_sp=[]):
     '''
     Solves for the converged temperature structure of a single parker wind profile.
     The folder structure on your machine needs to be as described in order for this to work.
@@ -71,9 +71,6 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, a='real', 
                             'nearby' looks in the dir folder for previously solved
                             parker wind profiles and starts from a converged one.
                             If no converged ones are available, uses 'free' instead.
-        a: [str/float]      semi-major axis in AU. In principle if a='real' we use the
-                            value as given in the planets.txt file, but if a is another
-                            value, that is used. It is adviced to use a separate dir folder for this.
         zdict: [dict]       dictionary with the scale factors of all elements relative
                             to the default solar composition.
         pdir: [str]         direction as projectpath/parker_profiles/planetname/pdir/
@@ -85,8 +82,6 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, a='real', 
 
     #set up the planet object
     planet = tools.Planet(plname)
-    if a != 'real':
-        planet.set_var(a=float(a))
     if SEDname != 'real':
         planet.set_var(SEDname=SEDname)
 
@@ -150,7 +145,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, a='real', 
     solveT_1D.run_loop(path, itno, fc, altmax, planet.R, cextraprof, advecprof, zdict, save_sp)
 
 
-def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname, overwrite, startT, a, zdict, pdir, altmax, save_sp):
+def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname, overwrite, startT, zdict, pdir, altmax, save_sp):
     '''
     Runs the function run_s in parallel for a given grid of Mdots and T, and
     for given number of cores (=parallel processes).
@@ -161,7 +156,7 @@ def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname
     pars = []
     for Mdot in np.arange(float(Mdot_l), float(Mdot_u)+float(Mdot_s), float(Mdot_s)):
         for T in np.arange(int(T_l), int(T_u)+int(T_s), int(T_s)).astype(int):
-            pars.append((plname, "%.1f" % Mdot, str(T), 1, fc, dir, SEDname, overwrite, startT, a, zdict, pdir, altmax, save_sp))
+            pars.append((plname, "%.1f" % Mdot, str(T), 1, fc, dir, SEDname, overwrite, startT, zdict, pdir, altmax, save_sp))
 
     p.starmap(unpack_args, pars)
     p.close()
@@ -187,7 +182,6 @@ if __name__ == '__main__':
     parser.add_argument("-dir", type=str, default='Tstruc', help="folder where the temperature structures are solved. e.g. Tstruc_fiducial or Tstruc_3xEUV etc.")
     parser.add_argument("-SEDname", type=str, default='real', help="name of SED to use. Must be in Cloudy's data/SED/ folder [default=SEDname set in planet.txt file]")
     parser.add_argument("-overwrite", action='store_true', help="overwrite existing simulation if passed [default=False]")
-    parser.add_argument("-a", type=str, default='real', help="semimajor axis in AU [default=real value of the planet set in planets.txt]")
     parser.add_argument("-z", type=float, default=1., help="metallicity (=scale factor relative to solar for all elements except H and He) [default=1.]")
     parser.add_argument("-zelem", action = type('', (argparse.Action, ), dict(__call__ = lambda a, p, n, v, o: getattr(n, a.dest).update(dict([v.split('=')])))),
                                     default = {}, help="abundance scale factor for specific elements, e.g. -zelem Fe=10 -zelem He=0.01. " \
@@ -222,19 +216,19 @@ if __name__ == '__main__':
         os.mkdir(tools.projectpath+'/sims/1D/'+args.plname+'/'+args.dir)
 
     if (args.T != None and args.Mdot != None): #then we run a single model
-        run_s(args.plname, args.Mdot, args.T, args.itno, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.a, zdict, args.pdir, args.altmax, args.save_sp)
+        run_s(args.plname, args.Mdot, args.T, args.itno, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
         print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
     elif (args.Tg != None and args.Mdotg != None): #then we run a grid over both parameters
         assert len(args.Tg) == 3 and len(args.Mdotg) == 3, "Please use exactly three arguments to specify the ranges of T and Mdot (see --help)."
-        run_g(args.plname, args.cores, args.Mdotg[0], args.Mdotg[1], args.Mdotg[2], args.Tg[0], args.Tg[1], args.Tg[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.a, zdict, args.pdir, args.altmax, args.save_sp)
+        run_g(args.plname, args.cores, args.Mdotg[0], args.Mdotg[1], args.Mdotg[2], args.Tg[0], args.Tg[1], args.Tg[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
         print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
     elif (args.Tg != None and args.Mdot != None): #then we run a grid over only T
         assert len(args.Tg) == 3, "Please use exactly three arguments to specify the range of T (see --help)."
-        run_g(args.plname, args.cores, args.Mdot, args.Mdot, args.Mdot, args.Tg[0], args.Tg[1], args.Tg[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.a, zdict, args.pdir, args.altmax, args.save_sp)
+        run_g(args.plname, args.cores, args.Mdot, args.Mdot, args.Mdot, args.Tg[0], args.Tg[1], args.Tg[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
         print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
     elif (args.T != None and args.Mdotg != None): #then we run a grid over only Mdot
         assert len(args.Mdotg) == 3, "Please use exactly three arguments to specify the range of Mdot (see --help)."
-        run_g(args.plname, args.cores, args.Mdotg[0], args.Mdotg[1], args.Mdotg[2], args.T, args.T, args.T, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.a, zdict, args.pdir, args.altmax, args.save_sp)
+        run_g(args.plname, args.cores, args.Mdotg[0], args.Mdotg[1], args.Mdotg[2], args.T, args.T, args.T, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
         print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
     else:
         raise Exception("Please provide either -T or -Tg, as well as either -Mdot or -Mdotg.")
