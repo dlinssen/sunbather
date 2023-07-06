@@ -20,6 +20,7 @@ def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):
     structure. It returns the T and Mdot
     of the close converged folder, or None if there aren't any (within the tolerance).
     '''
+
     allfolders = glob.glob(parentfolder+'parker_*/')
     convergedfolders = [] #stores the T and Mdot values of all folders with 0.out files
     for folder in allfolders:
@@ -149,12 +150,6 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, a='real', 
     solveT_1D.run_loop(path, itno, fc, altmax, planet.R, cextraprof, advecprof, zdict, save_sp)
 
 
-
-def unpack_args(tup): #unpacks the tuple needed for Pool into single arguments needed for the run function
-    run_s(*tup)
-
-
-
 def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname, overwrite, startT, a, zdict, pdir, altmax, save_sp):
     '''
     Runs the function run_s in parallel for a given grid of Mdots and T, and
@@ -166,11 +161,12 @@ def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname
     pars = []
     for Mdot in np.arange(float(Mdot_l), float(Mdot_u)+float(Mdot_s), float(Mdot_s)):
         for T in np.arange(int(T_l), int(T_u)+int(T_s), int(T_s)).astype(int):
-            pars.append([plname, "%.1f" % Mdot, str(T), 1, fc, dir, SEDname, overwrite, startT, a, zdict, pdir, altmax, save_sp])
+            pars.append((plname, "%.1f" % Mdot, str(T), 1, fc, dir, SEDname, overwrite, startT, a, zdict, pdir, altmax, save_sp))
 
-    p.map(unpack_args, pars)
+    p.starmap(unpack_args, pars)
     p.close()
     p.join()
+
 
 
 
@@ -181,14 +177,10 @@ if __name__ == '__main__':
 
     parser.add_argument("plname", help="planet name (must be in planets.txt)")
     parser.add_argument("-Mdot", help="log10 of mass loss rate")
+    parser.add_argument("-Mdotg", nargs=3, help="Mdot grid, give exactly three values: the lowest Mdot, the highest Mdot, and the Mdot step.")
     parser.add_argument("-T", help="temperature")
+    parser.add_argument("-Tg", nargs=3, help="T grid, give exactly three values: the lowest T, the highest T, and the T step.")
     parser.add_argument("-cores", type=int, default=1, help="number of parallel processor cores [default=1]")
-    parser.add_argument("-Mdotl", help="lower boundary of log(Mdot) grid")
-    parser.add_argument("-Mdotu", help="upper boundary of log(Mdot) grid")
-    parser.add_argument("-Mdots", help="log(Mdot) grid step size")
-    parser.add_argument("-Tl", help="lower boundary of T grid")
-    parser.add_argument("-Tu", help="upper boundary of T grid")
-    parser.add_argument("-Ts", help="T grid step size")
     parser.add_argument("-fc", type=float, default=1.1, help="convergence factor (heat/cool should be below this value) [default=1.1]")
     parser.add_argument("-startT", default="nearby", help="initial T structure, either 'constant', 'free' or 'nearby' [default=nearby]")
     parser.add_argument("-itno", type=int, default=1, help="starting iteration number (only >1 if overwriting previous result) [default=1]")
@@ -214,6 +206,8 @@ if __name__ == '__main__':
         args.zelem[k] = float(v)
     zdict = tools.get_zdict(z=args.z, zelem=args.zelem)
 
+    assert not (args.T != None and args.Tg != None) and not (args.Mdot != None and args.Mdotg != None), "Please do not mix -T and -Tg commands or -Mdot and -Mdotg commands."
+
     if 'all' in args.save_sp:
         args.save_sp = tools.get_specieslist(exclude_elements=[sp for sp,zval in zdict.items() if zval == 0.], max_ion=args.save_sp_max_ion)
 
@@ -230,9 +224,17 @@ if __name__ == '__main__':
     if (args.T != None and args.Mdot != None): #then we run a single model
         run_s(args.plname, args.Mdot, args.T, args.itno, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.a, zdict, args.pdir, args.altmax, args.save_sp)
         print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
-    elif (args.Tl != None and args.Tu != None and args.Ts != None and args.Mdotl != None and args.Mdotu != None and args.Mdots != None): #then we run a grid
-        run_g(args.plname, args.cores, args.Mdotl, args.Mdotu, args.Mdots, args.Tl, args.Tu, args.Ts, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.a, zdict, args.pdir, args.altmax, args.save_sp)
+    elif (args.Tg != None and args.Mdotg != None): #then we run a grid over both parameters
+        assert len(args.Tg) == 3 and len(args.Mdotg) == 3, "Please use exactly three arguments to specify the ranges of T and Mdot (see --help)."
+        run_g(args.plname, args.cores, args.Mdotg[0], args.Mdotg[1], args.Mdotg[2], args.Tg[0], args.Tg[1], args.Tg[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.a, zdict, args.pdir, args.altmax, args.save_sp)
+        print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
+    elif (args.Tg != None and args.Mdot != None): #then we run a grid over only T
+        assert len(args.Tg) == 3, "Please use exactly three arguments to specify the range of T (see --help)."
+        run_g(args.plname, args.cores, args.Mdot, args.Mdot, args.Mdot, args.Tg[0], args.Tg[1], args.Tg[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.a, zdict, args.pdir, args.altmax, args.save_sp)
+        print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
+    elif (args.T != None and args.Mdotg != None): #then we run a grid over only Mdot
+        assert len(args.Mdotg) == 3, "Please use exactly three arguments to specify the range of Mdot (see --help)."
+        run_g(args.plname, args.cores, args.Mdotg[0], args.Mdotg[1], args.Mdotg[2], args.T, args.T, args.T, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.a, zdict, args.pdir, args.altmax, args.save_sp)
         print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
     else:
-        raise Exception("Either provide -T and -Mdot, or provide -Tl, -Tu, -Ts, -Mdotl, -Mdotu, -Mdots. " +\
-                        "If you want to run a grid over e.g. T only, give the same value for -Mdotl and -Mdotu and a random value for -Mdots.")
+        raise Exception("Please provide either -T or -Tg, as well as either -Mdot or -Mdotg.")
