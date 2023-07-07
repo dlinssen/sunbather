@@ -53,6 +53,7 @@ def getbulkrates(htot, ctot, PdV, advecheat, adveccool):
     '''
     Combines the different heating and cooling rates into some useful (plotting) quantities
     '''
+
     totheat = htot + advecheat
     totcool = ctot + PdV + adveccool #all cooling rates are positive values
     nettotal = (totheat - totcool)
@@ -128,7 +129,8 @@ def calc_cloc(path, itno, advecheat, adveccool, htot, ctot, totheat, PdV, hcrati
 
     #check for expansion dominated regime (then we can construct part of the atmosphere)
     cxcloc = None
-    boolar4 = np.logical_and((np.abs(hcratio) < 1.5), (PdV / ctot > 8.)) #boolean array where the structure is amost converged and expansion dominates the cooling
+    boolar4 = (np.abs(hcratio) < 1.5) & (PdV / ctot > 8.) #boolean array where the structure is amost converged and expansion dominates the cooling
+    boolar4 = (PdV / ctot > 8.) #try this new version without checking for convergence - maybe this works better in some cases and worse in others.
     if False in boolar4 and True in boolar4: #then there is at least an occurence where this is not true.
         cxcloc = np.argmax(~boolar4) - 1 #this is the last location from index 0 where it is true
         if cxcloc < 1:
@@ -165,6 +167,7 @@ def relaxTstruc(sim, grid, altmax, Rp, cextraprof, advecprof, fc, path, itno):
     advection/expansion dominated part of the atmosphere by the constructTstruc() function
     since that is harder to find by relaxation method and easier by construction.
     '''
+
     #make altgrid which contains the altitude values corresponding to the depth grid. In values of Rp
     altgrid = altmax - grid/Rp
     Te, mu, htot, ctot, rho = simtogrid(sim, grid) #get all needed Cloudy quantities on the linear grid
@@ -306,6 +309,7 @@ def constructTstruc(sim, grid, snewTe, cloc, cextraprof, advecprof, altmax, Rp, 
     This function constructs the temperature structure from a given location (cloc),
     by minimizing the heating/cooling ratio of all terms.
     '''
+
     Te, mu, htot, ctot, rho = simtogrid(sim, grid) #get all needed Cloudy quantities on the grid
 
     ifuncPdVT = interp1d(10**cextraprof[:,0], 10**cextraprof[:,1], fill_value='extrapolate') #this is -1*k*v*drhodr/mH, so multiply with T and divide by mu still
@@ -320,6 +324,7 @@ def constructTstruc(sim, grid, snewTe, cloc, cextraprof, advecprof, altmax, Rp, 
         This function will be optimized to zero (=> h/c = 1) by the constructTstruc
         function. Goes up in altitude.
         '''
+
         PdV = ifuncPdVT(depth) * T / mu
         advec = ifuncadvec(depth) * ((T/mu) - (T2/mu2))/(depth - depth2)
 
@@ -336,6 +341,7 @@ def constructTstruc(sim, grid, snewTe, cloc, cextraprof, advecprof, altmax, Rp, 
         This function will be optimized to zero (=> h/c = 1) by the constructTstruc
         function. Goes up in altitude.
         '''
+
         PdV = ifuncPdVT(depth) * T / mu
         advec = ifuncadvec(depth) * ((T/mu) - (T2/mu2))/(depth - depth2)
 
@@ -381,6 +387,7 @@ def check_T_changing(fc, grid, newTe, prevgrid, prevTe, fac=0.5, linthresh=0.):
     the previous iteration. Because maybe H/C is still > fc, but because of smoothing,
     we are running the same temperature structure still iteratively.
     '''
+
     prevTe = interp1d(prevgrid, prevTe, fill_value='extrapolate')(grid) #put on same grid as the newTe
     ratioTe = np.maximum(newTe, prevTe) / np.minimum(newTe, prevTe) #take element wise ratio
     diffTe = np.abs(newTe - prevTe)

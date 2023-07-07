@@ -158,7 +158,7 @@ def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname
         for T in np.arange(int(T_l), int(T_u)+int(T_s), int(T_s)).astype(int):
             pars.append((plname, "%.1f" % Mdot, str(T), 1, fc, dir, SEDname, overwrite, startT, zdict, pdir, altmax, save_sp))
 
-    p.starmap(unpack_args, pars)
+    p.starmap(run_s, pars)
     p.close()
     p.join()
 
@@ -166,28 +166,43 @@ def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname
 
 
 if __name__ == '__main__':
+
+    class OneOrThreeAction(argparse.Action):
+        '''
+        Custom class for an argparse argument with exactly 1 or 3 values.
+        '''
+        def __call__(self, parser, namespace, values, option_string=None):
+            if len(values) not in (1, 3):
+                parser.error("Exactly one or three values are required.")
+            setattr(namespace, self.dest, values)
+
+    class AddDictAction(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            if not hasattr(namespace, self.dest) or getattr(namespace, self.dest) is None:
+                setattr(namespace, self.dest, {})
+            for value in values:
+                key, val = value.split('=')
+                getattr(namespace, self.dest)[key] = float(val)
+
     t0 = time.time()
 
     parser = argparse.ArgumentParser(description="Runs the temperature convergence for 1D Parker profile(s).")
 
-    parser.add_argument("plname", help="planet name (must be in planets.txt)")
-    parser.add_argument("-Mdot", help="log10 of mass loss rate")
-    parser.add_argument("-Mdotg", nargs=3, help="Mdot grid, give exactly three values: the lowest Mdot, the highest Mdot, and the Mdot step.")
-    parser.add_argument("-T", help="temperature")
-    parser.add_argument("-Tg", nargs=3, help="T grid, give exactly three values: the lowest T, the highest T, and the T step.")
-    parser.add_argument("-cores", type=int, default=1, help="number of parallel processor cores [default=1]")
+    parser.add_argument("-plname", required=True, help="planet name (must be in planets.txt)")
+    parser.add_argument("-dir", required=True, type=str, help="folder where the temperature structures are solved. e.g. Tstruc_fH_0.9 or Tstruc_z_100_3xEUV etc.")
+    parser.add_argument("-pdir", required=True, type=str, help="parker profile folder/dir to use, e.g. fH_0.9 or z_100.")
+    parser.add_argument("-Mdot", required=True, nargs='+', action=OneOrThreeAction, help="log10(mass-loss rate), or three values specifying a grid of mass-loss rates: lowest, highest, stepsize.")
+    parser.add_argument("-T", required=True, type=int, nargs='+', action=OneOrThreeAction, help="temperature, or three values specifying a grid of temperatures: lowest, highest, stepsize.")
+    parser.add_argument("-cores", type=int, default=1, help="number of parallel runs [default=1]")
     parser.add_argument("-fc", type=float, default=1.1, help="convergence factor (heat/cool should be below this value) [default=1.1]")
     parser.add_argument("-startT", default="nearby", help="initial T structure, either 'constant', 'free' or 'nearby' [default=nearby]")
     parser.add_argument("-itno", type=int, default=1, help="starting iteration number (only >1 if overwriting previous result) [default=1]")
-    parser.add_argument("-dir", type=str, default='Tstruc', help="folder where the temperature structures are solved. e.g. Tstruc_fiducial or Tstruc_3xEUV etc.")
     parser.add_argument("-SEDname", type=str, default='real', help="name of SED to use. Must be in Cloudy's data/SED/ folder [default=SEDname set in planet.txt file]")
     parser.add_argument("-overwrite", action='store_true', help="overwrite existing simulation if passed [default=False]")
     parser.add_argument("-z", type=float, default=1., help="metallicity (=scale factor relative to solar for all elements except H and He) [default=1.]")
-    parser.add_argument("-zelem", action = type('', (argparse.Action, ), dict(__call__ = lambda a, p, n, v, o: getattr(n, a.dest).update(dict([v.split('=')])))),
-                                    default = {}, help="abundance scale factor for specific elements, e.g. -zelem Fe=10 -zelem He=0.01. " \
-                                    + "Can also be used to toggle elements off, e.g. -zelem Ca=0. Combines with -z argument.") #https://gist.github.com/vadimkantorov/37518ff88808af840884355c845049ea
-    parser.add_argument("-pdir", type=str, default='AO', help="parker profile folder/dir to use, e.g. z=100 or fH=0.99. " \
-                                    + "default=AO (i.e. folder where models made by A. Oklopcic are)")
+    parser.add_argument("-zelem", action = AddDictAction, nargs='+', help="abundance scale factor for specific elements, e.g. -zelem Fe=10 -zelem He=0.01. " \
+                                        "Can also be used to toggle elements off, e.g. -zelem Ca=0. Combines with -z argument. Using this " \
+                                        "command results in running p_winds in an an iterative scheme where Cloudy updates the mu parameter.")
     parser.add_argument("-altmax", type=int, default=8, help="maximum altitude of the simulation in units of Rp. [default=8]")
     parser.add_argument("-save_sp", type=str, nargs='+', default=[], help="atomic or ionic species to save densities for (needed for radiative transfer). " \
                                     "You can add multiple as e.g. -save_sp He Ca+ Fe3+ Passing 'all' includes all species that weren't turned off. In that case, you can "\
@@ -196,11 +211,8 @@ if __name__ == '__main__':
                                     "that will be saved. [default=6] but using lower values saves significant file size if high ions are not needed.")
 
     args = parser.parse_args()
-    for k, v in args.zelem.items(): #convert the zelem values from string to float
-        args.zelem[k] = float(v)
-    zdict = tools.get_zdict(z=args.z, zelem=args.zelem)
 
-    assert not (args.T != None and args.Tg != None) and not (args.Mdot != None and args.Mdotg != None), "Please do not mix -T and -Tg commands or -Mdot and -Mdotg commands."
+    zdict = tools.get_zdict(z=args.z, zelem=args.zelem)
 
     if 'all' in args.save_sp:
         args.save_sp = tools.get_specieslist(exclude_elements=[sp for sp,zval in zdict.items() if zval == 0.], max_ion=args.save_sp_max_ion)
@@ -215,20 +227,13 @@ if __name__ == '__main__':
     if not os.path.isdir(tools.projectpath+'/sims/1D/'+args.plname+'/'+args.dir+'/'):
         os.mkdir(tools.projectpath+'/sims/1D/'+args.plname+'/'+args.dir)
 
-    if (args.T != None and args.Mdot != None): #then we run a single model
-        run_s(args.plname, args.Mdot, args.T, args.itno, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
-        print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
-    elif (args.Tg != None and args.Mdotg != None): #then we run a grid over both parameters
-        assert len(args.Tg) == 3 and len(args.Mdotg) == 3, "Please use exactly three arguments to specify the ranges of T and Mdot (see --help)."
-        run_g(args.plname, args.cores, args.Mdotg[0], args.Mdotg[1], args.Mdotg[2], args.Tg[0], args.Tg[1], args.Tg[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
-        print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
-    elif (args.Tg != None and args.Mdot != None): #then we run a grid over only T
-        assert len(args.Tg) == 3, "Please use exactly three arguments to specify the range of T (see --help)."
-        run_g(args.plname, args.cores, args.Mdot, args.Mdot, args.Mdot, args.Tg[0], args.Tg[1], args.Tg[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
-        print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
-    elif (args.T != None and args.Mdotg != None): #then we run a grid over only Mdot
-        assert len(args.Mdotg) == 3, "Please use exactly three arguments to specify the range of Mdot (see --help)."
-        run_g(args.plname, args.cores, args.Mdotg[0], args.Mdotg[1], args.Mdotg[2], args.T, args.T, args.T, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
-        print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
-    else:
-        raise Exception("Please provide either -T or -Tg, as well as either -Mdot or -Mdotg.")
+    if (len(args.T) == 1 and len(args.Mdot) == 1): #then we run a single model
+        run_s(args.plname, args.Mdot[0], args.T[0], args.itno, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
+    elif (len(args.T) == 3 and len(args.Mdot) == 3): #then we run a grid over both parameters
+        run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
+    elif (len(args.T) == 3 and len(args.Mdot) == 1): #then we run a grid over only T
+        run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
+    elif (len(args.T) == 1 and len(args.Mdot) == 3): #then we run a grid over only Mdot
+        run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
+
+    print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")

@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import time
 from shutil import copyfile
 import matplotlib.pyplot as plt
 import astropy.units as u
@@ -370,37 +371,53 @@ def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fH, zdict,
 
 if __name__ == '__main__':
 
+    class OneOrThreeAction(argparse.Action):
+        '''
+        Custom class for an argparse argument with exactly 1 or 3 values.
+        '''
+        def __call__(self, parser, namespace, values, option_string=None):
+            if len(values) not in (1, 3):
+                parser.error("Exactly one or three values are required.")
+            setattr(namespace, self.dest, values)
+
+    class AddDictAction(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            if not hasattr(namespace, self.dest) or getattr(namespace, self.dest) is None:
+                setattr(namespace, self.dest, {})
+            for value in values:
+                key, val = value.split('=')
+                getattr(namespace, self.dest)[key] = float(val)
+
+    t0 = time.time()
+
     parser = argparse.ArgumentParser(description="Creates 1D Parker profile(s) using the p_winds code and Cloudy.")
 
-    parser.add_argument("plname", help="planet name (must be in planets.txt)")
-    parser.add_argument("pdir", help="directory where the profiles are saved. It is adviced to choose a name that " \
+    parser.add_argument("-plname", required=True, help="planet name (must be in planets.txt)")
+    parser.add_argument("-pdir", required=True, help="directory where the profiles are saved. It is adviced to choose a name that " \
                                         "somehow represents the chosen parameters, e.g. 'fH_0.9' or 'z=10'. The path will be tools.projectpath/parker_profiles/pdir/")
-    parser.add_argument("-Mdot", help="log10 of mass loss rate.")
-    parser.add_argument("-Mdotg", nargs=3, help="Mdot grid, give exactly three values: the lowest Mdot, the highest Mdot, and the Mdot step.")
-    parser.add_argument("-T", type=int, help="temperature")
-    parser.add_argument("-Tg", nargs=3, help="T grid, give exactly three values: the lowest T, the highest T, and the T step.")
-    parser.add_argument("-cores", type=int, default=1, help="number of parallel processor cores [default=1]")
-    parser.add_argument("-fH", type=float, help="hydrogen fraction by number. Using this command results in running standalone p_winds without invoking Cloudy.")
-    parser.add_argument("-z", type=float, help="metallicity (=scale factor relative to solar for all elements except H and He). Using this " \
+    parser.add_argument("-Mdot", required=True, nargs='+', action=OneOrThreeAction, help="log10(mass-loss rate), or three values specifying a grid of mass-loss rates: lowest, highest, stepsize.")
+    parser.add_argument("-T", required=True, type=int, nargs='+', action=OneOrThreeAction, help="temperature, or three values specifying a grid of temperatures: lowest, highest, stepsize.")
+    composition_group = parser.add_mutually_exclusive_group(required=True)
+    composition_group.add_argument("-fH", type=float, help="hydrogen fraction by number. Using this command results in running standalone p_winds without invoking Cloudy.")
+    composition_group.add_argument("-z", type=float, help="metallicity (=scale factor relative to solar for all elements except H and He). Using this " \
                                         "command results in running p_winds in an an iterative scheme where Cloudy updates the mu parameter.")
-    parser.add_argument("-zelem", action = type('', (argparse.Action, ), dict(__call__ = lambda a, p, n, v, o: getattr(n, a.dest).update(dict([v.split('=')])))),
-                                    default = {}, help="abundance scale factor for specific elements, e.g. -zelem Fe=10 -zelem He=0.01. " \
+    parser.add_argument("-zelem", action = AddDictAction, nargs='+', help="abundance scale factor for specific elements, e.g. -zelem Fe=10 -zelem He=0.01. " \
                                         "Can also be used to toggle elements off, e.g. -zelem Ca=0. Combines with -z argument. Using this " \
                                         "command results in running p_winds in an an iterative scheme where Cloudy updates the mu parameter.")
+    parser.add_argument("-cores", type=int, default=1, help="number of parallel runs [default=1]")
     parser.add_argument("-mu_conv", type=float, default=0.01, help="relative change in mu allowed for convergence, when using p_winds/Cloudy iterative scheme [default=0.01]")
     parser.add_argument("-mu_maxit", type=int, default=7, help="maximum number of iterations the p_winds/Cloudy iterative scheme is ran " \
                                         "if convergence is not reached [default =7]")
     args = parser.parse_args()
 
-    for k, v in args.zelem.items():
-        args.zelem[k] = float(v) #convert the zelem values from string to float
+
     if args.z != None:
         zdict = tools.get_zdict(z=args.z, zelem=args.zelem)
     else: #if z==None we should not pass that to the tools.get_zdict function
         zdict = tools.get_zdict(zelem=args.zelem)
 
-    assert not (args.T != None and args.Tg != None) and not (args.Mdot != None and args.Mdotg != None), "Please do not mix -T and -Tg commands or -Mdot and -Mdotg commands."
-    assert (args.fH != None and (args.z == None and args.zelem == {})) or (args.fH == None and (args.z != None or args.zelem != {})), "Please provide either fH or a combination of z/zelem."
+    if args.fH != None and (args.zelem != {} or args.mu_conv != 0.01 or args.mu_maxit != 7):
+        print("The -zelem, -mu_conv and -mu_maxit commands only combine with -z, not with -fH, so I will ignore their input.")
 
     #set up the folder structure if it doesn't exist yet
     if not os.path.isdir(tools.projectpath+'/parker_profiles/'):
@@ -412,16 +429,13 @@ if __name__ == '__main__':
     if (args.fH == None) and (not os.path.isdir(tools.projectpath+'/parker_profiles/'+args.plname+'/'+args.pdir+'/temp/')):
         os.mkdir(tools.projectpath+'/parker_profiles/'+args.plname+'/'+args.pdir+'/temp')
 
-    if (args.T != None and args.Mdot != None): #then we run a single model
-        run_s(args.plname, args.pdir, args.Mdot, args.T, args.fH, zdict, args.mu_conv, args.mu_maxit)
-    elif (args.Tg != None and args.Mdotg != None): #then we run a grid over both parameters
-        assert len(args.Tg) == 3 and len(args.Mdotg) == 3, "Please use exactly three arguments to specify the ranges of T and Mdot (see --help)."
-        run_g(args.plname, args.pdir, args.cores, args.Mdotg[0], args.Mdotg[1], args.Mdotg[2], args.Tg[0], args.Tg[1], args.Tg[2], args.fH, zdict, args.mu_conv, args.mu_maxit)
-    elif (args.Tg != None and args.Mdot != None): #then we run a grid over only T
-        assert len(args.Tg) == 3, "Please use exactly three arguments to specify the range of T (see --help)."
-        run_g(args.plname, args.pdir, args.cores, args.Mdot, args.Mdot, args.Mdot, args.Tg[0], args.Tg[1], args.Tg[2], args.fH, zdict, args.mu_conv, args.mu_maxit)
-    elif (args.T != None and args.Mdotg != None): #then we run a grid over only Mdot
-        assert len(args.Mdotg) == 3, "Please use exactly three arguments to specify the range of Mdot (see --help)."
-        run_g(args.plname, args.pdir, args.cores, args.Mdotg[0], args.Mdotg[1], args.Mdotg[2], args.T, args.T, args.T, args.fH, zdict, args.mu_conv, args.mu_maxit)
-    else:
-        raise Exception("Please provide either -T or -Tg, as well as either -Mdot or -Mdotg.")
+    if (len(args.T) == 1 and len(args.Mdot) == 1): #then we run a single model
+        run_s(args.plname, args.pdir, args.Mdot[0], args.T[0], args.fH, zdict, args.mu_conv, args.mu_maxit)
+    elif (len(args.T) == 3 and len(args.Mdot) == 3): #then we run a grid over both parameters
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.fH, zdict, args.mu_conv, args.mu_maxit)
+    elif (len(args.T) == 3 and len(args.Mdot) == 1): #then we run a grid over only T
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.fH, zdict, args.mu_conv, args.mu_maxit)
+    elif (len(args.T) == 1 and len(args.Mdot) == 3): #then we run a grid over only Mdot
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.fH, zdict, args.mu_conv, args.mu_maxit)
+
+    print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
