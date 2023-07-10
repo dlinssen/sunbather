@@ -184,6 +184,7 @@ if __name__ == '__main__':
                 key, val = value.split('=')
                 getattr(namespace, self.dest)[key] = float(val)
 
+
     t0 = time.time()
 
     parser = argparse.ArgumentParser(description="Runs the temperature convergence for 1D Parker profile(s).")
