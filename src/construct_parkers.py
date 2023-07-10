@@ -388,6 +388,7 @@ if __name__ == '__main__':
                 key, val = value.split('=')
                 getattr(namespace, self.dest)[key] = float(val)
 
+
     t0 = time.time()
 
     parser = argparse.ArgumentParser(description="Creates 1D Parker profile(s) using the p_winds code and Cloudy.")
@@ -401,7 +402,7 @@ if __name__ == '__main__':
     composition_group.add_argument("-fH", type=float, help="hydrogen fraction by number. Using this command results in running standalone p_winds without invoking Cloudy.")
     composition_group.add_argument("-z", type=float, help="metallicity (=scale factor relative to solar for all elements except H and He). Using this " \
                                         "command results in running p_winds in an an iterative scheme where Cloudy updates the mu parameter.")
-    parser.add_argument("-zelem", action = AddDictAction, nargs='+', help="abundance scale factor for specific elements, e.g. -zelem Fe=10 -zelem He=0.01. " \
+    parser.add_argument("-zelem", action = AddDictAction, nargs='+', default = {}, help="abundance scale factor for specific elements, e.g. -zelem Fe=10 -zelem He=0.01. " \
                                         "Can also be used to toggle elements off, e.g. -zelem Ca=0. Combines with -z argument. Using this " \
                                         "command results in running p_winds in an an iterative scheme where Cloudy updates the mu parameter.")
     parser.add_argument("-cores", type=int, default=1, help="number of parallel runs [default=1]")
@@ -409,7 +410,6 @@ if __name__ == '__main__':
     parser.add_argument("-mu_maxit", type=int, default=7, help="maximum number of iterations the p_winds/Cloudy iterative scheme is ran " \
                                         "if convergence is not reached [default =7]")
     args = parser.parse_args()
-
 
     if args.z != None:
         zdict = tools.get_zdict(z=args.z, zelem=args.zelem)

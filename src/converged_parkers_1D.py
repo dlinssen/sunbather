@@ -201,7 +201,7 @@ if __name__ == '__main__':
     parser.add_argument("-SEDname", type=str, default='real', help="name of SED to use. Must be in Cloudy's data/SED/ folder [default=SEDname set in planet.txt file]")
     parser.add_argument("-overwrite", action='store_true', help="overwrite existing simulation if passed [default=False]")
     parser.add_argument("-z", type=float, default=1., help="metallicity (=scale factor relative to solar for all elements except H and He) [default=1.]")
-    parser.add_argument("-zelem", action = AddDictAction, nargs='+', help="abundance scale factor for specific elements, e.g. -zelem Fe=10 -zelem He=0.01. " \
+    parser.add_argument("-zelem", action = AddDictAction, nargs='+', default = {}, help="abundance scale factor for specific elements, e.g. -zelem Fe=10 -zelem He=0.01. " \
                                         "Can also be used to toggle elements off, e.g. -zelem Ca=0. Combines with -z argument. Using this " \
                                         "command results in running p_winds in an an iterative scheme where Cloudy updates the mu parameter.")
     parser.add_argument("-altmax", type=int, default=8, help="maximum altitude of the simulation in units of Rp. [default=8]")
