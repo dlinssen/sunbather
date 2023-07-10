@@ -229,7 +229,7 @@ if __name__ == '__main__':
         os.mkdir(tools.projectpath+'/sims/1D/'+args.plname+'/'+args.dir)
 
     if (len(args.T) == 1 and len(args.Mdot) == 1): #then we run a single model
-        run_s(args.plname, args.Mdot[0], args.T[0], args.itno, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
+        run_s(args.plname, args.Mdot[0], str(args.T[0]), args.itno, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
     elif (len(args.T) == 3 and len(args.Mdot) == 3): #then we run a grid over both parameters
         run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
     elif (len(args.T) == 3 and len(args.Mdot) == 1): #then we run a grid over only T
