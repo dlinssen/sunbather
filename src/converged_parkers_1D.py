@@ -124,21 +124,17 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, zdict=None
 
         #get starting temperature structure
         clconv = find_close_model(pathTstruc, T, Mdot) #find if there are any nearby models we can start from
-        if startT == 'constant':
-            tools.copyadd_Cloudy_in(path+'template', path+'iteration1', constantT=T) #use constant T
+        if startT == 'constant': #then we start with the isothermal value
+            tools.copyadd_Cloudy_in(path+'template', path+'iteration1', constantT=T)
 
         elif clconv == [None, None] or startT == 'free': #then we start in free (=radiative eq.) mode
             copyfile(path+'template.in', path+'iteration1.in')
 
-        elif startT == 'nearby': #then clconv cannot be [None, None]
+        elif startT == 'nearby': #then clconv cannot be [None, None] and we start from a previous converged T(r)
             print("Model", T, Mdot, "starting from previously converged profile:", clconv)
-            it1_T = np.genfromtxt(pathTstruc+'parker_'+str(clconv[0])+'_'+"{:.1f}".format(clconv[1])+'/converged_T.txt')
-            Cltlaw = tools.depth_array_1D_to_Cloudy(it1_T[:,0], it1_T[:,1], altmax, planet.R, 1000)
-            tools.copyadd_Cloudy_in(path+'template', path+'iteration1', tlaw=Cltlaw) #use constant T
-
-        else: #I don't think should ever happen if you give constant, free or nearby
-            print("I do not understand the input startT argument.")
-            return #quit the run_s function but not the code
+            prev_conv_T = pd.read_table(pathTstruc+'parker_'+str(clconv[0])+'_'+"{:.1f}".format(clconv[1])+'/converged.txt', delimiter=' ')
+            Cltlaw = tools.alt_array_to_Cloudy(prev_conv_T.R * planet.R, prev_conv_T.Te, altmax, planet.R, 1000)
+            tools.copyadd_Cloudy_in(path+'template', path+'iteration1', tlaw=Cltlaw)
 
 
     #with everything in order, run the actual temperature convergence scheme
@@ -196,7 +192,7 @@ if __name__ == '__main__':
     parser.add_argument("-T", required=True, type=int, nargs='+', action=OneOrThreeAction, help="temperature, or three values specifying a grid of temperatures: lowest, highest, stepsize.")
     parser.add_argument("-cores", type=int, default=1, help="number of parallel runs [default=1]")
     parser.add_argument("-fc", type=float, default=1.1, help="convergence factor (heat/cool should be below this value) [default=1.1]")
-    parser.add_argument("-startT", default="nearby", help="initial T structure, either 'constant', 'free' or 'nearby' [default=nearby]")
+    parser.add_argument("-startT", choices=["nearby", "free", "constant"], default="nearby", help="initial T structure, either 'constant', 'free' or 'nearby' [default=nearby]")
     parser.add_argument("-itno", type=int, default=1, help="starting iteration number (only >1 if overwriting previous result) [default=1]")
     parser.add_argument("-SEDname", type=str, default='real', help="name of SED to use. Must be in Cloudy's data/SED/ folder [default=SEDname set in planet.txt file]")
     parser.add_argument("-overwrite", action='store_true', help="overwrite existing simulation if passed [default=False]")

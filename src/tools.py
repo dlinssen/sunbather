@@ -472,7 +472,7 @@ def read_parker(plname, T, Mdot, dir=None, filename=None):
     Reads a parker wind profile and returns it as a pandas Dataframe.
     Arguments:
         plname: [str]       planet name
-        T: [int/str]        temperature
+        T:                  temperature
         Mdot: [float/str]   log10 of the mass-loss rate
         dir: [str]          folder to use for the parker profile. This can be
                             any folder name as long as it exists. So e.g. you
@@ -487,7 +487,7 @@ def read_parker(plname, T, Mdot, dir=None, filename=None):
     if filename == None:
         if isinstance(Mdot, float):
             Mdot = "%.1f" %Mdot
-        filename = projectpath+'/parker_profiles/'+plname+'/'+dir+'/pprof_'+plname+'_T='+str(T)+'_M='+Mdot+'.txt'
+        filename = projectpath+'/parker_profiles/'+plname+'/'+dir+'/pprof_'+plname+'_T='+str(int(T))+'_M='+Mdot+'.txt'
 
     pprof = pd.read_table(filename, names=['alt', 'rho', 'v', 'mu'], dtype=np.float64, comment='#')
     pprof['drhodr'] = np.gradient(pprof['rho'], pprof['alt'])
@@ -791,26 +791,6 @@ def alt_array_to_Cloudy(alt, quantity, altmax, Rp, nmax, log=True):
     if log:
         law[law[:,1]==0., 1] = 1e-100
         law = np.log10(law)
-
-    return law
-
-
-def depth_array_1D_to_Cloudy(depth, quantity, altmax, Rp, nmax, log=True):
-    '''
-    Converts an array of some quantity vs depth to Cloudy array. This function
-    only works for a '1D' array, meaning it is e.g. the substellar point ray that
-    only probes the day side so that every point has an altitude, which is why
-    the altmax and Rp arguments are necessary.
-    Give depth in cm.
-    '''
-
-    assert depth[1] > depth[0] #should be in ascending depth order
-    assert depth[0] < 1.    #usually the depth grid we want to place on Cloudy grid is the output of some Cloudy run.
-                            #That one should start at 0.05 cm, which is fine to extrapolate to 1e-35 cm for the new table.
-                            #But if the depth grid starts at >1cm, check what's going on as it might cause problems.
-
-    alt = (altmax*Rp - depth)
-    law = alt_array_to_Cloudy(alt[::-1], quantity[::-1], altmax, Rp, nmax, log=log) #flip them to get ascending alt order
 
     return law
 
@@ -1444,7 +1424,7 @@ class Sim:
         '''
         Adds a Parker profile object to the Sim, in case it wasn't added upon initialization.
         '''
-        
+
         assert isinstance(parker, Parker)
         self.par = parker
         if hasattr(parker, 'prof'):
