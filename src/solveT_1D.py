@@ -1,15 +1,15 @@
+#cloupy imports
+import tools
+
+#other imports
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from scipy.optimize import minimize_scalar
 from scipy.interpolate import interp1d
-from scipy.signal import savgol_filter
-from scipy.ndimage import gaussian_filter1d
 import scipy.stats as sps
 import os
-from shutil import copyfile
-import tools
 
 
 def simtogrid(sim, grid):

@@ -1,21 +1,17 @@
 import numpy as np
 import pandas as pd
-import math
 import matplotlib.pyplot as plt
 import os
 import glob
-import sys
-import time
 import re
 from shutil import copyfile
-from itertools import cycle
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
-from scipy.signal import butter, filtfilt
 import scipy.stats as sps
 from scipy.ndimage import gaussian_filter1d
 from fractions import Fraction
 import configparser
+
 
 config = configparser.ConfigParser()
 cloupy_path = os.path.dirname(os.path.abspath(__file__)) #the absolute path where this code lives

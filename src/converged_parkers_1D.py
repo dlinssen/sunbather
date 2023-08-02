@@ -1,3 +1,8 @@
+#cloupy imports
+import tools
+import solveT_1D
+
+#other imports
 import pandas as pd
 import numpy as np
 import multiprocessing
@@ -6,10 +11,6 @@ import time
 import glob
 import os
 import argparse
-import traceback
-import sys
-import tools
-import solveT_1D
 
 
 def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):

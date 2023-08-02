@@ -1,3 +1,7 @@
+#cloupy imports
+import tools
+
+#other imports
 import numpy as np
 import os
 import time
@@ -9,7 +13,6 @@ from p_winds import parker as pw_parker
 from p_winds import hydrogen as pw_hydrogen
 from scipy.integrate import simps, trapz
 from scipy.interpolate import interp1d
-import tools #my tools, not pwinds's tools
 import argparse
 import multiprocessing
 
