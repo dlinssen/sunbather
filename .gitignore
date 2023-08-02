@@ -1,12 +1,4 @@
 .DS_Store
 src/.DS_Store
-src/config.ini
 src/RT_tables/.DS_Store
-examples/.DS_Store
-examples/materials/.DS_Store
 src/__pycache__/
-examples/.ipynb_checkpoints
-examples/WASP52b_nsig_fit.csv
-examples/WASP52b_dT.csv
-examples/WASP52b_sigmaT.csv
-
