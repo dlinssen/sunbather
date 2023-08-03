@@ -5,6 +5,7 @@ examples/.DS_Store
 examples/materials/.DS_Store
 wiki/.DS_Store
 src/__pycache__/
+src/planets.txt
 examples/.ipynb_checkpoints
 examples/WASP52b_dT.csv
 examples/WASP52b_sigmaT.csv
