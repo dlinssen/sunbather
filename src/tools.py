@@ -18,11 +18,10 @@ cloupy_path = os.path.dirname(os.path.abspath(__file__)) #the absolute path wher
 config.read(os.path.join(cloupy_path, 'config.ini'))
 cloudypath = config.get('General', 'cloudypath') #the path where the Cloudy installation is
 projectpath = config.get('General', 'projectpath') #the path where you save your simulations and do analysis
-planets_file_location = config.get('General', 'planetsfilelocation', fallback=projectpath+'/planets.txt') #full path to file that gives planet parameters
 cloudyruncommand = cloudypath+'/source/cloudy.exe -p' #the -p flag is important!
 
-#read this out globally instead of in the Planets class to do it only once:
-planets_file = pd.read_csv(planets_file_location, dtype={'name':str, 'full name':str, 'R [RJ]':np.float64,
+#read planet parameters globally instead of in the Planets class (so we do it only once)
+planets_file = pd.read_csv(cloupy_path+'/planets.txt', dtype={'name':str, 'full name':str, 'R [RJ]':np.float64,
                             'Rstar [Rsun]':np.float64, 'a [AU]':np.float64, 'M [MJ]':np.float64, 'Mstar [Msun]':np.float64,
                             'transit impact parameter':np.float64, 'SEDname':str}, comment='#')
 

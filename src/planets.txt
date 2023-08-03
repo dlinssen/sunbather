@@ -1,0 +1,4 @@
+name,full name,R [RJ],Rstar [Rsun],a [AU],M [MJ],Mstar [Msun],transit impact parameter,SEDname
+WASP52b,WASP-52 b,1.268,0.79,0.0272,0.46,0.87,0.598,eps_Eri_binned.spec
+HATP11b,HAT-P-11 b,0.3890,0.7599,0.053,0.0736,0.809,0.132,K4_binned.spec
+HATP11b_v2,HAT-P-11 b,0.3890,0.7599,0.1,0.0736,0.809,0.132,K4_binned.spec #same planet but now put at 0.1 AU
