@@ -1,0 +1,80 @@
+This wiki page is a glossary that provides additional information on various modules/classes/functionalities included in _cloupy_. We also refer to "Hazy", which is the official documentation of _Cloudy_ and can be found in your _/c17.02/docs/_ folder. 
+
+<br>
+
+- #### The `tools.py` module
+This module contains many basic functions and classes that are used by the other _cloupy_ modules, and can also be used when postprocessing/analyzing _cloupy_ output. 
+
+This module should not be ran from the command line, but rather imported into other scripts in order to use its functions.
+
+<br>
+
+- #### The `RT.py` module
+This module contains different functions to perform radiative transfer calculations of the planet transmission spectrum. 
+
+This module should not be ran from the command line, but rather imported into other scripts in order to use its functions.
+
+<br>
+
+- #### The `construct_parkers.py` module
+This module is used to create Parker wind profiles. The module can make pure H/He profiles, in which case it is basically a wrapper around the [`p-winds` code](https://github.com/ladsantos/p-winds) (dos Santos et al. 2022). The code can however also make Parker wind profiles for an arbitrary composition (e.g. at a given scaled solar metallicity), which is much more computationally expensive, because it then iteratively runs `p-winds` and _Cloudy_. In this mode, _Cloudy_ is used to obtain the mean molecular weight structure of the atmosphere for the given composition, which `p-winds` uses to calculate the density and velocity structure. 
+
+This module is intended to be ran from the command line while supplying arguments. Running `python construct_parkers.py --help` will give an explanation of each argument.
+
+Example use: `python construct_parkers.py -plname WASP52b -pdir z_10 -T 8000 -Mdot 11.0 -z 10`. This creates a Parker wind profile for the planet WASP52b (must be defined in *planets.txt*) for a temperature of 8000 K, mass-loss rate of 10^11 g/s and a 10x solar metallicity composition, and saves the atmospheric structure as a .txt file in *projectpath/parker_profiles/WASP52b/z_10/*.
+
+<br>
+
+- #### The `converged_parkers_1D.py` module
+This module is used to run Parker wind profiles through _Cloudy_ to (iteratively) solve for a non-isothermal temperature structure. Additionally, the "converged" simulation can then be postprocessed with functionality of the `RT.py` module in order to make transmission spectra. This module is basically a QOL wrapper which sets up the necessary folder structure and input arguments for the `solveT_1D.py` module that actually performs the iterative scheme described in Linssen et al. (2022).
+
+This module is intended to be ran from the command line while supplying arguments. Running `python converged_parkers_1D.py --help` will give an explanation of each argument.
+
+Example use: `python converged_parkers_1D.py -plname HATP11b -pdir fH_0.99 -dir fiducial -T 5000 10000 200 -Mdot 9.0 11.0 0.1 -zelem He=0.1 -cores 4 -save_sp H He Ca+`. This simulates Parker wind models with Cloudy for the planet HATP11b (must be defined in *planets.txt*) for a grid of temperatures between 5000 K and 10000 K in steps of 200 K, mass-loss rates between 10^9 g/s and 10^11 g/s in steps of 0.1 dex. It looks for the density and velocity structure of these models in the folder *projectpath/parker_profiles/HATP11b/fH_0.99/* (so these models have to be created first in that folder using `construct_parkers.py`) and saves the _Cloudy_ simulations in the folder *projectpath/sims/1D/HATP11b/fiducial/*. It scales the abundance of helium (which is solar by default in _Cloudy_, i.e. ~10% by number) by a factor 0.1 so that it becomes 1% by number. 4 different calculations of the $T$-$\dot{M}$-grid are done in parallel, and the atomic hydrogen, helium and singly ionized calcium output are saved by _Cloudy_, so that afterwards we can use `RT.FinFout_1D()` to make Halpha, metastable helium and Ca II infrared triplet spectra.
+
+<br>
+
+- #### The `solveT_1D.py` module
+This module contains the iterative scheme described in Linssen et al. (2022) to solve for a non-isothermal temperature structure of a given atmospheric profile. It is called by `converged_parkers_1D.py`. As long as you're simulating Parker wind profiles (and not some other custom profile), you should be fine using `converged_parkers_1D.py` instead of this module.
+
+
+<br>
+
+- #### The `tools.Sim` class
+...
+
+<br>
+
+- #### The `tools.Planet` class
+...
+
+<br>
+
+- #### The `tools.Parker` class
+...
+
+<br>
+
+- #### `RT.FinFout_1D()`
+...
+
+
+<br>
+
+- #### The _src/config.ini_ file
+This file specifies two important paths that have to be known to _cloupy_, which must be set by the user as part of the _cloupy_ installation. The first is the full path to the root of the _Cloudy v17.02_ installation, for example _/Users/dion/Programs/c17.02/_. The second is the _projectpath_ - see "The _projectpath_ directory" below in this glossary. **Do not use string quotations (" or ') around your paths.**
+
+<br>
+
+- #### The _projectpath_ directory
+This is the directory on your machine where all Parker wind profiles and _Cloudy_ simulations are saved. You can choose any location and name you like, as long as it doesn't contain any spaces. The full path to this directory must be set in the _/cloupy/src/config.ini_ file. The reason _cloupy_ uses a _projectpath_ is to keep all output from simulations (i.e. user-specific files) separate from the source code.
+
+<br>
+
+- #### The _src/planets.txt_ file
+This file stores the bulk parameters of the planets that are simulated. Every time you want to simulate a new planet/star system, you must add a line to this file with its parameters. You can add comments at the end of the line with a # (for example referencing where the values are from). The first column specifies the "name", which is a tag for this system that cannot contain spaces and is used for the `-plname` argument of `construct_parkers.py` and `converged_parkers_1D.py`, as well as for the `tools.Planet` class to access the system parameters in Python. The second column specifies the "full name", which can be any string you like and can be used e.g. when plotting results. The third column is the radius of the planet in Jupiter radii (7.1492e9 cm). The fourth column is the radius of the star in solar radii (6.9634e10 cm). THe fourth column is the semi-major axis of the system in AU (1.49597871e13 cm). The fifth column is the mass of the planet in Jupiter masses (1.898e30 g). The sixth column is the mass of the star in solar masses (1.9891e33 g). The seventh column is the transit impact parameter (dimensionless, 0 is across the center of the stellar disk, 1 is grazing the stellar limb). The eigth column is the name of the stellar SED - see "Stellar SED handling" below in this glossary.
+
+<br>
+
+- #### Stellar SED handling
+When running _cloupy_, the spectral energy distribution (SED) of the host star has to be available to _Cloudy_, which looks for it in its _/c17.02/data/SED/_ folder. Therefore, every SED you want to use has be **copied to that folder, and requires a specific format**: the first column must be wavelengths in units of Å and the second column must be the the $\lambda F_{\lambda} = \nu F_{\nu}$ flux **at a distance of 1 AU** in units of erg s-1 cm-2. Additionally, on the first line, after the first flux value, the following keywords must appear: "units angstrom nuFnu". An example SED file in this format can be found in */examples/materials/eps_Eri_binned.spec*. Even though _Cloudy_ in principle supports other units, _cloupy_ doesn't, so please stick to the units as described.
