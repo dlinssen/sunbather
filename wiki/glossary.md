@@ -5,30 +5,30 @@ This wiki page is a glossary that provides additional information on various mod
 - #### The `tools.py` module
 This module contains many basic functions and classes that are used by the other _cloupy_ modules, and can also be used when postprocessing/analyzing _cloupy_ output. 
 
-This module should not be ran from the command line, but rather imported into other scripts in order to use its functions.
+This module is not intended to be run from the command line, but rather imported into other scripts in order to use its functions.
 
 <br>
 
 - #### The `RT.py` module
-This module contains different functions to perform radiative transfer calculations of the planet transmission spectrum. 
+This module contains functions to perform radiative transfer calculations of the planet transmission spectrum. 
 
-This module should not be ran from the command line, but rather imported into other scripts in order to use its functions.
+This module is not intended to be run from the command line, but rather imported into other scripts in order to use its functions.
 
 <br>
 
 - #### The `construct_parkers.py` module
 This module is used to create Parker wind profiles. The module can make pure H/He profiles, in which case it is basically a wrapper around the [`p-winds` code](https://github.com/ladsantos/p-winds) (dos Santos et al. 2022). The code can however also make Parker wind profiles for an arbitrary composition (e.g. at a given scaled solar metallicity), which is much more computationally expensive, because it then iteratively runs `p-winds` and _Cloudy_. In this mode, _Cloudy_ is used to obtain the mean molecular weight structure of the atmosphere for the given composition, which `p-winds` uses to calculate the density and velocity structure. 
 
-This module is intended to be ran from the command line while supplying arguments. Running `python construct_parkers.py --help` will give an explanation of each argument.
+This module is intended to be run from the command line while supplying arguments. Running `python construct_parkers.py --help` will give an explanation of each argument.
 
 Example use: `python construct_parkers.py -plname WASP52b -pdir z_10 -T 8000 -Mdot 11.0 -z 10`. This creates a Parker wind profile for the planet WASP52b (must be defined in *planets.txt*) for a temperature of 8000 K, mass-loss rate of 10^11 g/s and a 10x solar metallicity composition, and saves the atmospheric structure as a .txt file in *projectpath/parker_profiles/WASP52b/z_10/*.
 
 <br>
 
 - #### The `converged_parkers_1D.py` module
-This module is used to run Parker wind profiles through _Cloudy_ to (iteratively) solve for a non-isothermal temperature structure. Additionally, the "converged" simulation can then be postprocessed with functionality of the `RT.py` module in order to make transmission spectra. This module is basically a QOL wrapper which sets up the necessary folder structure and input arguments for the `solveT_1D.py` module that actually performs the iterative scheme described in Linssen et al. (2022).
+This module is used to run Parker wind profiles through _Cloudy_ to (iteratively) solve for a non-isothermal temperature structure. Additionally, the "converged" simulation can then be postprocessed with functionality of the `RT.py` module in order to make transmission spectra. This module is basically a convenience wrapper which sets up the necessary folder structure and input arguments for the `solveT_1D.py` module that actually performs the iterative scheme described in Linssen et al. (2022).
 
-This module is intended to be ran from the command line while supplying arguments. Running `python converged_parkers_1D.py --help` will give an explanation of each argument.
+This module is intended to be run from the command line while supplying arguments. Running `python converged_parkers_1D.py --help` will give an explanation of each argument.
 
 Example use: `python converged_parkers_1D.py -plname HATP11b -pdir fH_0.99 -dir fiducial -T 5000 10000 200 -Mdot 9.0 11.0 0.1 -zelem He=0.1 -cores 4 -save_sp H He Ca+`. This simulates Parker wind models with Cloudy for the planet HATP11b (must be defined in *planets.txt*) for a grid of temperatures between 5000 K and 10000 K in steps of 200 K, mass-loss rates between 10^9 g/s and 10^11 g/s in steps of 0.1 dex. It looks for the density and velocity structure of these models in the folder *projectpath/parker_profiles/HATP11b/fH_0.99/* (so these models have to be created first in that folder using `construct_parkers.py`) and saves the _Cloudy_ simulations in the folder *projectpath/sims/1D/HATP11b/fiducial/*. It scales the abundance of helium (which is solar by default in _Cloudy_, i.e. ~10% by number) by a factor 0.1 so that it becomes 1% by number. 4 different calculations of the $T$-$\dot{M}$-grid are done in parallel, and the atomic hydrogen, helium and singly ionized calcium output are saved by _Cloudy_, so that afterwards we can use `RT.FinFout_1D()` to make Halpha, metastable helium and Ca II infrared triplet spectra.
 
