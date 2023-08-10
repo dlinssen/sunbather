@@ -4,6 +4,8 @@ src/RT_tables/.DS_Store
 examples/.DS_Store
 examples/materials/.DS_Store
 wiki/.DS_Store
+tests/.DS_Store
+tests/materials/.DS_Store
 src/__pycache__/
 src/planets.txt
 examples/.ipynb_checkpoints
