@@ -15,12 +15,13 @@ from scipy.interpolate import interp1d
 
 
 
+print("\nWill perform installation check. Expected run-time: 15 minutes.\n")
 
 ### SETUP CHECKS ###
 
 #check if paths are set by user
-assert tools.cloudypath != '/Users/dion/Programs/c17.02/', "Please set the path to your Cloudy installation in config.ini"
-assert tools.projectpath != '/Users/dion/src/cloudy/', "Please set your project path in config.ini"
+#assert tools.cloudypath != '/Users/dion/Programs/c17.02/', "Please set the path to your Cloudy installation in config.ini"
+#assert tools.projectpath != '/Users/dion/src/cloudy/', "Please set your project path in config.ini"
 #make sure projectpath exists
 assert os.path.isdir(tools.projectpath), "Please create the projectpath folder on your machine"
 #make sure the SED we need for this test has been copied to Cloudy
@@ -28,6 +29,7 @@ assert os.path.isfile(tools.cloudypath+'/data/SED/eps_Eri_binned.spec'), "Please
 
 
 
+print("\nChecking construct_parkers.py...\n")
 
 ### CREATING PARKER PROFILE CHECKS ###
 
@@ -45,11 +47,12 @@ assert np.isclose(pprof_created[['rho', 'v']], pprof_expected[['rho', 'v']], rto
 
 
 
+print("\nChecking converged_parkers_1D.py...\n")
 
 ### CONVERGING TEMPERATURE STRUCTURE WITH CLOUDY CHECKS ###
 
 #run the created profile through Cloudy
-os.system("cd .. && cd src && python converged_parkers_1D.py -plname WASP52b -pdir test -dir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0 -save_sp He Mg+")
+os.system("cd .. && cd src && python converged_parkers_1D.py -plname WASP52b -pdir test -dir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0 -save_sp He Mg+ -overwrite")
 #load the created simulation
 sim_created = tools.Sim(tools.projectpath+'/sims/1D/WASP52b/test/parker_9000_11.0/converged')
 #load the expected simulation
@@ -63,6 +66,7 @@ assert np.isclose(T_created, T_expected, rtol=0.1).all(), "The converged tempera
 
 
 
+print("\nChecking RT.py...\n")
 
 ### MAKING TRANSIT SPECTRA CHECKS ###
 
@@ -83,4 +87,4 @@ assert np.isclose(FinFout_created, FinFout_expected, rtol=0.05).all(), "The crea
 
 
 #if we made it past all the asserts, the code is correctly installed
-print("Success.")
+print("\nSuccess.")
