@@ -11,10 +11,12 @@ If you have trouble installing _Cloudy v17.02_, we refer to the download instruc
 
 # Installing _cloupy_
 
-1. Clone _cloupy_ from Github. The code runs entirely in Python. It was developed using Python 3.9.0 and the following packages are prerequisites: `numpy (v1.24.3), pandas (v1.1.4), matplotlib (v3.7.1), scipy (v1.8.0), spectres (v2.1.1), astropy (v5.3), p-winds (v1.3.4)`. Additionally, to run the *fit_helium.ipynb* example Jupyter notebook, `intersect (v1.2)` is required. _cloupy_ has not yet been tested on different versions of Python and prerequisite packages, so we currently cannot guarantee that it works, but feel free to try! In any case, we recommend making a Python [virtual environment](https://realpython.com/python-virtual-environments-a-primer/) to run _cloupy_ in.
+1. Clone _cloupy_ from Github. The code runs entirely in Python. It was developed using Python 3.9.0 and the following packages are prerequisites: `numpy (v1.24.3), pandas (v1.1.4), matplotlib (v3.7.1), scipy (v1.8.0), astropy (v5.3), p-winds (v1.3.4)`. _cloupy_ has not yet been tested on different versions of Python and prerequisite packages, so we currently cannot guarantee that it works, but feel free to try! In any case, we recommend making a Python [virtual environment](https://realpython.com/python-virtual-environments-a-primer/) to run _cloupy_ in.
 2. Create a directory anywhere on your machine where the code will save all models/simulations/etc. This will be the "project" folder, and you can give it any name you like. This is to keep the output of _cloupy_ separate from the _cloupy_ source code.
 3. Open the _/src/config.ini_ file and add your path to the _Cloudy v17.02_ installation, as well as the path to the "project" folder.
+4. Test your installation. Copy _/examples/materials/eps_Eri_binned.spec_ to _/c17.02/data/SED/_ and then run _/src/test.py_, which should print "Success".
 
 # Getting started
 
-After installing the code, we reccommend you check out this wiki's Glossary sections "The _src/planets.txt_ file" and "Stellar SED handling". To get familiar with _cloupy_, we reccommend you go through the Jupyter notebooks in the _/cloupy/examples/_ folder, where example use cases (such as creating atmospheric profiles, calculating transmission spectra and fitting observational data) are worked out and explained. The Glossary page on this wiki describes some of the possibilities of the code in more detail.
+1. To get familiar with _cloupy_, we reccommend you go through the Jupyter notebooks in the _/cloupy/examples/_ folder, where example use cases (such as creating atmospheric profiles, calculating transmission spectra and fitting observational data) are worked out and explained. 
+2. For more details on how to use the code, check out the Glossary page on this wiki. We specifically reccommend you read the sections "The _src/planets.txt_ file" and "Stellar SED handling". 

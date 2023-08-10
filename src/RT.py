@@ -8,7 +8,6 @@ import numpy.ma as ma
 import matplotlib.pyplot as plt
 from scipy.special import voigt_profile
 from scipy.integrate import trapezoid
-import spectres
 
 
 sigt0 = 2.654e-2 #cm2 s-1 = cm2 Hz, from Axner et al. 2004
@@ -407,15 +406,6 @@ def tau_12D(sim, wavAA, species, width_fac=1., **kwargs):
             tot_bin_tau += bin_tau
 
     return tot_cum_tau, tot_bin_tau, found_lines, notfound_lines
-
-
-
-def rebin_spec(wavein, specin, wavnew):
-    '''
-    Rebins a spectrum with flux conservation.
-    '''
-
-    return spectres.spectres(wavnew, wavein, specin)
 
 
 def FinFout2RpRs(FinFout):
