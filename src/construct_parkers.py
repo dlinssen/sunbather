@@ -384,6 +384,9 @@ if __name__ == '__main__':
             setattr(namespace, self.dest, values)
 
     class AddDictAction(argparse.Action):
+        '''
+        Custom class for an argparse argument that adds to a dictionary.
+        '''
         def __call__(self, parser, namespace, values, option_string=None):
             if not hasattr(namespace, self.dest) or getattr(namespace, self.dest) is None:
                 setattr(namespace, self.dest, {})
