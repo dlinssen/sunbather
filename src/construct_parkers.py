@@ -342,8 +342,10 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, dir, convergenc
         print("Temporary files removed.")
 
 
-def run_s(plname, pdir, Mdot, T, fH, zdict, mu_conv, mu_maxit):
+def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit):
     p = tools.Planet(plname)
+    if SEDname != 'real':
+        planet.set_var(SEDname=SEDname)        
     spectrum = cloudy_spec_to_pwinds(tools.cloudypath+'/data/SED/'+p.SEDname, 1., p.a - 20*p.R / tools.AU) #assumes SED is at 1 AU
 
     if fH != None: #then run p_winds standalone
@@ -352,7 +354,7 @@ def run_s(plname, pdir, Mdot, T, fH, zdict, mu_conv, mu_maxit):
         save_cloudy_parker_profile(p, Mdot, T, spectrum, zdict, pdir, convergence=mu_conv, maxit=mu_maxit, cleantemp=True)
 
 
-def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fH, zdict, mu_conv, mu_maxit):
+def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, SEDname, fH, zdict, mu_conv, mu_maxit):
     '''
     Runs the function run_s in parallel for a given grid of Mdots and T, and
     for given number of cores (=parallel processes).
@@ -363,7 +365,7 @@ def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fH, zdict,
     pars = []
     for Mdot in np.arange(float(Mdot_l), float(Mdot_u)+float(Mdot_s), float(Mdot_s)):
         for T in np.arange(int(T_l), int(T_u)+int(T_s), int(T_s)).astype(int):
-            pars.append((plname, pdir, "%.1f" % Mdot, T, fH, zdict, mu_conv, mu_maxit))
+            pars.append((plname, pdir, "%.1f" % Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit))
 
     p.starmap(run_s, pars)
     p.close()
@@ -404,6 +406,7 @@ if __name__ == '__main__':
                                         "somehow represents the chosen parameters, e.g. 'fH_0.9' or 'z=10'. The path will be tools.projectpath/parker_profiles/pdir/")
     parser.add_argument("-Mdot", required=True, nargs='+', action=OneOrThreeAction, help="log10(mass-loss rate), or three values specifying a grid of mass-loss rates: lowest, highest, stepsize.")
     parser.add_argument("-T", required=True, type=int, nargs='+', action=OneOrThreeAction, help="temperature, or three values specifying a grid of temperatures: lowest, highest, stepsize.")
+    parser.add_argument("-SEDname", type=str, default='real', help="name of SED to use. Must be in Cloudy's data/SED/ folder [default=SEDname set in planet.txt file]")
     composition_group = parser.add_mutually_exclusive_group(required=True)
     composition_group.add_argument("-fH", type=float, help="hydrogen fraction by number. Using this command results in running standalone p_winds without invoking Cloudy.")
     composition_group.add_argument("-z", type=float, help="metallicity (=scale factor relative to solar for all elements except H and He). Using this " \
@@ -436,12 +439,12 @@ if __name__ == '__main__':
         os.mkdir(tools.projectpath+'/parker_profiles/'+args.plname+'/'+args.pdir+'/temp')
 
     if (len(args.T) == 1 and len(args.Mdot) == 1): #then we run a single model
-        run_s(args.plname, args.pdir, args.Mdot[0], args.T[0], args.fH, zdict, args.mu_conv, args.mu_maxit)
+        run_s(args.plname, args.pdir, args.Mdot[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit)
     elif (len(args.T) == 3 and len(args.Mdot) == 3): #then we run a grid over both parameters
-        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.fH, zdict, args.mu_conv, args.mu_maxit)
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit)
     elif (len(args.T) == 3 and len(args.Mdot) == 1): #then we run a grid over only T
-        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.fH, zdict, args.mu_conv, args.mu_maxit)
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit)
     elif (len(args.T) == 1 and len(args.Mdot) == 3): #then we run a grid over only Mdot
-        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.fH, zdict, args.mu_conv, args.mu_maxit)
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit)
 
     print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
