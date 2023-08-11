@@ -248,6 +248,13 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., bp=0., ab=[0., 0
     notfound_lines = [] #will store nu0 of all lines that were not found
 
     for spec in species:
+        if spec in sim.den.columns:
+            print("WARNING: Your requested species", spec, "is not resolved into multiple energy levels by Cloudy. " + \
+                    "I will make the spectrum assuming all", spec, "is in the ground-state.")
+        elif not any(spec+"[" in col for col in sim.den.columns):
+            print("WARNING: Your requested species", spec, "is not present in Cloudy's output, so the spectrum will be flat. " + \
+                    "Please re-do your Cloudy simulation while saving this species (with the -save_sp flag in converged_parkers_1D.py).")
+
         spNIST = read_NIST_lines(spec, wavlower=wavsAA[0], wavupper=wavsAA[-1])
 
         for lineno in spNIST.index.values: #loop over all lines in the spNIST table.
