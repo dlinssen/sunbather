@@ -37,28 +37,6 @@ Example use: `python converged_parkers_1D.py -plname HATP11b -pdir fH_0.99 -dir 
 - #### The `solveT_1D.py` module
 This module contains the iterative scheme described in Linssen et al. (2022) to solve for a non-isothermal temperature structure of a given atmospheric profile. It is called by `converged_parkers_1D.py`. As long as you're simulating Parker wind profiles (and not some other custom profile), you should be fine using `converged_parkers_1D.py` instead of this module.
 
-
-<br>
-
-- #### The `tools.Sim` class
-...
-
-<br>
-
-- #### The `tools.Planet` class
-...
-
-<br>
-
-- #### The `tools.Parker` class
-...
-
-<br>
-
-- #### `RT.FinFout_1D()`
-...
-
-
 <br>
 
 - #### The _src/config.ini_ file
