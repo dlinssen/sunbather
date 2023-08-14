@@ -47,12 +47,12 @@ assert np.isclose(pprof_created[['rho', 'v']], pprof_expected[['rho', 'v']], rto
 
 
 
-print("\nChecking converged_parkers_1D.py...\n")
+print("\nChecking convergeT_parker.py...\n")
 
 ### CONVERGING TEMPERATURE STRUCTURE WITH CLOUDY CHECKS ###
 
 #run the created profile through Cloudy
-os.system("cd .. && cd src && python converged_parkers_1D.py -plname WASP52b -pdir test -dir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0 -save_sp He Mg+ -overwrite")
+os.system("cd .. && cd src && python convergeT_parker.py -plname WASP52b -pdir test -dir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0 -save_sp He Mg+ -overwrite")
 #load the created simulation
 sim_created = tools.Sim(tools.projectpath+'/sims/1D/WASP52b/test/parker_9000_11.0/converged')
 #load the expected simulation
