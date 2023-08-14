@@ -1,6 +1,6 @@
 #cloupy imports
 import tools
-import solveT_1D
+import solveT
 
 #other imports
 import pandas as pd
@@ -118,7 +118,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, zdict=None
                                 flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=hdenprof, double_tau=True,
                                 overwrite=overwrite, cosmic_rays=True, zdict=zdict, comments=comments)
 
-    #write clocs file that keeps track of from where we construct - see solveT_1D.py
+    #write clocs file that keeps track of from where we construct - see solveT.py
     if itno == 1:
         with open(path+"clocs.txt", "w") as f:
             f.write("1 0")
@@ -139,7 +139,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, zdict=None
 
 
     #with everything in order, run the actual temperature convergence scheme
-    solveT_1D.run_loop(path, itno, fc, altmax, planet.R, cextraprof, advecprof, zdict, save_sp)
+    solveT.run_loop(path, itno, fc, altmax, planet.R, cextraprof, advecprof, zdict, save_sp)
 
 
 def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname, overwrite, startT, zdict, pdir, altmax, save_sp):

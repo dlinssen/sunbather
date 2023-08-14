@@ -26,7 +26,7 @@ Example use: `python construct_parker.py -plname WASP52b -pdir z_10 -T 8000 -Mdo
 <br>
 
 - #### The `convergeT_parker.py` module
-This module is used to run Parker wind profiles through _Cloudy_ to (iteratively) solve for a non-isothermal temperature structure. Additionally, the "converged" simulation can then be postprocessed with functionality of the `RT.py` module in order to make transmission spectra. This module is basically a convenience wrapper which sets up the necessary folder structure and input arguments for the `solveT_1D.py` module that actually performs the iterative scheme described in Linssen et al. (2022).
+This module is used to run Parker wind profiles through _Cloudy_ to (iteratively) solve for a non-isothermal temperature structure. Additionally, the "converged" simulation can then be postprocessed with functionality of the `RT.py` module in order to make transmission spectra. This module is basically a convenience wrapper which sets up the necessary folder structure and input arguments for the `solveT.py` module that actually performs the iterative scheme described in Linssen et al. (2022).
 
 This module is intended to be run from the command line while supplying arguments. Running `python convergeT_parker.py --help` will give an explanation of each argument.
 
@@ -34,7 +34,7 @@ Example use: `python convergeT_parker.py -plname HATP11b -pdir fH_0.99 -dir fidu
 
 <br>
 
-- #### The `solveT_1D.py` module
+- #### The `solveT.py` module
 This module contains the iterative scheme described in Linssen et al. (2022) to solve for a non-isothermal temperature structure of a given atmospheric profile. It is called by `convergeT_parker.py`. As long as you're simulating Parker wind profiles (and not some other custom profile), you should be fine using `convergeT_parker.py` instead of this module.
 
 <br>
