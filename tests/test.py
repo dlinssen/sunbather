@@ -29,12 +29,12 @@ assert os.path.isfile(tools.cloudypath+'/data/SED/eps_Eri_binned.spec'), "Please
 
 
 
-print("\nChecking construct_parkers.py...\n")
+print("\nChecking construct_parker.py...\n")
 
 ### CREATING PARKER PROFILE CHECKS ###
 
 #create a parker profile - we use the p-winds/Cloudy hybrid scheme
-os.system("cd .. && cd src && python construct_parkers.py -plname WASP52b -pdir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0")
+os.system("cd .. && cd src && python construct_parker.py -plname WASP52b -pdir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0")
 #load the created profile
 pprof_created = pd.read_table(tools.projectpath+'/parker_profiles/WASP52b/test/pprof_WASP52b_T=9000_M=11.0.txt',
                                 names=['alt', 'rho', 'v', 'mu'], dtype=np.float64, comment='#')
@@ -42,8 +42,8 @@ pprof_created = pd.read_table(tools.projectpath+'/parker_profiles/WASP52b/test/p
 pprof_expected = pd.read_table('materials/pprof_WASP52b_T=9000_M=11.0.txt',
                                 names=['alt', 'rho', 'v', 'mu'], dtype=np.float64, comment='#')
 #check if they are equal to within 1% in altitude and mu and 10% in rho and v.
-assert np.isclose(pprof_created[['alt', 'mu']], pprof_expected[['alt', 'mu']], rtol=0.01).all().all(), "The profile created with the construct_parkers.py module is not as expected"
-assert np.isclose(pprof_created[['rho', 'v']], pprof_expected[['rho', 'v']], rtol=0.1).all().all(), "The profile created with the construct_parkers.py module is not as expected"
+assert np.isclose(pprof_created[['alt', 'mu']], pprof_expected[['alt', 'mu']], rtol=0.01).all().all(), "The profile created with the construct_parker.py module is not as expected"
+assert np.isclose(pprof_created[['rho', 'v']], pprof_expected[['rho', 'v']], rtol=0.1).all().all(), "The profile created with the construct_parker.py module is not as expected"
 
 
 
