@@ -232,9 +232,6 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., bp=0., ab=[0., 0
     Te1 = sim.ovr.Te.values[::-1]
     v1 = sim.ovr.v.values[::-1]
 
-    #v1 *= 10.
-    #print("Scaled all velocities by a factor 10 in RT.FinFout_1D()")
-
     b, x, Te = tools.project_1D_to_2D(r1, Te1, Rp, numb=numrays)
     b, x, vx = tools.project_1D_to_2D(r1, v1, Rp, numb=numrays, directional=True)
 
