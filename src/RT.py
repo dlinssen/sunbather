@@ -1,4 +1,4 @@
-#cloupy imports
+#sunbather imports
 import tools
 
 #other imports
@@ -176,7 +176,7 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
     wavelengths in vacuum and add the fik values in advanced settings.
     '''
 
-    spNIST = pd.read_table(tools.cloupy_path+'/RT_tables/'+species+'_lines_NIST.txt') #line info
+    spNIST = pd.read_table(tools.sunbather_path+'/RT_tables/'+species+'_lines_NIST.txt') #line info
     #remove lines with nan fik or Aik values. Note that lineno doesn't change (uses index instead of rowno.)
     spNIST = spNIST[spNIST.fik.notna()]
     spNIST = spNIST[spNIST['Aki(s^-1)'].notna()]

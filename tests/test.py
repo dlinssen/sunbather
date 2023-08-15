@@ -4,7 +4,7 @@ this_path = os.path.dirname(os.path.abspath(__file__)) #the absolute path where 
 src_path = this_path.split('tests')[-2] + 'src/'
 sys.path.append(src_path)
 
-#cloupy imports
+#sunbather imports
 import tools
 import RT
 

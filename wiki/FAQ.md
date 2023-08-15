@@ -1,6 +1,6 @@
 ## How do I create Parker wind profiles?
 
-Add the parameters of the planet/star system to the _cloupy/src/planets.txt_ file. Make sure the SED you specify in _planets.txt_ is present in the _c17.02/data/SED/_ folder in the right format. Then run the `construct_parker.py` module in your terminal (use `-help` to see the arguments). 
+Add the parameters of the planet/star system to the _sunbather/src/planets.txt_ file. Make sure the SED you specify in _planets.txt_ is present in the _c17.02/data/SED/_ folder in the right format. Then run the `construct_parker.py` module in your terminal (use `-help` to see the arguments). 
 
 ## How do I choose the composition of the atmosphere?
 
@@ -12,11 +12,11 @@ The composition usually has to be specified at two stages:
 
 ## How do I calculate the transmission spectrum?
 
-Create the Parker wind profile with `construct_parker.py` and simulate it with _Cloudy_ with `convergeT_parker.py` while making sure you specify for which species you want to save output with the `-save_sp` argument (if unsure, just pass `-save_sp all`). Then, load the _Cloudy_ output in your Python script with the `tools.Sim` class (see FAQ below), and use the `RT.FinFout_1D()` function to make the transit spectrum. At minimum, `RT.FinFout_1D()` expects the `Sim` object, a wavelength array, and a list of species for which to calculate the spectrum. See the _cloupy/examples/fit_helium.ipynb_ notebook for an example.
+Create the Parker wind profile with `construct_parker.py` and simulate it with _Cloudy_ with `convergeT_parker.py` while making sure you specify for which species you want to save output with the `-save_sp` argument (if unsure, just pass `-save_sp all`). Then, load the _Cloudy_ output in your Python script with the `tools.Sim` class (see FAQ below), and use the `RT.FinFout_1D()` function to make the transit spectrum. At minimum, `RT.FinFout_1D()` expects the `Sim` object, a wavelength array, and a list of species for which to calculate the spectrum. See the _sunbather/examples/fit_helium.ipynb_ notebook for an example.
 
 ## How do I simulate one planet with different stellar SEDs?
 
-The safest way is to add another entry in the _cloupy/src/planets.txt_ file, with the same parameter values, but a different "name" and "SEDname" (the "full name" can be the same). 
+The safest way is to add another entry in the _sunbather/src/planets.txt_ file, with the same parameter values, but a different "name" and "SEDname" (the "full name" can be the same). 
 
 Alternatively and more prone to mistakes, the `construct_parker.py` and `convergeT_parker.py` modules also has the `-SEDname` argument which allows you to specify a different name of the SED file without making a new entry in the _planets.txt_ file. In this case, it is **strongly adviced** to use a different `-pdir` and `-dir` (that references the SED type) as well. 
 
@@ -32,7 +32,7 @@ The `Sim` class in the `tools.py` module can be used to read in simulations by g
 
 ``` python
 import sys
-sys.path.append("/path/to/cloupy/src/")
+sys.path.append("/path/to/sunbather/src/")
 import tools
 
 mysimulation = tools.Sim("/projectpath/sims/1D/planetname/dir/parker_T_Mdot/converged")

@@ -1,9 +1,9 @@
-This wiki page is a glossary that provides additional information on various modules/classes/functionalities included in _cloupy_. We also refer to "Hazy", which is the official documentation of _Cloudy_ and can be found in your _/c17.02/docs/_ folder. 
+This wiki page is a glossary that provides additional information on various modules/classes/functionalities included in _sunbather_. We also refer to "Hazy", which is the official documentation of _Cloudy_ and can be found in your _/c17.02/docs/_ folder. 
 
 <br>
 
 - #### The `tools.py` module
-This module contains many basic functions and classes that are used by the other _cloupy_ modules, and can also be used when postprocessing/analyzing _cloupy_ output. 
+This module contains many basic functions and classes that are used by the other _sunbather_ modules, and can also be used when postprocessing/analyzing _sunbather_ output. 
 
 This module is not intended to be run from the command line, but rather imported into other scripts in order to use its functions.
 
@@ -40,12 +40,12 @@ This module contains the iterative scheme described in Linssen et al. (2022) to 
 <br>
 
 - #### The _src/config.ini_ file
-This file specifies two important paths that have to be known to _cloupy_, which must be set by the user as part of the _cloupy_ installation. The first is the full path to the root of the _Cloudy v17.02_ installation, for example _/Users/dion/Programs/c17.02/_. The second is the _projectpath_ - see "The _projectpath_ directory" below in this glossary. **Do not use string quotations (" or ') around your paths.**
+This file specifies two important paths that have to be known to _sunbather_, which must be set by the user as part of the _sunbather_ installation. The first is the full path to the root of the _Cloudy v17.02_ installation, for example _/Users/dion/Programs/c17.02/_. The second is the _projectpath_ - see "The _projectpath_ directory" below in this glossary. **Do not use string quotations (" or ') around your paths.**
 
 <br>
 
 - #### The _projectpath_ directory
-This is the directory on your machine where all Parker wind profiles and _Cloudy_ simulations are saved. You can choose any location and name you like, as long as it doesn't contain any spaces. The full path to this directory must be set in the _/cloupy/src/config.ini_ file. The reason _cloupy_ uses a _projectpath_ is to keep all output from simulations (i.e. user-specific files) separate from the source code.
+This is the directory on your machine where all Parker wind profiles and _Cloudy_ simulations are saved. You can choose any location and name you like, as long as it doesn't contain any spaces. The full path to this directory must be set in the _/sunbather/src/config.ini_ file. The reason _sunbather_ uses a _projectpath_ is to keep all output from simulations (i.e. user-specific files) separate from the source code.
 
 <br>
 
@@ -55,4 +55,4 @@ This file stores the bulk parameters of the planets that are simulated. Every ti
 <br>
 
 - #### Stellar SED handling
-When running _cloupy_, the spectral energy distribution (SED) of the host star has to be available to _Cloudy_, which looks for it in its _/c17.02/data/SED/_ folder. Therefore, every SED you want to use has be **copied to that folder, and requires a specific format**: the first column must be wavelengths in units of Å and the second column must be the the $\lambda F_{\lambda} = \nu F_{\nu}$ flux **at a distance of 1 AU** in units of erg s-1 cm-2. Additionally, on the first line, after the first flux value, the following keywords must appear: "units angstrom nuFnu". An example SED file in this format can be found in */examples/materials/eps_Eri_binned.spec*. Even though _Cloudy_ in principle supports other units, _cloupy_ doesn't, so please stick to the units as described.
+When running _sunbather_, the spectral energy distribution (SED) of the host star has to be available to _Cloudy_, which looks for it in its _/c17.02/data/SED/_ folder. Therefore, every SED you want to use has be **copied to that folder, and requires a specific format**: the first column must be wavelengths in units of Å and the second column must be the the $\lambda F_{\lambda} = \nu F_{\nu}$ flux **at a distance of 1 AU** in units of erg s-1 cm-2. Additionally, on the first line, after the first flux value, the following keywords must appear: "units angstrom nuFnu". An example SED file in this format can be found in */examples/materials/eps_Eri_binned.spec*. Even though _Cloudy_ in principle supports other units, _sunbather_ doesn't, so please stick to the units as described.

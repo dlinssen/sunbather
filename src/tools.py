@@ -14,14 +14,14 @@ import configparser
 
 
 config = configparser.ConfigParser()
-cloupy_path = os.path.dirname(os.path.abspath(__file__)) #the absolute path where this code lives
-config.read(os.path.join(cloupy_path, 'config.ini'))
+sunbather_path = os.path.dirname(os.path.abspath(__file__)) #the absolute path where this code lives
+config.read(os.path.join(sunbather_path, 'config.ini'))
 cloudypath = config.get('General', 'cloudypath') #the path where the Cloudy installation is
 projectpath = config.get('General', 'projectpath') #the path where you save your simulations and do analysis
 cloudyruncommand = cloudypath+'/source/cloudy.exe -p' #the -p flag is important!
 
 #read planet parameters globally instead of in the Planets class (so we do it only once)
-planets_file = pd.read_csv(cloupy_path+'/planets.txt', dtype={'name':str, 'full name':str, 'R [RJ]':np.float64,
+planets_file = pd.read_csv(sunbather_path+'/planets.txt', dtype={'name':str, 'full name':str, 'R [RJ]':np.float64,
                             'Rstar [Rsun]':np.float64, 'a [AU]':np.float64, 'M [MJ]':np.float64, 'Mstar [Msun]':np.float64,
                             'transit impact parameter':np.float64, 'SEDname':str}, comment='#')
 
@@ -298,7 +298,7 @@ def process_energies(filename, rewrite=True):
 
 
     for species in unique_species:
-        species_levels = pd.read_table(cloupy_path+'/RT_tables/'+species+'_levels_processed.txt') #get the NIST levels
+        species_levels = pd.read_table(sunbather_path+'/RT_tables/'+species+'_levels_processed.txt') #get the NIST levels
         species_energies = en_df[en_df.species == species].energy #get Cloudy's energies
 
         atol = 0.00003 #tolerance of difference between Cloudy's and NISTs energy levels. They usually differ at the decimal level so we need some tolerance.
