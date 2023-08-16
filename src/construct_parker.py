@@ -197,7 +197,7 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=None,
 
 
     else: #used later iterations
-        assert np.abs(mu_struc[0,0] - 1.) < 0.01 and np.abs(mu_struc[-1,0] - 20.) < 0.01 #only then extrapolation is safe
+        assert np.abs(mu_struc[0,0] - 1.) < 0.02 and np.abs(mu_struc[-1,0] - 20.) < 0.0001, "Looks like Cloudy didn't simulate to 1Rp: "+str(mu[0,0]) #ensure safe extrapolation
         mu_array = interp1d(mu_struc[:,0], mu_struc[:,1], fill_value='extrapolate')(r)
 
     vs = pw_parker.sound_speed(T, mu_bar)  # Speed of sound (km/s, assumed to be constant)
@@ -345,7 +345,7 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, dir, convergenc
 def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit):
     p = tools.Planet(plname)
     if SEDname != 'real':
-        planet.set_var(SEDname=SEDname)        
+        planet.set_var(SEDname=SEDname)
     spectrum = cloudy_spec_to_pwinds(tools.cloudypath+'/data/SED/'+p.SEDname, 1., p.a - 20*p.R / tools.AU) #assumes SED is at 1 AU
 
     if fH != None: #then run p_winds standalone
