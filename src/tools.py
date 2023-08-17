@@ -148,46 +148,82 @@ def process_continuum(filename, nonzero=False):
 
 def process_heating(filename, Rp=None, altmax=None):
     '''
-    This function reads a .heat file up to the 2 most important heating rates.
+    This function reads a .heat file from the 'save heating' command.
     If Rp and altmax are given, it adds an altitude scale.
+    For each unique heating agent, it adds a column with its rate at that depth.
     '''
 
-    heat = pd.read_table(filename, delimiter='\t',
-            usecols=range(8), names=['depth', 'temp', 'htot', 'ctot',
-            'htype1', 'hfrac1', 'htype2', 'hfrac2'], header=0)
+    heat = pd.read_table(filename, delimiter='\t', skiprows=1, header=None)
+    fixed_column_names = ['depth', 'temp', 'htot', 'ctot']
+    num_additional_columns = (heat.shape[1] - 4) // 2
+    additional_column_names = [f'htype{i}' for i in range(1, num_additional_columns + 1) for _ in range(2)]
+    additional_column_names[1::2] = [f'hfrac{i}' for i in range(1, num_additional_columns + 1)]
+    all_column_names = fixed_column_names + additional_column_names
+    heat.columns = all_column_names
+
+    #remove the "second rows", which sometimes are in the .heat file and do not give the heating at a given depth
     if type(heat.depth.iloc[0]) == str: #in some cases there are no second rows
         heat = heat[heat.depth.map(len)<12] #delete second rows
         heat.depth = pd.to_numeric(heat.depth) #str to float
         heat.reset_index(inplace=True) #reindex so that it has same index as e.g. .ovr
-    if Rp != None and altmax != None:
+
+    if Rp != None and altmax != None: #add altitude scale
         heat['alt'] = altmax * Rp - heat.depth
 
-    agents = list(set(np.concatenate((heat.htype1, heat.htype2))))
-    for agent in agents: #add columns for specific agents
-        heat[agent] = np.nan
-        heat.loc[heat.htype1 == agent, agent] = heat.hfrac1[heat.htype1 == agent]
-        heat.loc[heat.htype2 == agent, agent] = heat.hfrac2[heat.htype2 == agent]
+    agents = []
+    for column in heat.columns:
+        if column.startswith('htype'):
+            agents.extend(heat[column].unique())
+    agents = pd.unique(agents) #all unique heating agents that appear somewhere in the .heat file
+
+    for agent in agents:
+        heat[agent] = np.nan #add 'empty' column for each agent
+
+    #now do a (probably sub-optimal) for-loop over the whole df to put all hfracs in the corresponding column
+    htypes = [f'htype{i+1}' for i in range(num_additional_columns)]
+    hfracs = [f'hfrac{i+1}' for i in range(num_additional_columns)]
+    for htype, hfrac in zip(htypes, hfracs):
+        for index, agent in heat[htype].iteritems():
+            rate = heat.loc[index, hfrac]
+            heat.loc[index, agent] = rate
 
     return heat
 
 
 def process_cooling(filename, Rp=None, altmax=None):
     '''
-    This function reads a .cool file up to the 2 most important cooling rates.
+    This function reads a .cool file from the 'save cooling' command.
     If Rp and altmax are given, it adds an altitude scale.
+    For each unique cooling agent, it adds a column with its rate at that depth.
     '''
 
-    cool = pd.read_table(filename, delimiter='\t',
-            usecols=range(8), names=['depth', 'temp', 'htot', 'ctot',
-            'ctype1', 'cfrac1', 'ctype2', 'cfrac2'], comment='#')
-    if Rp != None and altmax != None:
+    cool = pd.read_table(filename, delimiter='\t', skiprows=1, header=None)
+    fixed_column_names = ['depth', 'temp', 'htot', 'ctot']
+    num_additional_columns = (cool.shape[1] - 4) // 2
+    additional_column_names = [f'ctype{i}' for i in range(1, num_additional_columns + 1) for _ in range(2)]
+    additional_column_names[1::2] = [f'cfrac{i}' for i in range(1, num_additional_columns + 1)]
+    all_column_names = fixed_column_names + additional_column_names
+    cool.columns = all_column_names
+
+    if Rp != None and altmax != None: #add altitude scale
         cool['alt'] = altmax * Rp - cool.depth
 
-    agents = list(set(np.concatenate((cool.ctype1, cool.ctype2))))
-    for agent in agents: #add columns for specific agents
-        cool[agent] = np.nan
-        cool.loc[cool.ctype1 == agent, agent] = cool.cfrac1[cool.ctype1 == agent]
-        cool.loc[cool.ctype2 == agent, agent] = cool.cfrac2[cool.ctype2 == agent]
+    agents = []
+    for column in cool.columns:
+        if column.startswith('ctype'):
+            agents.extend(cool[column].unique())
+    agents = pd.unique(agents) #all unique cooling agents that appear somewhere in the .cool file
+
+    for agent in agents:
+        cool[agent] = np.nan #add 'empty' column for each agent
+
+    #now do a (probably sub-optimal) for-loop over the whole df to put all cfracs in the corresponding column
+    ctypes = [f'ctype{i+1}' for i in range(num_additional_columns)]
+    cfracs = [f'cfrac{i+1}' for i in range(num_additional_columns)]
+    for ctype, cfrac in zip(ctypes, cfracs):
+        for index, agent in cool[ctype].iteritems():
+            rate = cool.loc[index, cfrac]
+            cool.loc[index, agent] = rate
 
     return cool
 
