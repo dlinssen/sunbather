@@ -187,6 +187,9 @@ def process_heating(filename, Rp=None, altmax=None):
             rate = heat.loc[index, hfrac]
             heat.loc[index, agent] = rate
 
+    if np.nan in heat.columns: #sometimes columns are partially missing, resulting in columns called nan
+        heat.drop(columns=[np.nan], inplace=True)
+
     return heat
 
 
@@ -224,6 +227,9 @@ def process_cooling(filename, Rp=None, altmax=None):
         for index, agent in cool[ctype].iteritems():
             rate = cool.loc[index, cfrac]
             cool.loc[index, agent] = rate
+
+    if np.nan in cool.columns: #sometimes columns are partially missing, resulting in columns called nan
+        cool.drop(columns=[np.nan], inplace=True)
 
     return cool
 
