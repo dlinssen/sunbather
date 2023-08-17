@@ -165,7 +165,7 @@ def process_heating(filename, Rp=None, altmax=None):
     if type(heat.depth.iloc[0]) == str: #in some cases there are no second rows
         heat = heat[heat.depth.map(len)<12] #delete second rows
         heat.depth = pd.to_numeric(heat.depth) #str to float
-        heat.reset_index(inplace=True) #reindex so that it has same index as e.g. .ovr
+        heat.reset_index(drop=True, inplace=True) #reindex so that it has same index as e.g. .ovr
 
     if Rp != None and altmax != None: #add altitude scale
         heat['alt'] = altmax * Rp - heat.depth
