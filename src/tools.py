@@ -153,13 +153,19 @@ def process_heating(filename, Rp=None, altmax=None):
     For each unique heating agent, it adds a column with its rate at that depth.
     '''
 
-    heat = pd.read_table(filename, delimiter='\t', skiprows=1, header=None)
+    #determine max number of columns (otherwise pd.read_table assumes it is the number of the first row)
+    max_columns = 0
+    with open(filename, 'r') as file:
+        for line in file:
+            num_columns = len(line.split('\t'))
+            max_columns = max(max_columns, num_columns)
+    #set up the column names
     fixed_column_names = ['depth', 'temp', 'htot', 'ctot']
-    num_additional_columns = (heat.shape[1] - 4) // 2
+    num_additional_columns = (max_columns - 4) // 2
     additional_column_names = [f'htype{i}' for i in range(1, num_additional_columns + 1) for _ in range(2)]
     additional_column_names[1::2] = [f'hfrac{i}' for i in range(1, num_additional_columns + 1)]
     all_column_names = fixed_column_names + additional_column_names
-    heat.columns = all_column_names
+    heat = pd.read_table(filename, delimiter='\t', skiprows=1, header=None, names=all_column_names)
 
     #remove the "second rows", which sometimes are in the .heat file and do not give the heating at a given depth
     if type(heat.depth.iloc[0]) == str: #in some cases there are no second rows
@@ -200,13 +206,19 @@ def process_cooling(filename, Rp=None, altmax=None):
     For each unique cooling agent, it adds a column with its rate at that depth.
     '''
 
-    cool = pd.read_table(filename, delimiter='\t', skiprows=1, header=None)
+    #determine max number of columns (otherwise pd.read_table assumes it is the number of the first row)
+    max_columns = 0
+    with open(filename, 'r') as file:
+        for line in file:
+            num_columns = len(line.split('\t'))
+            max_columns = max(max_columns, num_columns)
+    #set up the column names
     fixed_column_names = ['depth', 'temp', 'htot', 'ctot']
-    num_additional_columns = (cool.shape[1] - 4) // 2
+    num_additional_columns = (max_columns - 4) // 2
     additional_column_names = [f'ctype{i}' for i in range(1, num_additional_columns + 1) for _ in range(2)]
     additional_column_names[1::2] = [f'cfrac{i}' for i in range(1, num_additional_columns + 1)]
     all_column_names = fixed_column_names + additional_column_names
-    cool.columns = all_column_names
+    cool = pd.read_table(filename, delimiter='\t', skiprows=1, header=None, names=all_column_names)
 
     if Rp != None and altmax != None: #add altitude scale
         cool['alt'] = altmax * Rp - cool.depth
