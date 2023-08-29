@@ -196,6 +196,8 @@ def process_heating(filename, Rp=None, altmax=None):
     if np.nan in heat.columns: #sometimes columns are partially missing, resulting in columns called nan
         heat.drop(columns=[np.nan], inplace=True)
 
+    heat['sumfrac'] = heat.loc[:,[col for col in heat.columns if 'hfrac' in col]].sum(axis=1)
+
     return heat
 
 
@@ -242,6 +244,8 @@ def process_cooling(filename, Rp=None, altmax=None):
 
     if np.nan in cool.columns: #sometimes columns are partially missing, resulting in columns called nan
         cool.drop(columns=[np.nan], inplace=True)
+
+    cool['sumfrac'] = cool.loc[:,[col for col in cool.columns if 'cfrac' in col]].sum(axis=1)
 
     return cool
 
@@ -936,7 +940,7 @@ Cloudy I/O
 def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
                         dlaw=None, tlaw=None, alaw=None, pTmulaw=None, cextra=None, hextra=None,
                         coolextra=None, othercommands=None, outfiles=[], denspecies=[], selected_den_levels=False,
-                        constantT=None, double_tau=False):
+                        constantT=None, double_tau=False, hcfrac=None):
     '''
     This function makes a copy of a Cloudy in file, and it will append
     the given commands to this .in file.
@@ -975,6 +979,8 @@ def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
             f.write('\nconstant temperature t= '+str(constantT)+' linear')
         if double_tau:
             f.write('\ndouble optical depths    #so radiation does not escape into planet core freely')
+        if hcfrac:
+            f.write('\nset WeakHeatCool '+str(hcfrac)+' #for .heat and .cool output files')
         if othercommands != None:
             f.write("\n"+othercommands)
         if np.any(dlaw != None):
@@ -1040,7 +1046,8 @@ def write_Cloudy_in(simname, title='Default title for Cloudy planet sim', flux_s
                     dlaw=None, tlaw=None, alaw=None, pTmulaw=None, cextra=None, hextra=None,
                     coolextra=None, othercommands=None, overwrite=False, iterate='convergence',
                     nend=3000, outfiles=['.ovr', '.cool'], denspecies=[], selected_den_levels=False,
-                    constantT=None, double_tau=False, cosmic_rays=False, zdict=None, comments=None):
+                    constantT=None, double_tau=False, cosmic_rays=False, zdict=None, hcfrac=None,
+                    comments=None):
     '''
     This function writes a Cloudy .in file for simulating an exoplanet atmosphere.
     Arguments:
@@ -1076,6 +1083,8 @@ def write_Cloudy_in(simname, title='Default title for Cloudy planet sim', flux_s
                         not escape the cloud/atmosphere at the back-side into the planet core)
         cosmic_rays:    whether to include cosmic rays
         zdict:          dictionary of scale factors for all elements
+        hcfrac:         threshold fraction of the total heating/cooling rate for which the .heat and .cool files
+                        should save agents. Cloudy's default is 0.05 (i.e. rates <0.05 of the total are not saved).
         comments:       will be written at the top of the file with a #
     '''
 
@@ -1122,6 +1131,8 @@ def write_Cloudy_in(simname, title='Default title for Cloudy planet sim', flux_s
             f.write('\nconstant temperature t= '+str(constantT)+' linear')
         if double_tau:
             f.write('\ndouble optical depths    #so radiation does not escape into planet core freely')
+        if hcfrac:
+            f.write('\nset WeakHeatCool '+str(hcfrac)+' #for .heat and .cool output files')
         if othercommands != None:
             f.write("\n"+othercommands)
         f.write("\n# ========= output         ================")

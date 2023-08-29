@@ -476,9 +476,9 @@ def run_loop(path, itno, fc, altmax, Rp, cextraprof, advecprof, zdict=None, save
         converged = run_once(path, itno, fc, altmax, Rp, cextraprof, advecprof)
         if converged: #we run the last simulation one more time but with all the output files
             if save_sp == []:
-                tools.copyadd_Cloudy_in(path+'iteration'+str(itno-1), path+'converged', outfiles=['.heat'])
+                tools.copyadd_Cloudy_in(path+'iteration'+str(itno-1), path+'converged', outfiles=['.heat'], hcfrac=0.01)
             else:
-                tools.copyadd_Cloudy_in(path+'iteration'+str(itno-1), path+'converged', outfiles=['.heat', '.den', '.en'], denspecies=save_sp, selected_den_levels=True)
+                tools.copyadd_Cloudy_in(path+'iteration'+str(itno-1), path+'converged', outfiles=['.heat', '.den', '.en'], denspecies=save_sp, selected_den_levels=True, hcfrac=0.01)
             os.system("cd "+path+" && "+tools.cloudyruncommand+" converged && cd "+tools.projectpath+"/sims/1D")
             tools.Sim(path+'converged') #by reading in the simulation, we open the .en file (if it exists) and hence compress its size.
             break
