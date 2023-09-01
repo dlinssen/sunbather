@@ -10,6 +10,7 @@ from scipy.optimize import minimize_scalar
 from scipy.interpolate import interp1d
 import scipy.stats as sps
 import os
+import re
 
 
 def simtogrid(sim, grid):
@@ -467,6 +468,22 @@ def run_once(path, itno, fc, altmax, Rp, cextraprof, advecprof):
 
 
 def run_loop(path, itno, fc, altmax, Rp, cextraprof, advecprof, zdict=None, save_sp=[]):
+    if itno == 0: #this means we resume from the highest found previously ran iteration
+        pattern = r'iteration(\d+)\.out'
+        max_iteration = -1
+        for filename in os.listdir(path):
+            if os.path.isfile(os.path.join(path, filename)):
+                if re.search(pattern, filename):
+                    iteration_number = int(re.search(pattern, filename).group(1))
+                    if iteration_number > max_iteration:
+                        max_iteration = iteration_number
+        if max_iteration == -1:
+            print("\nThis folder does not have any 'iteration' files, I cannot resume from the highest one: "+path+'\n')
+            return
+        else:
+            print("\nFound the highest iteration "+path+"iteration"+str(max_iteration)+", will resume there.\n")
+            itno = max_iteration+1
+
     if itno == 1: #then first Cloudy (for itno>1, first solve script)
         os.system("cd "+path+" && "+tools.cloudyruncommand+" iteration1 && cd "+tools.projectpath+"/sims/1D")
         itno += 1

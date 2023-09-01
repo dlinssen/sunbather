@@ -194,7 +194,9 @@ if __name__ == '__main__':
     parser.add_argument("-cores", type=int, default=1, help="number of parallel runs [default=1]")
     parser.add_argument("-fc", type=float, default=1.1, help="convergence factor (heat/cool should be below this value) [default=1.1]")
     parser.add_argument("-startT", choices=["nearby", "free", "constant"], default="nearby", help="initial T structure, either 'constant', 'free' or 'nearby' [default=nearby]")
-    parser.add_argument("-itno", type=int, default=1, help="starting iteration number (only >1 if overwriting previous result) [default=1]")
+    parser.add_argument("-itno", type=int, default=1, help="starting iteration number (itno != 1 only works with -overwrite). As a special use, you can pass " \
+                                    "-itno 0 which will automatically find the highest previously ran iteration number. This is useful if you already " \
+                                    "have converged a profile, but now want to run the converged profile again with extra species of the -save_sp command. [default=1]")
     parser.add_argument("-SEDname", type=str, default='real', help="name of SED to use. Must be in Cloudy's data/SED/ folder [default=SEDname set in planet.txt file]")
     parser.add_argument("-overwrite", action='store_true', help="overwrite existing simulation if passed [default=False]")
     parser.add_argument("-z", type=float, default=1., help="metallicity (=scale factor relative to solar for all elements except H and He) [default=1.]")
