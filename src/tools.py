@@ -936,6 +936,25 @@ def smooth_gaus_savgol(y, **kwargs):
 Cloudy I/O
 '''
 
+def remove_duplicates(law, fmt):
+    '''
+    Takes a Cloudy law (e.g. dlaw or tlaw) and a formatter, and removes
+    duplicate rows from the law. This is mainly for the illuminated side of the
+    simulation, where we have a very finely sampled grid which can result in
+    duplicate values after applying the string formatter. This function thus
+    does not alter the law in any way, but merely improves readability of the
+    Cloudy .in file laws as it doesn't have many (obsolete) duplicate rows.
+    '''
+
+    nonduplicates = [0]
+    for i in range(1, len(law)-1):
+        if format(law[i,1], fmt) != format(law[i-1,1], fmt) or format(law[i,1], fmt) != format(law[i+1,1], fmt):
+            nonduplicates.append(i)
+    nonduplicates.append(-1)
+
+    return law[nonduplicates]
+
+
 
 def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
                         dlaw=None, tlaw=None, alaw=None, pTmulaw=None, cextra=None, hextra=None,
@@ -984,6 +1003,7 @@ def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
         if othercommands != None:
             f.write("\n"+othercommands)
         if np.any(dlaw != None):
+            dlaw = remove_duplicates(dlaw, "1.7f")
             f.write("\n# ========= density law    ================")
             f.write("\n#depth sets distances from edge of cloud")
             f.write("\ndlaw table depth\n")
@@ -992,6 +1012,7 @@ def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
                         ' '+'{:.7f}'.format(dlaw[-1,1]))
             f.write("\nend of dlaw #last point added to prevent roundoff")
         if np.any(tlaw != None):
+            tlaw = remove_duplicates(tlaw, "1.7f")
             f.write("\n# ========= temperature law    ============")
             f.write("\n#depth sets distances from edge of cloud")
             f.write("\ntlaw table depth\n")
@@ -1000,6 +1021,7 @@ def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
                         ' '+'{:.7f}'.format(tlaw[-1,1]))
             f.write("\nend of tlaw #last point added to prevent roundoff")
         if np.any(alaw != None):
+            alaw = remove_duplicates(alaw, "1.7f")
             f.write("\n# ========= advection law     ================")
             f.write("\n#depth sets distances from edge of cloud")
             f.write("\nadvectiontable depth\n")
@@ -1008,6 +1030,7 @@ def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
                         ' '+'{:.7f}'.format(alaw[-1,1]))
             f.write("\nend of advectiontable #last point added to prevent roundoff")
         if np.any(pTmulaw != None):
+            pTmulaw = remove_duplicates(pTmulaw, "1.7f")
             f.write("\n# ========= previous T/mu law     ================")
             f.write("\n#depth sets distances from edge of cloud")
             f.write("\nprevTmu depth\n")
@@ -1016,6 +1039,7 @@ def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
                         ' '+'{:.7f}'.format(pTmulaw[-1,1]))
             f.write("\nend of prevTmu #last point added to prevent roundoff")
         if np.any(cextra != None):
+            cextra = remove_duplicates(cextra, "1.7f")
             f.write("\n# ========= cextra law     ================")
             f.write("\n#depth sets distances from edge of cloud")
             f.write("\ncextra table depth\n")
@@ -1024,6 +1048,7 @@ def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
                         ' '+'{:.7f}'.format(cextra[-1,1]))
             f.write("\nend of cextra #last point added to prevent roundoff")
         if np.any(hextra != None):
+            hextra = remove_duplicates(hextra, "1.7f")
             f.write("\n# ========= hextra law     ================")
             f.write("\n#depth sets distances from edge of cloud")
             f.write("\nhextra table depth\n")
@@ -1032,6 +1057,7 @@ def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
                         ' '+'{:.7f}'.format(hextra[-1,1]))
             f.write("\nend of hextra #last point added to prevent roundoff")
         if np.any(coolextra != None):
+            coolextra = remove_duplicates(coolextra, "1.7f")
             f.write("\n# ========= coolextra law     ================")
             f.write("\n#depth sets distances from edge of cloud")
             f.write("\ncoolextra table depth\n")
@@ -1149,8 +1175,8 @@ def write_Cloudy_in(simname, title='Default title for Cloudy planet sim', flux_s
         if ".den" in outfiles: #then ".en" is always there as well.
             f.write('\nsave species densities last ".den"\n'+speciesstring(denspecies, selected_levels=selected_den_levels)+"\nend")
             f.write('\nsave species energies last ".en"\n'+speciesstring(denspecies, selected_levels=selected_den_levels)+"\nend")
-
         if np.any(dlaw != None):
+            dlaw = remove_duplicates(dlaw, "1.7f")
             f.write("\n# ========= density law    ================")
             f.write("\n#depth sets distances from edge of cloud")
             f.write("\ndlaw table depth\n")
@@ -1159,6 +1185,7 @@ def write_Cloudy_in(simname, title='Default title for Cloudy planet sim', flux_s
                         ' '+'{:.7f}'.format(dlaw[-1,1]))
             f.write("\nend of dlaw #last point added to prevent roundoff")
         if np.any(tlaw != None):
+            tlaw = remove_duplicates(tlaw, "1.7f")
             f.write("\n# ========= temperature law    ============")
             f.write("\n#depth sets distances from edge of cloud")
             f.write("\ntlaw table depth\n")
@@ -1167,6 +1194,7 @@ def write_Cloudy_in(simname, title='Default title for Cloudy planet sim', flux_s
                         ' '+'{:.7f}'.format(tlaw[-1,1]))
             f.write("\nend of tlaw #last point added to prevent roundoff")
         if np.any(alaw != None):
+            alaw = remove_duplicates(alaw, "1.7f")
             f.write("\n# ========= advection law     ================")
             f.write("\n#depth sets distances from edge of cloud")
             f.write("\nadvectiontable depth\n")
@@ -1175,6 +1203,7 @@ def write_Cloudy_in(simname, title='Default title for Cloudy planet sim', flux_s
                         ' '+'{:.7f}'.format(alaw[-1,1]))
             f.write("\nend of advectiontable #last point added to prevent roundoff")
         if np.any(pTmulaw != None):
+            pTmulaw = remove_duplicates(pTmulaw, "1.7f")
             f.write("\n# ========= previous T/mu law     ================")
             f.write("\n#depth sets distances from edge of cloud")
             f.write("\nprevTmu depth\n")
@@ -1183,6 +1212,7 @@ def write_Cloudy_in(simname, title='Default title for Cloudy planet sim', flux_s
                         ' '+'{:.7f}'.format(pTmulaw[-1,1]))
             f.write("\nend of prevTmu #last point added to prevent roundoff")
         if np.any(cextra != None):
+            cextra = remove_duplicates(cextra, "1.7f")
             f.write("\n# ========= cextra law     ================")
             f.write("\n#depth sets distances from edge of cloud")
             f.write("\ncextra table depth\n")
@@ -1191,6 +1221,7 @@ def write_Cloudy_in(simname, title='Default title for Cloudy planet sim', flux_s
                         ' '+'{:.7f}'.format(cextra[-1,1]))
             f.write("\nend of cextra #last point added to prevent roundoff")
         if np.any(hextra != None):
+            hextra = remove_duplicates(hextra, "1.7f")
             f.write("\n# ========= hextra law     ================")
             f.write("\n#depth sets distances from edge of cloud")
             f.write("\nhextra table depth\n")
@@ -1199,6 +1230,7 @@ def write_Cloudy_in(simname, title='Default title for Cloudy planet sim', flux_s
                         ' '+'{:.7f}'.format(hextra[-1,1]))
             f.write("\nend of hextra #last point added to prevent roundoff")
         if np.any(coolextra != None):
+            coolextra = remove_duplicates(coolextra, "1.7f")
             f.write("\n# ========= coolextra law     ================")
             f.write("\n#depth sets distances from edge of cloud")
             f.write("\ncoolextra table depth\n")
