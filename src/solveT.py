@@ -69,6 +69,10 @@ def getbulkrates(htot, ctot, PdV, advecheat, adveccool):
 
 
 def get_new_Tstruc(old_Te, hcratio, fac):
+    '''
+    Returns a new temperature structure based on the old structure and the heating/cooling ratio.
+    '''
+
     deltaT = fac * np.sign(hcratio) * np.log10(np.abs(hcratio)) #take log-based approach to deltaT
     fT = np.copy(deltaT) #the temperature multiplication fraction
     fT[deltaT < 0] = 1 + deltaT[deltaT < 0]
@@ -77,31 +81,6 @@ def get_new_Tstruc(old_Te, hcratio, fac):
     newTe = old_Te * fT
     newTe = np.clip(newTe, 1e1, 1e6) #set minimum temperature to 10K
     return newTe
-
-
-def get_rad_ip_functions(path, itno):
-
-    def log_interp1d(xx, yy, kind='linear', bounds_error=True):
-        #from: https://stackoverflow.com/questions/29346292/logarithmic-interpolation-in-python
-        logx = np.log10(xx)
-        logy = np.log10(yy)
-        lin_interp = interp1d(logx, logy, kind=kind, bounds_error=bounds_error)
-        log_interp = lambda zz: np.power(10.0, lin_interp(np.log10(zz)))
-        return log_interp
-
-    iterations_file = pd.read_csv(path+'iterations.txt', header=0, sep=' ')
-    ctots = iterations_file.filter(like='ctot').values
-    htots = iterations_file.filter(like='htot').values
-    Tes = iterations_file.filter(like='Te').values[:,:len(ctots[0])]
-
-    ifuncs_ctot = []
-    ifuncs_htot = []
-
-    for bin in range(len(iterations_file)):
-        ifuncs_ctot.append(log_interp1d(Tes[bin], ctots[bin], bounds_error=False))
-        ifuncs_htot.append(log_interp1d(Tes[bin], htots[bin], bounds_error=False))
-
-    return ifuncs_ctot, ifuncs_htot
 
 
 def calc_cloc(path, itno, advecheat, adveccool, htot, ctot, totheat, PdV, hcratio):
@@ -316,9 +295,6 @@ def constructTstruc(sim, grid, snewTe, cloc, cextraprof, advecprof, altmax, Rp, 
     ifuncPdVT = interp1d(10**cextraprof[:,0], 10**cextraprof[:,1], fill_value='extrapolate') #this is -1*k*v*drhodr/mH, so multiply with T and divide by mu still
     ifuncadvec = interp1d(10**advecprof[:,0], 10**advecprof[:,1], fill_value='extrapolate') #this is v*rho*(5/2)*k/mH, so multiply with d(T/mu)/dr still
 
-    #if itno >= 3:
-        #ifuncs_ctot, ifuncs_htot = get_rad_ip_functions(path, itno)
-
 
     def calchcratiohi(T, depth, mu, htot, ctot, T2, depth2, mu2):
         '''
@@ -331,23 +307,6 @@ def constructTstruc(sim, grid, snewTe, cloc, cextraprof, advecprof, altmax, Rp, 
 
         totheat = htot + max(advec, 0) #if advec is negative we don't add it here
         totcool = ctot + PdV - min(advec, 0) #if advec is positive we don't add it here
-
-        hcratio = max(totheat, totcool) / min(totheat, totcool) #both entities are positive
-
-        return hcratio - 1 #find root of this value to get hcratio close to 1
-
-
-    def calchcratiohi_with_radinterp(T, depth, mu, ifunc_htot, ifunc_ctot, T2, depth2, mu2):
-        '''
-        This function will be optimized to zero (=> h/c = 1) by the constructTstruc
-        function. Goes up in altitude.
-        '''
-
-        PdV = ifuncPdVT(depth) * T / mu
-        advec = ifuncadvec(depth) * ((T/mu) - (T2/mu2))/(depth - depth2)
-
-        totheat = ifunc_htot(T) + max(advec, 0) #if advec is negative we don't add it here
-        totcool = ifunc_ctot(T) + PdV - min(advec, 0) #if advec is positive we don't add it here
 
         hcratio = max(totheat, totcool) / min(totheat, totcool) #both entities are positive
 
@@ -382,7 +341,7 @@ def constructTstruc(sim, grid, snewTe, cloc, cextraprof, advecprof, altmax, Rp, 
     return cnewTe
 
 
-def check_T_changing(fc, grid, newTe, prevgrid, prevTe, fac=0.5, linthresh=0.):
+def check_T_changing(fc, grid, newTe, prevgrid, prevTe, fac=0.5, linthresh=50.):
     '''
     This function checks if the newly proposed temperature structure is actually changing w.r.t.
     the previous iteration. Because maybe H/C is still > fc, but because of smoothing,
