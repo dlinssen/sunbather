@@ -50,8 +50,8 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, zdict=None
 
     Arguments:
         plname: [str]       planet name that occurs in planets.txt
-        Mdot: [str]         parker wind log10 of the mass loss rate
-        T: [str]            parker wind isothermal temperature
+        Mdot: [str/float]   parker wind log10 of the mass loss rate
+        T: [str/int]        parker wind isothermal temperature
         itno: [int]         iteration number to start (can only be different from 1
                             if this same model has been ran before, and then also
                             overwrite = True needs to be set.)
@@ -80,6 +80,9 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, zdict=None
                             with different assumptions such as SED/a/z/fH, etc.
         save_sp: [list]     add explanation.
     '''
+
+    Mdot = "%.3f" % float(Mdot) #enforce this format to get standard file names.
+    T = str(T)
 
     #set up the planet object
     planet = tools.Planet(plname)
@@ -153,7 +156,7 @@ def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname
     pars = []
     for Mdot in np.arange(float(Mdot_l), float(Mdot_u)+float(Mdot_s), float(Mdot_s)):
         for T in np.arange(int(T_l), int(T_u)+int(T_s), int(T_s)).astype(int):
-            pars.append((plname, "%.1f" % Mdot, str(T), 1, fc, dir, SEDname, overwrite, startT, zdict, pdir, altmax, save_sp))
+            pars.append((plname, Mdot, T, 1, fc, dir, SEDname, overwrite, startT, zdict, pdir, altmax, save_sp))
 
     p.starmap(run_s, pars)
     p.close()
@@ -189,7 +192,8 @@ if __name__ == '__main__':
     parser.add_argument("-plname", required=True, help="planet name (must be in planets.txt)")
     parser.add_argument("-dir", required=True, type=str, help="folder where the temperature structures are solved. e.g. Tstruc_fH_0.9 or Tstruc_z_100_3xEUV etc.")
     parser.add_argument("-pdir", required=True, type=str, help="parker profile folder/dir to use, e.g. fH_0.9 or z_100.")
-    parser.add_argument("-Mdot", required=True, nargs='+', action=OneOrThreeAction, help="log10(mass-loss rate), or three values specifying a grid of mass-loss rates: lowest, highest, stepsize.")
+    parser.add_argument("-Mdot", required=True, type=float, nargs='+', action=OneOrThreeAction, help="log10(mass-loss rate), or three values specifying a grid of " \
+                                    "mass-loss rates: lowest, highest, stepsize. -Mdot will be rounded to three decimal places.")
     parser.add_argument("-T", required=True, type=int, nargs='+', action=OneOrThreeAction, help="temperature, or three values specifying a grid of temperatures: lowest, highest, stepsize.")
     parser.add_argument("-cores", type=int, default=1, help="number of parallel runs [default=1]")
     parser.add_argument("-fc", type=float, default=1.1, help="convergence factor (heat/cool should be below this value) [default=1.1]")

@@ -36,10 +36,10 @@ print("\nChecking construct_parker.py...\n")
 #create a parker profile - we use the p-winds/Cloudy hybrid scheme
 os.system("cd .. && cd src && python construct_parker.py -plname WASP52b -pdir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0")
 #load the created profile
-pprof_created = pd.read_table(tools.projectpath+'/parker_profiles/WASP52b/test/pprof_WASP52b_T=9000_M=11.0.txt',
+pprof_created = pd.read_table(tools.projectpath+'/parker_profiles/WASP52b/test/pprof_WASP52b_T=9000_M=11.000.txt',
                                 names=['alt', 'rho', 'v', 'mu'], dtype=np.float64, comment='#')
 #load the expected output
-pprof_expected = pd.read_table('materials/pprof_WASP52b_T=9000_M=11.0.txt',
+pprof_expected = pd.read_table('materials/pprof_WASP52b_T=9000_M=11.000.txt',
                                 names=['alt', 'rho', 'v', 'mu'], dtype=np.float64, comment='#')
 #check if they are equal to within 1% in altitude and mu and 10% in rho and v.
 assert np.isclose(pprof_created[['alt', 'mu']], pprof_expected[['alt', 'mu']], rtol=0.01).all().all(), "The profile created with the construct_parker.py module is not as expected"
@@ -54,7 +54,7 @@ print("\nChecking convergeT_parker.py...\n")
 #run the created profile through Cloudy
 os.system("cd .. && cd src && python convergeT_parker.py -plname WASP52b -pdir test -dir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0 -save_sp He Mg+ -overwrite")
 #load the created simulation
-sim_created = tools.Sim(tools.projectpath+'/sims/1D/WASP52b/test/parker_9000_11.0/converged')
+sim_created = tools.Sim(tools.projectpath+'/sims/1D/WASP52b/test/parker_9000_11.000/converged')
 #load the expected simulation
 sim_expected = tools.Sim('materials/converged')
 #interpolate them to the same altitude grid as Cloudy's internal depth-grid can be different

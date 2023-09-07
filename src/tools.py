@@ -539,9 +539,9 @@ def read_parker(plname, T, Mdot, dir=None, filename=None):
     '''
 
     if filename == None:
-        if isinstance(Mdot, float):
-            Mdot = "%.1f" %Mdot
-        filename = projectpath+'/parker_profiles/'+plname+'/'+dir+'/pprof_'+plname+'_T='+str(int(T))+'_M='+Mdot+'.txt'
+        Mdot = "%.3f" % float(Mdot)
+        T = str(int(T))
+        filename = projectpath+'/parker_profiles/'+plname+'/'+dir+'/pprof_'+plname+'_T='+T+'_M='+Mdot+'.txt'
 
     pprof = pd.read_table(filename, names=['alt', 'rho', 'v', 'mu'], dtype=np.float64, comment='#')
     pprof['drhodr'] = np.gradient(pprof['rho'], pprof['alt'])
@@ -1266,7 +1266,7 @@ class Parker:
             self.Mdot = Mdot
             self.Mdotf = float(Mdot)
         elif type(Mdot) == float:
-            self.Mdot = "%.1f" % Mdot
+            self.Mdot = "%.3f" % Mdot
             self.Mdotf = Mdot
         if fH != None:
             self.fH = fH

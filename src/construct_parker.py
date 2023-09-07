@@ -78,10 +78,8 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9, dir='fH
 
     print("Making Parker wind profile with p_winds...")
 
-    if isinstance(Mdot, str):
-        Mdot = float(Mdot)
-    if isinstance(T, str):
-        T = int(T)
+    Mdot = float(Mdot)
+    T = int(T)
 
     R_pl = planet.R / tools.RJ #because my planet object has it in cm
     M_pl = planet.M #already in MJ
@@ -126,8 +124,8 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9, dir='fH
     mu_array = ((1-h_fraction)*4.0 + h_fraction)/(h_fraction*(1+f_r)+(1-h_fraction)) #this assumes no Helium ionization
 
     save_array = np.column_stack((r*planet.R, rho_array*rhos, v_array*vs*1e5, mu_array))
-    save_name = tools.projectpath+'/parker_profiles/'+planet.name+'/'+dir+'/pprof_'+planet.name+'_T='+str(int(T))+'_M='+ \
-                                "%.1f" %Mdot +".txt"
+    save_name = tools.projectpath+'/parker_profiles/'+planet.name+'/'+dir+'/pprof_'+planet.name+'_T='+str(T)+'_M='+ \
+                                "%.3f" %Mdot +".txt"
     np.savetxt(save_name, save_array, delimiter='\t', header="alt rho v mu")
     print("Parker wind profile done.")
 
@@ -158,10 +156,8 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=None,
                             the corresponding models there.
     '''
 
-    if isinstance(Mdot, str):
-        Mdot = float(Mdot)
-    if isinstance(T, str):
-        T = int(T)
+    Mdot = float(Mdot)
+    T = int(T)
 
     R_pl = planet.R / tools.RJ #radius in RJ (my planet object has it in cm)
     M_pl = planet.M #already in MJ
@@ -208,7 +204,7 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=None,
     v_array, rho_array = pw_parker.structure(r_array)
 
     save_array = np.column_stack((r*planet.R, rho_array*rhos, v_array*vs*1e5, mu_array))
-    save_name = tools.projectpath+'/parker_profiles/'+planet.name+'/'+dir+'/temp/pprof_'+planet.name+'_T='+str(int(T))+'_M='+"%.1f" %Mdot +".txt"
+    save_name = tools.projectpath+'/parker_profiles/'+planet.name+'/'+dir+'/temp/pprof_'+planet.name+'_T='+str(T)+'_M='+"%.3f" %Mdot +".txt"
     zdictstr = "abundance scale factors relative to solar:"
     for sp in zdict.keys():
         zdictstr += " "+sp+"="+"%.1f" %zdict[sp]
@@ -365,7 +361,7 @@ def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, SEDname, f
     pars = []
     for Mdot in np.arange(float(Mdot_l), float(Mdot_u)+float(Mdot_s), float(Mdot_s)):
         for T in np.arange(int(T_l), int(T_u)+int(T_s), int(T_s)).astype(int):
-            pars.append((plname, pdir, "%.1f" % Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit))
+            pars.append((plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit))
 
     p.starmap(run_s, pars)
     p.close()
@@ -404,7 +400,8 @@ if __name__ == '__main__':
     parser.add_argument("-plname", required=True, help="planet name (must be in planets.txt)")
     parser.add_argument("-pdir", required=True, help="directory where the profiles are saved. It is adviced to choose a name that " \
                                         "somehow represents the chosen parameters, e.g. 'fH_0.9' or 'z=10'. The path will be tools.projectpath/parker_profiles/pdir/")
-    parser.add_argument("-Mdot", required=True, nargs='+', action=OneOrThreeAction, help="log10(mass-loss rate), or three values specifying a grid of mass-loss rates: lowest, highest, stepsize.")
+    parser.add_argument("-Mdot", required=True, type=float, nargs='+', action=OneOrThreeAction, help="log10(mass-loss rate), or three values specifying a grid of " \
+                                        "mass-loss rates: lowest, highest, stepsize. -Mdot will be rounded to three decimal places.")
     parser.add_argument("-T", required=True, type=int, nargs='+', action=OneOrThreeAction, help="temperature, or three values specifying a grid of temperatures: lowest, highest, stepsize.")
     parser.add_argument("-SEDname", type=str, default='real', help="name of SED to use. Must be in Cloudy's data/SED/ folder [default=SEDname set in planet.txt file]")
     composition_group = parser.add_mutually_exclusive_group(required=True)
