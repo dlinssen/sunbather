@@ -426,6 +426,25 @@ def run_once(path, itno, fc, altmax, Rp, cextraprof, advecprof):
     return converged
 
 
+def clean_converged_folder(folder):
+    '''
+    Removes all files that are not of the converged simulation (and thus part
+    of earlier iterations / help files) from a folder.
+    '''
+
+    if not os.path.isdir(folder):
+        print("[solveT.clean_converged_folder()]: This folder does not exist: "+folder)
+
+    elif not os.path.isfile(folder+'/converged.in'):
+        print("[solveT.clean_converged_folder()]: This folder wasn't converged, I will not clean it: "+folder)
+
+    else:
+        for filename in os.listdir(folder):
+            if filename[:9] != 'converged' and os.path.isfile(os.path.join(folder, filename)):
+                os.remove(os.path.join(folder, filename))
+                #print("[solveT.clean_converged_folder()]: Cleaned: "+folder)
+
+
 def run_loop(path, itno, fc, altmax, Rp, cextraprof, advecprof, zdict=None, save_sp=[]):
     if itno == 0: #this means we resume from the highest found previously ran iteration
         pattern = r'iteration(\d+)\.out'
@@ -457,6 +476,7 @@ def run_loop(path, itno, fc, altmax, Rp, cextraprof, advecprof, zdict=None, save
                 tools.copyadd_Cloudy_in(path+'iteration'+str(itno-1), path+'converged', outfiles=['.heat', '.den', '.en'], denspecies=save_sp, selected_den_levels=True, hcfrac=0.01)
             os.system("cd "+path+" && "+tools.cloudyruncommand+" converged && cd "+tools.projectpath+"/sims/1D")
             tools.Sim(path+'converged') #by reading in the simulation, we open the .en file (if it exists) and hence compress its size.
+            clean_converged_folder(path) #remove all non-converged files
             break
         if itno != 16:
             os.system("cd "+path+" && "+tools.cloudyruncommand+" iteration"+str(itno)+" && cd "+tools.projectpath+"/sims/1D")
