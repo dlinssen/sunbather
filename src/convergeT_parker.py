@@ -43,10 +43,9 @@ def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):
     return clconv
 
 
-def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, zdict=None, pdir='AO', altmax=8, save_sp=[]):
+def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdict=None, altmax=8, save_sp=[], constantT=False):
     '''
     Solves for the converged temperature structure of a single parker wind profile.
-    The folder structure on your machine needs to be as described in order for this to work.
 
     Arguments:
         plname: [str]       planet name that occurs in planets.txt
@@ -72,12 +71,12 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, zdict=None
                             'nearby' looks in the dir folder for previously solved
                             parker wind profiles and starts from a converged one.
                             If no converged ones are available, uses 'free' instead.
-        zdict: [dict]       dictionary with the scale factors of all elements relative
-                            to the default solar composition.
         pdir: [str]         direction as projectpath/parker_profiles/planetname/pdir/
                             where we take the parker wind profiles from. Different folders
                             may exist there for a given planet for parker wind profiles
                             with different assumptions such as SED/a/z/fH, etc.
+        zdict: [dict]       dictionary with the scale factors of all elements relative
+                            to the default solar composition.
         save_sp: [list]     add explanation.
     '''
 
@@ -115,8 +114,17 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, zdict=None
     nuFnu_1AU_linear, Ryd = tools.get_SED_norm_1AU(planet.SEDname)
     nuFnu_a_log = np.log10(nuFnu_1AU_linear / (planet.a - altmax*planet.R/tools.AU)**2)
 
-    #write Cloudy template input file - each iteration will add their current temperature structure to this template
     comments = '# plname='+planet.name+'\n# parker_T='+str(T)+'\n# parker_Mdot='+str(Mdot)+'\n# parker_dir='+pdir+'\n# altmax='+str(altmax)
+
+    if constantT: #this will run the profile at the isothermal T value instead of converging a nonisothermal profile
+        tools.write_Cloudy_in(path+'constantT', title=planet.name+' 1D Parker with T='+str(T)+' and log(Mdot)='+str(Mdot),
+                                    flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=hdenprof, double_tau=True,
+                                    overwrite=overwrite, cosmic_rays=True, zdict=zdict, comments=comments, constantT=T)
+        os.system("cd "+path+" && "+tools.cloudyruncommand+" constantT")
+        return
+
+    #else we converge T:
+    #write Cloudy template input file - each iteration will add their current temperature structure to this template
     tools.write_Cloudy_in(path+'template', title=planet.name+' 1D Parker with T='+str(T)+' and log(Mdot)='+str(Mdot),
                                 flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=hdenprof, double_tau=True,
                                 overwrite=overwrite, cosmic_rays=True, zdict=zdict, comments=comments)
@@ -145,7 +153,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, zdict=None
     solveT.run_loop(path, itno, fc, altmax, planet.R, cextraprof, advecprof, zdict, save_sp)
 
 
-def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname, overwrite, startT, zdict, pdir, altmax, save_sp):
+def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname, overwrite, startT, pdir, zdict, altmax, save_sp, constantT):
     '''
     Runs the function run_s in parallel for a given grid of Mdots and T, and
     for given number of cores (=parallel processes).
@@ -156,7 +164,7 @@ def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname
     pars = []
     for Mdot in np.arange(float(Mdot_l), float(Mdot_u)+float(Mdot_s), float(Mdot_s)):
         for T in np.arange(int(T_l), int(T_u)+int(T_s), int(T_s)).astype(int):
-            pars.append((plname, Mdot, T, 1, fc, dir, SEDname, overwrite, startT, zdict, pdir, altmax, save_sp))
+            pars.append((plname, Mdot, T, 1, fc, dir, SEDname, overwrite, startT, pdir, zdict, altmax, save_sp, constantT))
 
     p.starmap(run_s, pars)
     p.close()
@@ -213,6 +221,8 @@ if __name__ == '__main__':
                                     "set the maximum degree of ionization with the -save_sp_max_ion flag. default=[] i.e. none.")
     parser.add_argument("-save_sp_max_ion", type=int, default=6, help="only used when you set -save_sp all   This command sets the maximum degree of ionization "\
                                     "that will be saved. [default=6] but using lower values saves significant file size if high ions are not needed.")
+    parser.add_argument("-constantT", action='store_true', help="run the profile at the isothermal temperature instead of converging upon the temperature structure. [default=False]")
+
 
     args = parser.parse_args()
 
@@ -232,12 +242,12 @@ if __name__ == '__main__':
         os.mkdir(tools.projectpath+'/sims/1D/'+args.plname+'/'+args.dir)
 
     if (len(args.T) == 1 and len(args.Mdot) == 1): #then we run a single model
-        run_s(args.plname, args.Mdot[0], str(args.T[0]), args.itno, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
+        run_s(args.plname, args.Mdot[0], str(args.T[0]), args.itno, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.pdir, zdict, args.altmax, args.save_sp, args.constantT)
     elif (len(args.T) == 3 and len(args.Mdot) == 3): #then we run a grid over both parameters
-        run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
+        run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.pdir, zdict, args.altmax, args.save_sp, args.constantT)
     elif (len(args.T) == 3 and len(args.Mdot) == 1): #then we run a grid over only T
-        run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
+        run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.pdir, zdict, args.altmax, args.save_sp, args.constantT)
     elif (len(args.T) == 1 and len(args.Mdot) == 3): #then we run a grid over only Mdot
-        run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, zdict, args.pdir, args.altmax, args.save_sp)
+        run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.pdir, zdict, args.altmax, args.save_sp, args.constantT)
 
     print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
