@@ -51,3 +51,7 @@ mysimulation.den['H[1]'] #density of ground-state atomic hydrogen
 mysimulation.den['He[2]'] #density of metastable helium
 mysimulation.den['Fe+2[10]'] #density of the tenth energy level of Fe 2+
 ```
+
+## Can I run a Parker wind profile through Cloudy while using the isothermal temperature profile?
+
+Yes, you can pass the `-constantT` flag to `convergeT_parker.py` to simulate the Parker wind profile without converging on a nonisothermal temperature structure. This will save a _Cloudy_ simulation called "constantT" and the folder structure works the same way as for converged simulations: you again need to pass a `-dir` where the simulation is saved, and you can in principle use the same directory that you use for converged profiles (but you will need to pass the `-overwrite` flag if the converged nonisothermal simulation already exists - nothing will be overwritten in this case though!).
