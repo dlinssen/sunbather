@@ -59,3 +59,24 @@ Yes, you can pass the `-constantT` flag to `convergeT_parker.py` to simulate the
 ## I forgot to specify for which species I want Cloudy output with the `-save_sp` argument. Do I need to run `convergeT_parker.py` again from scratch?
 
 You can use the `tools.insertden_Cloudy_in()` function to add species to a Cloudy simulation file and run it again, without having to go through the temperature convergence scheme again. If you want to do this for a grid of Parker wind models, you will have to set up a loop over the correct filepaths yourself.
+
+## Can I run an atmospheric profile other than an (isothermal) Parker wind?
+
+You can "trick" the code into running an arbitrary outflow profile by saving your density and velocity profile in the expected file format in the */projectpath/parker_profiles/* folder. For example, you can create a simple density and velocity profile in Python:
+
+``` python
+p = tools.Planet('generic_planet') #make sure you add the parameters in planets.txt
+
+r = np.linspace(1, 10, num=1000) * p.R #in cm
+rho = 1e-15 / np.linspace(1, 10, num=1000)**3 #falls with r^3
+v = 5e4 * np.linspace(1, 10, num=1000) #starts at 0.5km/s, increases linearly with r so that Mdot = 4 pi rho v r^2 is constant
+mu = np.repeat(np.nan, 1000) #mu is not used by convergeT_parker.py
+
+print("log(Mdot) =", np.log10(4*np.pi*r[0]**2*rho[0]*v[0]))
+
+np.savetxt(tools.projectpath+'/parker_profiles/'+p.name+'/geometric/pprof_'+p.name+'_T=0_M=0.000.txt', np.column_stack((r, rho, v, mu)), delimiter='\t')
+```
+
+You can then solve the temperature structure of this profile with: `python convergeT_parker.py -plname generic_planet -pdir geometric -dir geometric -T 0 -Mdot 0`
+
+Similarly, you could for example postprocess the density and velocity profile of an _ATES_ simulation (Caldiroli et al. 2021) with _sunbather_ to produce a transmission spectrum.
