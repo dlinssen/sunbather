@@ -1239,6 +1239,55 @@ def write_Cloudy_in(simname, title='Default title for Cloudy planet sim', flux_s
                         ' '+'{:.7f}'.format(coolextra[-1,1]))
             f.write("\nend of coolextra #last point added to prevent roundoff")
 
+
+def insertden_Cloudy_in(simname, denspecies, selected_den_levels=True, rerun=False):
+    '''
+    This function takes a Cloudy .in input file and adds species to the
+    'save species densities' command. This is useful if you e.g. first went
+    through the temperature convergence scheme, but later want to add additional
+    species to the 'converged' simulation.
+
+    simname:                see write_Cloudy_in().
+    denspecies:             see write_Cloudy_in().
+    selected_den_levels:    see write_Cloudy_in().
+    rerun: [bool]           whether to rerun the just edited simulation through Cloudy.
+    '''
+
+    with open(simname+".in", "r") as f:
+        oldcontent = f.readlines()
+
+    newcontent = oldcontent
+    indices = [i for i, s in enumerate(oldcontent) if 'save species densities' in s]
+    if len(indices) == 0: #then there is no 'save species densities' command yet
+        newcontent.append('\nsave species densities last ".den"\n'+speciesstring(denspecies, selected_levels=selected_den_levels)+"\nend")
+        newcontent.append('\nsave species energies last ".en"\n'+speciesstring(denspecies, selected_levels=selected_den_levels)+"\nend")
+
+    elif len(indices) == 1: #then there already is a 'save species densities' command with some species
+        for sp in denspecies:
+            if len([i for i, s in enumerate(oldcontent) if sp+"[" in s]) != 0: #check if this species is already in the file
+                denspecies.remove(sp)
+                print(sp, "was already in the .in file so I did not add it again.")
+        if len(denspecies) >= 1:
+            newcontent.insert(indices[0]+1, speciesstring(denspecies, selected_levels=selected_den_levels)+"\n")
+            #also add them to the 'save species energies' list
+            indices2 = [i for i, s in enumerate(oldcontent) if 'save species energies' in s]
+            newcontent.insert(indices2[0]+1, speciesstring(denspecies, selected_levels=selected_den_levels)+"\n")
+        else:
+            return
+
+    else:
+        print("There are multiple 'save species densities' commands in the .in file. This shouldn't be the case, please check.")
+        return
+
+    newcontent = "".join(newcontent) #turn list into string
+    with open(simname+".in", "w") as f: #overwrite the old file
+        f.write(newcontent)
+
+    if rerun:
+        path, name = os.path.split(simname)
+        os.system("cd "+path+" && "+cloudyruncommand+' "'+name+'"')
+
+
 '''
 Useful classes
 '''

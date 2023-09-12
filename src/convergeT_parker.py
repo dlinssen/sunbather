@@ -77,7 +77,12 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
                             with different assumptions such as SED/a/z/fH, etc.
         zdict: [dict]       dictionary with the scale factors of all elements relative
                             to the default solar composition.
-        save_sp: [list]     add explanation.
+        save_sp: [list]     a list of atomic/ionic species to save the density structures
+                            for. This is needed when doing radiative transfer to produce
+                            transmission spectra later. For example, to be able to make
+                            metastable helium spectra, 'He' needs to be in the save_sp list.
+        constantT: [bool]   if True, instead of converging the temperature structure,
+                            the Parker wind profile is ran at the isothermal value.
     '''
 
     Mdot = "%.3f" % float(Mdot) #enforce this format to get standard file names.
@@ -207,8 +212,7 @@ if __name__ == '__main__':
     parser.add_argument("-fc", type=float, default=1.1, help="convergence factor (heat/cool should be below this value) [default=1.1]")
     parser.add_argument("-startT", choices=["nearby", "free", "constant"], default="nearby", help="initial T structure, either 'constant', 'free' or 'nearby' [default=nearby]")
     parser.add_argument("-itno", type=int, default=1, help="starting iteration number (itno != 1 only works with -overwrite). As a special use, you can pass " \
-                                    "-itno 0 which will automatically find the highest previously ran iteration number. This is useful if you already " \
-                                    "have converged a profile, but now want to run the converged profile again with extra species of the -save_sp command. [default=1]")
+                                    "-itno 0 which will automatically find the highest previously ran iteration number [default=1]")
     parser.add_argument("-SEDname", type=str, default='real', help="name of SED to use. Must be in Cloudy's data/SED/ folder [default=SEDname set in planet.txt file]")
     parser.add_argument("-overwrite", action='store_true', help="overwrite existing simulation if passed [default=False]")
     parser.add_argument("-z", type=float, default=1., help="metallicity (=scale factor relative to solar for all elements except H and He) [default=1.]")
