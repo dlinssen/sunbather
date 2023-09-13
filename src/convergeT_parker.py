@@ -149,7 +149,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
 
         elif startT == 'nearby': #then clconv cannot be [None, None] and we start from a previous converged T(r)
             print("Model", T, Mdot, "starting from previously converged profile:", clconv)
-            prev_conv_T = pd.read_table(pathTstruc+'parker_'+str(clconv[0])+'_'+"{:.1f}".format(clconv[1])+'/converged.txt', delimiter=' ')
+            prev_conv_T = pd.read_table(pathTstruc+'parker_'+str(clconv[0])+'_'+"{:.3f}".format(clconv[1])+'/converged.txt', delimiter=' ')
             Cltlaw = tools.alt_array_to_Cloudy(prev_conv_T.R * planet.R, prev_conv_T.Te, altmax, planet.R, 1000)
             tools.copyadd_Cloudy_in(path+'template', path+'iteration1', tlaw=Cltlaw)
 
