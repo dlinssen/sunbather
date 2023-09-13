@@ -1,4 +1,4 @@
-#MUSCLES model of eps_Eri (spectral type K2) at 1AU in Cloudy formatting
+#MUSCLES model (France et al. 2016; Youngblood et al. 2016; Loyd et al. 2016) of eps_Eri (spectral type K2) at 1AU in Cloudy formatting
 4.2141455e+00 3.0321843e-02 units angstrom nuFnu
 4.2181414e+00 3.0350594e-02
 4.2221411e+00 3.0379373e-02

@@ -25,7 +25,7 @@ assert tools.projectpath != '/Users/dion/src/cloudy/', "Please set your project 
 #make sure projectpath exists
 assert os.path.isdir(tools.projectpath), "Please create the projectpath folder on your machine"
 #make sure the SED we need for this test has been copied to Cloudy
-assert os.path.isfile(tools.cloudypath+'/data/SED/eps_Eri_binned.spec'), "Please copy /examples/materials/eps_Eri_binned.spec to /c17.02/data/SED/"
+assert os.path.isfile(tools.cloudypath+'/data/SED/eps_Eri_binned.spec'), "Please copy /sunbather/stellar_SEDs/eps_Eri_binned.spec into /c17.02/data/SED/"
 
 
 
