@@ -180,7 +180,7 @@ def process_heating(filename, Rp=None, altmax=None):
     for column in heat.columns:
         if column.startswith('htype'):
             agents.extend(heat[column].unique())
-    agents = pd.unique(agents) #all unique heating agents that appear somewhere in the .heat file
+    agents = list(set(agents)) #all unique heating agents that appear somewhere in the .heat file
 
     for agent in agents:
         heat[agent] = np.nan #add 'empty' column for each agent
@@ -229,7 +229,7 @@ def process_cooling(filename, Rp=None, altmax=None):
     for column in cool.columns:
         if column.startswith('ctype'):
             agents.extend(cool[column].unique())
-    agents = pd.unique(agents) #all unique cooling agents that appear somewhere in the .cool file
+    agents = list(set(agents)) #all unique cooling agents that appear somewhere in the .cool file
 
     for agent in agents:
         cool[agent] = np.nan #add 'empty' column for each agent
