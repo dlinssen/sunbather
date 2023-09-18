@@ -20,8 +20,8 @@ print("\nWill perform installation check. Expected run-time: 15 minutes.\n")
 ### SETUP CHECKS ###
 
 #check if paths are set by user
-assert tools.cloudypath != '/Users/dion/Programs/c17.02/', "Please set the path to your Cloudy installation in config.ini"
-assert tools.projectpath != '/Users/dion/src/cloudy/', "Please set your project path in config.ini"
+assert tools.cloudypath != '/full/path/to/c17.02/', "Please set the path to your Cloudy installation in config.ini"
+assert tools.projectpath != '/full/path/to/project/', "Please set your project path in config.ini"
 #make sure projectpath exists
 assert os.path.isdir(tools.projectpath), "Please create the projectpath folder on your machine"
 #make sure the SED we need for this test has been copied to Cloudy
