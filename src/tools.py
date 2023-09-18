@@ -189,7 +189,7 @@ def process_heating(filename, Rp=None, altmax=None):
     htypes = [f'htype{i+1}' for i in range(num_additional_columns)]
     hfracs = [f'hfrac{i+1}' for i in range(num_additional_columns)]
     for htype, hfrac in zip(htypes, hfracs):
-        for index, agent in heat[htype].iteritems():
+        for index, agent in heat[htype].items():
             rate = heat.loc[index, hfrac]
             heat.loc[index, agent] = rate
 
@@ -238,7 +238,7 @@ def process_cooling(filename, Rp=None, altmax=None):
     ctypes = [f'ctype{i+1}' for i in range(num_additional_columns)]
     cfracs = [f'cfrac{i+1}' for i in range(num_additional_columns)]
     for ctype, cfrac in zip(ctypes, cfracs):
-        for index, agent in cool[ctype].iteritems():
+        for index, agent in cool[ctype].items():
             rate = cool.loc[index, cfrac]
             cool.loc[index, agent] = rate
 
