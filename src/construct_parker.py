@@ -359,8 +359,8 @@ def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, SEDname, f
     p = multiprocessing.Pool(cores)
 
     pars = []
-    for Mdot in np.arange(float(Mdot_l), float(Mdot_u)+float(Mdot_s), float(Mdot_s)):
-        for T in np.arange(int(T_l), int(T_u)+int(T_s), int(T_s)).astype(int):
+    for Mdot in np.arange(float(Mdot_l), float(Mdot_u)+1e-6, float(Mdot_s)): #1e-6 so that upper bound is inclusive
+        for T in np.arange(int(T_l), int(T_u)+1e-6, int(T_s)).astype(int):
             pars.append((plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit))
 
     p.starmap(run_s, pars)
