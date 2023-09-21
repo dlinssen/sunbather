@@ -1,0 +1,2 @@
+Configuration	Term	J	Prefix	Level (Ry)	Suffix	Uncertainty (Ry)	Reference
+"3d3"	"4F"	"3/2"	""	"0.00000"	""	""	"L9171"

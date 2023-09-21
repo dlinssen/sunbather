@@ -168,20 +168,17 @@ def tau_to_FinFout(b, tau, Rs, bp=0., ab=[0., 0.], a=0., phase=0.):
 
 def read_NIST_lines(species, wavlower=None, wavupper=None):
     '''
-    This function reads a table of lines form the NIST atomic database.
-
-    To generate one such table for a given atom and wavlength range,
-    go to NIST and request lines, output as CSV (tab-delimited) and copy
-    into a file such as "C.txt" or "Fe.txt". Make sure that energies are in Ry,
-    wavelengths in vacuum and add the fik values in advanced settings.
+    This function reads a table of lines from the NIST atomic database.
     '''
 
     spNIST = pd.read_table(tools.sunbather_path+'/RT_tables/'+species+'_lines_NIST.txt') #line info
     #remove lines with nan fik or Aik values. Note that lineno doesn't change (uses index instead of rowno.)
     spNIST = spNIST[spNIST.fik.notna()]
     spNIST = spNIST[spNIST['Aki(s^-1)'].notna()]
+    if spNIST.empty:
+        print("No lines with necessary coefficients found for", species)
+        return spNIST
     if type(spNIST['Ei(Ry)'].iloc[0]) == str: #if there are no [](), the datatype will be float already
-        #spNIST.loc[:,'Ei(Ry)'] = spNIST['Ei(Ry)'].str.replace('[', '').str.replace(']','').str.replace('(','').str.replace(')','').str.replace('+','').str.replace('x','').str.replace('?','').astype(float)
         spNIST['Ei(Ry)'] = spNIST['Ei(Ry)'].str.extract('(\d+)', expand=False).astype(float) #remove non-numeric characters such as [] and ()
     spNIST['sig0'] = sigt0 * spNIST.fik
     spNIST['nu0'] = tools.c*1e8 / (spNIST['ritz_wl_vac(A)']) #speed of light to AA/s

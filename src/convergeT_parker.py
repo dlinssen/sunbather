@@ -224,7 +224,8 @@ if __name__ == '__main__':
                                     "You can add multiple as e.g. -save_sp He Ca+ Fe3+ Passing 'all' includes all species that weren't turned off. In that case, you can "\
                                     "set the maximum degree of ionization with the -save_sp_max_ion flag. default=[] i.e. none.")
     parser.add_argument("-save_sp_max_ion", type=int, default=6, help="only used when you set -save_sp all   This command sets the maximum degree of ionization "\
-                                    "that will be saved. [default=6] but using lower values saves significant file size if high ions are not needed.")
+                                    "that will be saved. [default=6] but using lower values saves significant file size if high ions are not needed. The maximum number is 12, "\
+                                    "but such highly ionized species only occur at very high XUV flux, such as in young systems.")
     parser.add_argument("-constantT", action='store_true', help="run the profile at the isothermal temperature instead of converging upon the temperature structure. [default=False]")
 
 

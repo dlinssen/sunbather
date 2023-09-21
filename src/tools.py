@@ -51,49 +51,68 @@ element_names = {'H':'hydrogen', 'He':'helium', 'Li':'lithium', 'Be':'beryllium'
 element_symbols = dict((reversed(item) for item in element_names.items())) #reverse dictionary mapping e.g. 'hydrogen'->'H'
 
 #The index no. until which the Cloudy .en and NIST energies agree. After that they will start to diverge (manually confirmed).
-#Some elements are missing as they have no lines in the NIST database and so there's no use saving their densities
-species_enlim = {'H':21, 'He':43, 'He+':55, 'Li':15, 'Li+':9, 'Li+2':15, 'Be':15, 'Be+':15, 'Be+2':9, 'Be+3':15,
-                'B':15, 'B+':15, 'B+2':15, 'B+3':13, 'B+4':15, 'C':15, 'C+':15, 'C+2':15, 'C+3':15, 'C+4':31, 'C+5':15,
-                'N':50, 'N+':15, 'N+2':15, 'N+3':15, 'N+4':15, 'N+5':8, 'N+6':15, 'O':29, 'O+':15, 'O+2':15, 'O+3':15,
-                'O+4':15, 'O+5':15, 'O+6':8, 'F+':7, 'F+2':15, 'F+3':15, 'F+4':5, 'F+5':15, 'F+6':15, 'Ne':15,
-                'Ne+':2, 'Ne+2':14, 'Ne+3':15, 'Ne+4':15, 'Ne+5':15, 'Ne+6':15, 'Na':15, 'Na+':15, 'Na+2':3, 'Na+3':9,
-                'Na+4':13, 'Na+5':9, 'Na+6':15, 'Mg':15, 'Mg+':15, 'Mg+2':15, 'Mg+3':3, 'Mg+4':15, 'Mg+5':15, 'Mg+6':15,
-                'Al':15, 'Al+':15, 'Al+2':15, 'Al+3':15, 'Al+4':3, 'Al+5':15, 'Al+6':15, 'Si':15, 'Si+':15, 'Si+2':15,
-                'Si+3':15, 'Si+4':15, 'Si+5':8, 'Si+6':15, 'P':15, 'P+':15, 'P+2':8, 'P+3':15, 'P+4':15, 'P+5':15,
-                'P+6':3, 'S':15, 'S+':15, 'S+2':15, 'S+3':15, 'S+4':15, 'S+5':15, 'S+6':15, 'Cl':15, 'Cl+':5, 'Cl+2':5,
-                'Cl+3':5, 'Cl+4':15, 'Cl+5':15, 'Cl+6':5, 'Ar':15, 'Ar+':15, 'Ar+2':15, 'Ar+3':15, 'Ar+4':15, 'Ar+5':15,
-                'Ar+6':14, 'K':15, 'K+':15, 'K+2':15, 'K+3':15, 'K+4':5, 'K+5':5, 'K+6':2, 'Ca':15, 'Ca+':15, 'Ca+2':15,
-                'Ca+3':15, 'Ca+4':5, 'Ca+5':15, 'Ca+6':15, 'Sc':15, 'Sc+':15, 'Sc+2':15,
-                'Sc+3':15, 'Sc+4':15, 'Sc+6':15, 'Ti':1, 'Ti+':1, 'Ti+2':15, 'Ti+3':15, 'Ti+5':2,
-                'V':1, 'V+':1, 'V+2':1, 'Cr':1, 'Cr+':15, 'Mn':15, 'Mn+':1,
-                'Fe':15, 'Fe+':80, 'Fe+2':25, 'Fe+4':25, 'Fe+6':9, 'Co':1, 'Co+':15,
-                'Co+2':15, 'Ni':15, 'Ni+':15, 'Ni+2':15, 'Ni+4':15, 'Cu':15, 'Cu+':1, 'Zn':1}
+#Some species are missing as they have no lines (with necessary coefficients) in the NIST database and so there's no use saving their densities
+species_enlim = {'H':21,
+                'He':43, 'He+':55,
+                'Li':15, 'Li+':9, 'Li+2':15,
+                'Be':15, 'Be+':15, 'Be+2':9, 'Be+3':15,
+                'B':15, 'B+':15, 'B+2':15, 'B+3':13, 'B+4':15,
+                'C':15, 'C+':15, 'C+2':15, 'C+3':15, 'C+4':31, 'C+5':15,
+                'N':50, 'N+':15, 'N+2':15, 'N+3':15, 'N+4':15, 'N+5':8, 'N+6':15,
+                'O':29, 'O+':15, 'O+2':15, 'O+3':15, 'O+4':15, 'O+5':15, 'O+6':8, 'O+7':15,
+                'F+':7, 'F+2':15, 'F+3':15, 'F+4':5, 'F+5':15, 'F+6':15, 'F+7':8, 'F+8':15,
+                'Ne':15, 'Ne+':2, 'Ne+2':14, 'Ne+3':15, 'Ne+4':15, 'Ne+5':15, 'Ne+6':15, 'Ne+7':15, 'Ne+8':8, 'Ne+9':15,
+                'Na':15, 'Na+':15, 'Na+2':3, 'Na+3':9, 'Na+4':13, 'Na+5':9, 'Na+6':15, 'Na+7':10, 'Na+8':15, 'Na+9':8, 'Na+10':15,
+                'Mg':15, 'Mg+':15, 'Mg+2':15, 'Mg+3':3, 'Mg+4':15, 'Mg+5':15, 'Mg+6':15, 'Mg+7':15, 'Mg+8':13, 'Mg+9':9, 'Mg+10':8, 'Mg+11':15,
+                'Al':15, 'Al+':15, 'Al+2':15, 'Al+3':15, 'Al+4':3, 'Al+5':15, 'Al+6':15, 'Al+7':9, 'Al+8':5, 'Al+9':10, 'Al+10':15, 'Al+11':8, 'Al+12':15,
+                'Si':15, 'Si+':15, 'Si+2':15, 'Si+3':15, 'Si+4':15, 'Si+5':8, 'Si+6':15, 'Si+7':15, 'Si+8':15, 'Si+9':15, 'Si+10':12, 'Si+11':15, 'Si+12':8,
+                'P':15, 'P+':15, 'P+2':8, 'P+3':15, 'P+4':15, 'P+5':15, 'P+6':3, 'P+7':10, 'P+8':15, 'P+9':15, 'P+10':15, 'P+11':10, 'P+12':15,
+                'S':15, 'S+':15, 'S+2':15, 'S+3':15, 'S+4':15, 'S+5':15, 'S+6':15, 'S+7':3, 'S+8':10, 'S+9':15, 'S+10':15, 'S+11':15, 'S+12':13,
+                'Cl':15, 'Cl+':5, 'Cl+2':5, 'Cl+3':5, 'Cl+4':15, 'Cl+5':15, 'Cl+6':5, 'Cl+7':1, 'Cl+8':15, 'Cl+9':8,
+                'Ar':15, 'Ar+':15, 'Ar+2':15, 'Ar+3':15, 'Ar+4':15, 'Ar+5':15, 'Ar+6':14, 'Ar+7':15, 'Ar+8':15,
+                'K':15, 'K+':15, 'K+2':15, 'K+3':15, 'K+4':5, 'K+5':5, 'K+6':2, 'K+7':15, 'K+8':15, 'K+9':15, 'K+10':3, 'K+11':10, 'K+12':15,
+                'Ca':15, 'Ca+':15, 'Ca+2':15, 'Ca+3':15, 'Ca+4':5, 'Ca+5':15, 'Ca+6':15, 'Ca+7':12, 'Ca+8':15, 'Ca+9':15, 'Ca+10':2,
+                'Sc':15, 'Sc+':15, 'Sc+2':15, 'Sc+3':15, 'Sc+4':15, 'Sc+6':15, 'Sc+7':15, 'Sc+8':2, 'Sc+9':15, 'Sc+10':15, 'Sc+11':12, 'Sc+12':15,
+                'Ti':1, 'Ti+':1, 'Ti+2':15, 'Ti+3':15, 'Ti+5':2, 'Ti+7':15, 'Ti+8':15, 'Ti+9':2, 'Ti+10':14, 'Ti+11':15, 'Ti+12':15,
+                'V':1, 'V+':1, 'V+2':1, 'V+7':15, 'V+8':15, 'V+9':15, 'V+10':2, 'V+11':15, 'V+12':15,
+                'Cr':1, 'Cr+':15, 'Cr+9':15, 'Cr+10':15, 'Cr+11':15, 'Cr+12':14,
+                'Mn':15, 'Mn+':1, 'Mn+10':15, 'Mn+11':15, 'Mn+12':15,
+                'Fe':15, 'Fe+':80, 'Fe+2':25, 'Fe+4':25, 'Fe+6':9, 'Fe+10':9, 'Fe+11':12, 'Fe+12':14,
+                'Co':1, 'Co+':15, 'Co+2':15, 'Co+12':15,
+                'Ni':15, 'Ni+':15, 'Ni+2':15, 'Ni+4':15, 'Ni+12':15,
+                'Cu':15, 'Cu+':1,
+                'Zn':1}
 
 
 def get_specieslist(max_ion=6, exclude_elements=[]):
     '''
-    Inefficient function for returning a list of atomic and ionic species. Default returns all species up to 6+
-    for which we can do useful things (e.g. NIST has lines). The maximum ionization degree
+    Returns a list of atomic and ionic species names. Default returns all species up to 6+
+    for which we can do useful things (=NIST has lines). Higher than 6+ ionization is rarely
+    attained in an exoplanet atmosphere, but it can definitely occur when using a high XUV
+    flux (e.g. in a young system). The maximum ionization degree
     can be changed, and specific species can be excluded.
     '''
 
-    specieslist = list(species_enlim.keys()) #all species up to 6+
+    if isinstance(exclude_elements, str): #turn into list with one element
+        exclude_elements = [exclude_elements]
+
+    specieslist = list(species_enlim.keys()) #all species up to 12+
 
     for element in exclude_elements:
         specieslist = [sp for sp in specieslist if sp.split('+')[0] != element]
 
-    if max_ion == 5:
-        specieslist = [sp for sp in specieslist if ('+6' not in sp)]
-    if max_ion == 4:
-        specieslist = [sp for sp in specieslist if (('+5' not in sp) and ('+6' not in sp))]
-    if max_ion == 3:
-        specieslist = [sp for sp in specieslist if (('+4' not in sp) and ('+5' not in sp) and ('+6' not in sp))]
-    if max_ion == 2:
-        specieslist = [sp for sp in specieslist if (('+3' not in sp) and ('+4' not in sp) and ('+5' not in sp) and ('+6' not in sp))]
-    if max_ion == 1:
-        specieslist = [sp for sp in specieslist if (('+2' not in sp) and ('+3' not in sp) and ('+4' not in sp) and ('+5' not in sp) and ('+6' not in sp))]
-    if max_ion == 0:
-        specieslist = [sp for sp in specieslist if ('+' not in sp)]
+    for sp in specieslist[:]:
+        sp_split = sp.split('+')
+
+        if len(sp_split) == 1:
+            deg_ion = 0
+        elif sp_split[1] == '':
+            deg_ion = 1
+        else:
+            deg_ion = int(sp_split[1])
+
+        if deg_ion > max_ion:
+            specieslist.remove(sp)
 
     return specieslist
 

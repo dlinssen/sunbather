@@ -1,0 +1,2 @@
+configuration	term	J	energy
+3d4	5D	0	0.0

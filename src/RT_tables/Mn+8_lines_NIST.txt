@@ -1,0 +1,3 @@
+ritz_wl_vac(A)	intens	Aki(s^-1)	fik	Acc	Ei(Ry)	Ek(Ry)	conf_i	term_i	J_i	conf_k	term_k	J_k	Type	tp_ref	line_ref	
+"7970.7"	""	"3.55e+01"	""	B	"0.00000"	"0.11433"	"3s2.3p5"	"2P*"	"3/2"	"3s2.3p5"	"2P*"	"1/2"	M1	"T4500"	""	
+"7970.7"	""	"7.1e-03"	""	D	"0.00000"	"0.11433"	"3s2.3p5"	"2P*"	"3/2"	"3s2.3p5"	"2P*"	"1/2"	E2	"T4500"	""	

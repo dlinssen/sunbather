@@ -1,0 +1,5 @@
+configuration	term	J	energy
+3d5	6S	5/2	0.0
+3d4.(5D).4p	6P*	3/2	5.66
+3d4.(5D).4p	6P*	5/2	5.662
+3d4.(5D).4p	6P*	7/2	5.669
