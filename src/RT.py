@@ -155,10 +155,11 @@ def tau_to_FinFout(b, tau, Rs, bp=0., ab=[0., 0.], a=0., phase=0.):
     phis = np.linspace(0, 2*np.pi, num=500, endpoint=False) #divide rings into different angles phi
     #rc = distance to stellar center. Axis 0: radial rings, axis 1: phi
     rc = np.sqrt((bp*Rs + b[:-1,None]*np.cos(phis[None,:]))**2 + (b[:-1,None]*np.sin(phis[None,:]) + a*np.sin(2*np.pi*phase))**2) #don't use last b value
-    rc = ma.masked_where(rc > Rs, rc) #will ensure I is masked outside stellar projected disk
+    rc = ma.masked_where(rc > Rs, rc) #will ensure I is masked (and later set to 0) outside stellar projected disk
     mu = np.sqrt(1 - (rc/Rs)**2) #angle, see 'limbdark_quad' function
     I = limbdark_quad(mu, ab)
     Ir_avg = np.sum(I, axis=1) / len(phis) #average I per ray
+    Ir_avg = Ir_avg.filled(fill_value=0.) #convert back to regular numpy array
     Is_avg = avg_limbdark_quad(ab) #average I of the full stellar disk
 
     FinFout = np.ones_like(tau[:,0]) - np.sum(((1 - np.exp(-tau[:,:-1])) * Ir_avg*projsurf/(Is_avg*np.pi*Rs**2)), axis=1)
@@ -192,7 +193,7 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
     return spNIST
 
 
-def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., bp=0., ab=[0., 0.], phase=0., a=0., **kwargs):
+def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., bp=0., ab=[0., 0.], phase=0., **kwargs):
     '''
     Calculates Fin/Fout transit spectrum for a given wavelength range, and a given
     (list of) species. Includes limb darkening.
@@ -211,7 +212,6 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., bp=0., ab=[0., 0
                 since the far Lorentzian wings are probed.
     bp:         impact parameter of the planet w.r.t the star center 0<bp<1  [in units of Rs]
     ab:         quadratic limb darkening parameters (list of 2 values)
-    a:          planet orbital semi-major axis in cm
     phase:      planetary orbital phase 0<phase<1 where 0 is mid-transit.
                 my implementation of phase does not (yet) take into account the
                 tidally-locked rotation of the planet. so you'll always see the
@@ -282,7 +282,7 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., bp=0., ab=[0., 0
             tau_line = calc_tau(x, ndens_lw, Te, vx, nus_line, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno])
             tau[(nus > linenu_low) & (nus < linenu_hi), :] += tau_line #add the tau values to the correct nu bins
 
-    FinFout = tau_to_FinFout(b, tau, Rs, bp=bp, ab=ab, phase=phase, a=a)
+    FinFout = tau_to_FinFout(b, tau, Rs, bp=bp, ab=ab, phase=phase, a=sim.p.a*tools.AU)
 
     return FinFout, found_lines, notfound_lines
 
