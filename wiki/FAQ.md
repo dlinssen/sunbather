@@ -80,3 +80,11 @@ np.savetxt(tools.projectpath+'/parker_profiles/'+p.name+'/geometric/pprof_'+p.na
 You can then solve the temperature structure of this profile with: `python convergeT_parker.py -plname generic_planet -pdir geometric -dir geometric -T 0 -Mdot 0`
 
 Similarly, you could for example postprocess the density and velocity profile of an _ATES_ simulation (Caldiroli et al. 2021) with _sunbather_ to produce a transmission spectrum.
+
+## How do I stop the simulation at the Roche radius / choose the maximum radius?
+
+The `construct_parker.py` module always creates a profile up until 20$R_p$ and this can only be changed by editing the source code. 
+
+The `convergeT_parker.py` module by default simulates the atmosphere with *Cloudy* up until 8$R_p$ and this can be changed with the `-altmax` argument. 
+
+The `RT.FinFout_1D()` function by default makes a transit spectrum based on the full *Cloudy* simulation (so up until 8$R_p$), but you can give an upper boundary in cm with the `cut_at` argument. For example, if you want to include only material up until the planet's Roche radius when making the transit spectrum, it generally doesn't hurt to leave `construct_parker.py` and `convergeT_parker.py` at the default values, and just pass `cut_at=my_simulation.p.Rroche` to `RT.FinFout_1D()` (assuming `my_simulation` is the `tools.Sim` object of your *Cloudy* simulation).
