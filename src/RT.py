@@ -142,10 +142,12 @@ def tau_to_FinFout(b, tau, Rs, bp=0., ab=[0., 0.], a=0., phase=0.):
     ab:     quadratic limb darkening parameters (list of 2 values)
     a:      planet orbital semi-major axis in cm
     phase:  planetary orbital phase 0<phase<1 where 0 is mid-transit.
-            my implementation of phase does not (yet) take into account the
-            tidally-locked rotation of the planet. so you'll always see the
-            exact same (mid-transit) projection of the planet, just against
-            a different limb-darkened background.
+            The current implementation of phase does not take into account the
+            tidally-locked rotation of the planet. So you'll always see the
+            exact same projection (terminator) of the planet, just against
+            a different limb-darkened stellar background. As long as the atmosphere is 1D
+            symmetric, which we are assuming, this is exactly the same. But if in the
+            future e.g. day-to-nightside winds are added on top, it will matter.
     '''
     #add some impact parameters and tau=inf bins that make up the planet core:
     b = np.concatenate((np.linspace(0, b[0], num=50, endpoint=False), b))
