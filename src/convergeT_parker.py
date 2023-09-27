@@ -10,6 +10,7 @@ from shutil import copyfile
 import time
 import glob
 import os
+import re
 import argparse
 
 
@@ -22,7 +23,10 @@ def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):
     of the close converged folder, or None if there aren't any (within the tolerance).
     '''
 
-    allfolders = glob.glob(parentfolder+'parker_*/')
+    pattern = re.compile(r'parker_\d+_\d+\.\d{3}$') #this is how folder names should be
+    all_files_and_folders = os.listdir(parentfolder)
+    allfolders = [os.path.join(parentfolder, folder)+'/' for folder in all_files_and_folders if pattern.match(folder) and os.path.isdir(os.path.join(parentfolder, folder))]
+
     convergedfolders = [] #stores the T and Mdot values of all folders with 0.out files
     for folder in allfolders:
         if os.path.isfile(folder+'converged.out'):
@@ -148,7 +152,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
             copyfile(path+'template.in', path+'iteration1.in')
 
         elif startT == 'nearby': #then clconv cannot be [None, None] and we start from a previous converged T(r)
-            print("Model", T, Mdot, "starting from previously converged profile:", clconv)
+            print("Model", T, Mdot, "starting from previously converged profile:", *clconv)
             prev_conv_T = pd.read_table(pathTstruc+'parker_'+str(clconv[0])+'_'+"{:.3f}".format(clconv[1])+'/converged.txt', delimiter=' ')
             Cltlaw = tools.alt_array_to_Cloudy(prev_conv_T.R * planet.R, prev_conv_T.Te, altmax, planet.R, 1000)
             tools.copyadd_Cloudy_in(path+'template', path+'iteration1', tlaw=Cltlaw)
