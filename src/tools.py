@@ -1547,12 +1547,6 @@ class Sim:
             if filetype=='en' and ('en' in files or 'all' in files):
                 self.en = process_energies(self.simname+'.en')
                 self.simfiles.append('en')
-            if filetype=='ionFe' and ('ionFe' in files or 'all' in files):
-                self.ionFe = process_ionization(self.simname+'.ionFe', Rp=self.p.R, altmax=self.altmax)
-                self.simfiles.append('ionFe')
-            if filetype=='ionNa' and ('ionNa' in files or 'all' in files):
-                self.ionNa = process_ionization(self.simname+'.ionNa', Rp=self.p.R, altmax=self.altmax)
-                self.simfiles.append('ionNa')
 
         if hasattr(self, 'par'): #if a parker profile was either read out or manually added, we set the velocity structure in .ovr
             if hasattr(self.par, 'prof'):
