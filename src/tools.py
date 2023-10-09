@@ -1005,7 +1005,7 @@ def project_1D_to_2D(r1, q1, Rp, numb=101, directional=False, cut_at=None, **kwa
     return b, x, q2
 
 
-def smooth_gaus_savgol(y, **kwargs):
+def smooth_gaus_savgol(y, size=None, fraction=None):
     '''
     Smooth an array using a gaussian filter, but smooth the edges with a
     savgol filter since otherwise those are not handled well.
@@ -1015,16 +1015,16 @@ def smooth_gaus_savgol(y, **kwargs):
     fraction:   gaussian filter size as a fraction of the array length
     '''
 
-    if 'size' in kwargs:
+    if size != None and fraction == None:
         size = kwargs['size']
         size = max(3, size)
-    elif 'fraction' in kwargs:
+    elif fraction != None and size == None:
         fraction = kwargs['fraction']
         assert 0. < fraction < 1.
         size = int(np.ceil(len(y)*fraction) // 2 * 2 + 1) #make it odd
         size = max(3, size)
     else:
-        raise Exception("Please provide either 'size' or 'fraction' kwarg.")
+        raise ValueError("Please provide either 'size' or 'fraction'.")
 
     ygaus = gaussian_filter1d(y, size)
     ysavgol = savgol_filter(y, 2*int(size/2)+1, polyorder=2)

@@ -320,7 +320,7 @@ def constructTstruc(sim, grid, snewTe, cloc, cextraprof, advecprof, altmax, Rp, 
 
 
     #get rid of the often abrupt edge where the constructed part sets in by smoothing it around that point
-    scnewTe = tools.smooth_gaus_savgol(cnewTe, size=int(len(grid)/30))
+    scnewTe = tools.smooth_gaus_savgol(cnewTe, fraction=0.03)
     scnewTe = np.clip(scnewTe, 1e1, 1e6) #after smoothing we might have ended up below 10K.
     scweight = np.zeros(len(grid))
     scweight += sps.norm.pdf(range(len(grid)), cloc, int(len(grid)/30))
