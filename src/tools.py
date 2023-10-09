@@ -731,7 +731,7 @@ def set_alt_ax(ax, altmax=8, labels=True):
         ax.set_xticklabels([])
 
 
-def cl_table(r, rho, v, altmax, Rp, nmax, negtozero=False, copylastpoint=False, zdict=None):
+def cl_table(r, rho, v, altmax, Rp, nmax, negtozero=False, zdict=None):
     '''
     This function converts a density structure to the format read by Cloudy.
     It also calculates PdV / (T mu) cooling rates for this density and
@@ -745,12 +745,10 @@ def cl_table(r, rho, v, altmax, Rp, nmax, negtozero=False, copylastpoint=False, 
     Make sure v is in cm/s (so multiply with 1e5 if you have km/s units)
     '''
 
-    for entity in [r, rho, v]:
-        if not isinstance(entity, np.ndarray):
-            raise Exception("Give r, rho, v as numpy array (= pd.Series.values)")
-
-    if not (len(r) == len(rho)) and (len(r) == len(v)):
-        raise Exception("Arrays don't have the same length.")
+    assert isinstance(r, np.ndarray), "Give r as numpy array (= pd.Series.values)"
+    assert isinstance(rho, np.ndarray), "Give rho as numpy array (= pd.Series.values)"
+    assert isinstance(v, np.ndarray), "Give v as numpy array (= pd.Series.values)"
+    assert len(r) == len(rho) and len(r) == len(v), "Arrays don't have the same length."
 
     if altmax > r[-1]/Rp: #cut the data
         altmax = r[-1]
@@ -806,12 +804,6 @@ def cl_table(r, rho, v, altmax, Rp, nmax, negtozero=False, copylastpoint=False, 
     hdenprof = np.log10(np.column_stack((r_ill, hden_ill)))
     cextraprof = np.log10(np.column_stack((r_ill, PdVT_ill)))
     advecprof = np.log10(np.column_stack((r_ill, advec_ill)))
-
-    if copylastpoint:
-        #copy the last point to prevent Cloudy's roundoff errors
-        hdenprof = np.append(hdenprof, [[hdenprof[-1,0]+0.01, hdenprof[-1,1]]], axis=0)
-        cextraprof = np.append(cextraprof, [[cextraprof[-1,0]+0.01, cextraprof[-1,1]]], axis=0)
-        advecprof = np.append(advecprof, [[advecprof[-1,0]+0.01, advecprof[-1,1]]], axis=0)
 
     return hdenprof, cextraprof, advecprof
 
