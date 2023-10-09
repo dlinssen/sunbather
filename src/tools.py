@@ -1016,11 +1016,9 @@ def smooth_gaus_savgol(y, size=None, fraction=None):
     '''
 
     if size != None and fraction == None:
-        size = kwargs['size']
         size = max(3, size)
     elif fraction != None and size == None:
-        fraction = kwargs['fraction']
-        assert 0. < fraction < 1.
+        assert 0. < fraction < 1., "fraction must be greater than 0 and smaller than 1"
         size = int(np.ceil(len(y)*fraction) // 2 * 2 + 1) #make it odd
         size = max(3, size)
     else:
