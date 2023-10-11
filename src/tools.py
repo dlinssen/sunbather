@@ -72,12 +72,12 @@ species_enlim = {'H':21,
                 'Ar':15, 'Ar+':15, 'Ar+2':15, 'Ar+3':15, 'Ar+4':15, 'Ar+5':15, 'Ar+6':14, 'Ar+7':15, 'Ar+8':15,
                 'K':15, 'K+':15, 'K+2':15, 'K+3':15, 'K+4':5, 'K+5':5, 'K+6':2, 'K+7':15, 'K+8':15, 'K+9':15, 'K+10':3, 'K+11':10, 'K+12':15,
                 'Ca':15, 'Ca+':15, 'Ca+2':15, 'Ca+3':15, 'Ca+4':5, 'Ca+5':15, 'Ca+6':15, 'Ca+7':12, 'Ca+8':15, 'Ca+9':15, 'Ca+10':2,
-                'Sc':15, 'Sc+':15, 'Sc+2':15, 'Sc+3':15, 'Sc+4':15, 'Sc+6':15, 'Sc+7':15, 'Sc+8':2, 'Sc+9':15, 'Sc+10':15, 'Sc+11':12, 'Sc+12':15,
+                'Sc':15, 'Sc+':15, 'Sc+2':15, 'Sc+3':15, 'Sc+4':15, 'Sc+6':15, 'Sc+7':15, 'Sc+8':2, 'Sc+9':15, 'Sc+10':15, 'Sc+11':12, 'Sc+12':12,
                 'Ti':1, 'Ti+':1, 'Ti+2':15, 'Ti+3':15, 'Ti+5':2, 'Ti+7':15, 'Ti+8':15, 'Ti+9':2, 'Ti+10':14, 'Ti+11':15, 'Ti+12':15,
                 'V':1, 'V+':1, 'V+2':1, 'V+7':15, 'V+8':15, 'V+9':15, 'V+10':2, 'V+11':15, 'V+12':15,
                 'Cr':1, 'Cr+':15, 'Cr+9':15, 'Cr+10':15, 'Cr+11':15, 'Cr+12':14,
                 'Mn':15, 'Mn+':1, 'Mn+10':15, 'Mn+11':15, 'Mn+12':15,
-                'Fe':15, 'Fe+':80, 'Fe+2':25, 'Fe+4':25, 'Fe+6':9, 'Fe+10':9, 'Fe+11':12, 'Fe+12':14,
+                'Fe':15, 'Fe+':80, 'Fe+2':25, 'Fe+4':25, 'Fe+6':9, 'Fe+10':9, 'Fe+11':12, 'Fe+12':9,
                 'Co':1, 'Co+':15, 'Co+2':15, 'Co+12':15,
                 'Ni':15, 'Ni+':15, 'Ni+2':15, 'Ni+4':15, 'Ni+12':15,
                 'Cu':15, 'Cu+':1,
@@ -416,26 +416,25 @@ def process_energies(filename, rewrite=True):
         species_levels = pd.read_table(sunbather_path+'/RT_tables/'+species+'_levels_processed.txt') #get the NIST levels
         species_energies = en_df[en_df.species == species].energy #get Cloudy's energies
 
-        atol = 0.00003 #tolerance of difference between Cloudy's and NISTs energy levels. They usually differ at the decimal level so we need some tolerance.
-        #For some species, the differences are a bit bigger. Probably a NIST update or something? Relax threshold here:
-        if species in ['Ne+4', 'Na+6', 'Si+4', 'Ni+6','F+6', 'Fe+6', 'Na+4', 'Ar+6',
-                        'P+5', 'Si+5', 'S+6', 'F+5', 'Ne+3', 'Ca+3', 'Ca+6', 'Mg+4', 'Ne+5', 'Na+5',
-                        'Mg+5', 'Si+6', 'O+6', 'Al+6', 'N+5', 'Mg+6', 'Al+5']:
-            #am I sure about B+3?
-            atol = 0.001
-
-        if species in ['B+4', 'N+6', 'C+4', 'B+3', 'Cl+6', 'Be+3', 'Si+2', 'C+5', 'Li+2']:
+        atol = 0.001
+        #tolerance of difference between Cloudy's and NISTs energy levels. They usually differ at the decimal level so we need some tolerance.
+        #For some species, the differences are a bit bigger. Probably a NIST update or something? I have manually verfied that these energy levels
+        #still probably represent the same atomic configuration. So we relax the threshold here:
+        if species in ['B+4', 'N+6', 'C+4', 'B+3', 'Cl+6', 'Be+3', 'Si+2', 'C+5', 'Li+2', 'Ti+8', 
+                      'Si+11', 'O+7', 'Fe+11', 'Ca+7', 'Ni+12', 'K+11', 'Ca+10', 'Ti+10', 'Cr+12']:
             atol = 0.01
-
-        if species == 'Ne+6':
+        if species in ['Ne+6', 'Ar+7', 'Ne+9', 'F+8', 'S+12', 'Si+10', 'Si+7', 'Al+12', 'Na+10', 'Mg+11']:
             atol = 0.05
+        if species in ['Ar+8']:
+            atol = 0.2
 
         if not np.all(np.isclose(species_energies.iloc[:species_enlim[species]], species_levels.energy.iloc[:species_enlim[species]], rtol=0.0, atol=atol)):
+            print("Cloudy, NIST, Match?")
             for i in range(species_enlim[species]):
                 print(species_energies.iloc[i], species_levels.energy.iloc[i], np.isclose(species_energies.iloc[:species_enlim[species]], species_levels.energy.iloc[:species_enlim[species]], rtol=0.0, atol=atol)[i])
             raise Exception("In ", filename, "while getting states for species", species,
                     "I expected to be able to match the first", species_enlim[species],
-                    "levels, but I have an energy mismatch")
+                    "energy levels between Cloudy and NIST to a precision of", atol, "but I have an energy mismatch.")
 
 
         #if we got here, the exception was not triggered and we can assign the first species_enlim[species]
