@@ -51,7 +51,7 @@ def cloudy_spec_to_pwinds(SEDfilename, dist_SED, dist_planet):
     return spectrum
 
 
-def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9, dir='fH=0.9'):
+def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9, dir='fH=0.9', overwrite=False):
     '''
     Uses the p-winds code (dos Santos et al. 2022)
     Runs p_winds and saves a 'pprof' txt file with the r, rho, v, mu structure.
@@ -81,6 +81,13 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9, dir='fH
 
     Mdot = float(Mdot)
     T = int(T)
+
+    save_name = tools.projectpath+'/parker_profiles/'+planet.name+'/'+dir+'/pprof_'+planet.name+'_T='+str(T)+'_M='+ \
+                            "%.3f" %Mdot +".txt"
+    if os.path.exists(save_name) and not overwrite:
+        print("Parker profile already exists and overwrite = False:", planet.name, dir, "%.3f" %Mdot, T)
+        return #this quits the function but if we're running a grid, it doesn't quit the whole Python code
+
 
     R_pl = planet.R / tools.RJ #because my planet object has it in cm
     M_pl = planet.M #already in MJ
@@ -125,8 +132,6 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9, dir='fH
     mu_array = ((1-h_fraction)*4.0 + h_fraction)/(h_fraction*(1+f_r)+(1-h_fraction)) #this assumes no Helium ionization
 
     save_array = np.column_stack((r*planet.R, rho_array*rhos, v_array*vs*1e5, mu_array))
-    save_name = tools.projectpath+'/parker_profiles/'+planet.name+'/'+dir+'/pprof_'+planet.name+'_T='+str(T)+'_M='+ \
-                                "%.3f" %Mdot +".txt"
     np.savetxt(save_name, save_array, delimiter='\t', header="alt rho v mu")
     print("Parker wind profile done.")
 
@@ -271,7 +276,7 @@ def calc_mu_bar(sim, temperature):
     return mu_bar
 
 
-def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, dir, convergence=0.01, maxit=7, cleantemp=False):
+def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, dir, convergence=0.01, maxit=7, cleantemp=False, overwrite=False):
     '''
     Calculates a Parker wind profile with any composition by iteratively
     running the p-winds code (dos Santos et al. 2022) and Cloudy (Ferland 1998; 2017).
@@ -300,6 +305,11 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, dir, convergenc
                             files and intermediate parker profiles.
     '''
 
+    save_name = tools.projectpath+'/parker_profiles/'+planet.name+'/'+dir+'/pprof_'+planet.name+'_T='+str(T)+'_M='+ \
+                            "%.3f" %Mdot +".txt"
+    if os.path.exists(save_name) and not overwrite:
+        print("Parker profile already exists and overwrite = False:", planet.name, dir, "%.3f" %Mdot, T)
+        return #this quits the function but if we're running a grid, it doesn't quit the whole Python code
 
     print("Making initial parker profile with p-winds...")
     filename, previous_mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=None)
@@ -339,19 +349,19 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, dir, convergenc
         print("Temporary files removed.")
 
 
-def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit):
+def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit, overwrite):
     p = tools.Planet(plname)
     if SEDname != 'real':
         p.set_var(SEDname=SEDname)
     spectrum = cloudy_spec_to_pwinds(tools.cloudypath+'/data/SED/'+p.SEDname, 1., p.a - 20*p.R / tools.AU) #assumes SED is at 1 AU
 
     if fH != None: #then run p_winds standalone
-        save_plain_parker_profile(p, Mdot, T, spectrum, h_fraction=fH, dir=pdir)
+        save_plain_parker_profile(p, Mdot, T, spectrum, h_fraction=fH, dir=pdir, overwrite=overwrite)
     else: #then run p_winds/Cloudy iterative scheme
-        save_cloudy_parker_profile(p, Mdot, T, spectrum, zdict, pdir, convergence=mu_conv, maxit=mu_maxit, cleantemp=True)
+        save_cloudy_parker_profile(p, Mdot, T, spectrum, zdict, pdir, convergence=mu_conv, maxit=mu_maxit, cleantemp=True, overwrite=overwrite)
 
 
-def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, SEDname, fH, zdict, mu_conv, mu_maxit):
+def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, SEDname, fH, zdict, mu_conv, mu_maxit, overwrite):
     '''
     Runs the function run_s in parallel for a given grid of Mdots and T, and
     for given number of cores (=parallel processes).
@@ -368,7 +378,7 @@ def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, SEDname, f
     pars = []
     for Mdot in np.arange(float(Mdot_l), float(Mdot_u)+1e-6, float(Mdot_s)): #1e-6 so that upper bound is inclusive
         for T in np.arange(int(T_l), int(T_u)+1e-6, int(T_s)).astype(int):
-            pars.append((plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit))
+            pars.append((plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit, overwrite))
 
     p.starmap(catch_errors_run_s, pars)
     p.close()
@@ -411,6 +421,7 @@ if __name__ == '__main__':
                                         "mass-loss rates: lowest, highest, stepsize. -Mdot will be rounded to three decimal places.")
     parser.add_argument("-T", required=True, type=int, nargs='+', action=OneOrThreeAction, help="temperature, or three values specifying a grid of temperatures: lowest, highest, stepsize.")
     parser.add_argument("-SEDname", type=str, default='real', help="name of SED to use. Must be in Cloudy's data/SED/ folder [default=SEDname set in planet.txt file]")
+    parser.add_argument("-overwrite", action='store_true', help="overwrite existing profile if passed [default=False]")
     composition_group = parser.add_mutually_exclusive_group(required=True)
     composition_group.add_argument("-fH", type=float, help="hydrogen fraction by number. Using this command results in running standalone p_winds without invoking Cloudy.")
     composition_group.add_argument("-z", type=float, help="metallicity (=scale factor relative to solar for all elements except H and He). Using this " \
@@ -443,12 +454,12 @@ if __name__ == '__main__':
         os.mkdir(tools.projectpath+'/parker_profiles/'+args.plname+'/'+args.pdir+'/temp')
 
     if (len(args.T) == 1 and len(args.Mdot) == 1): #then we run a single model
-        run_s(args.plname, args.pdir, args.Mdot[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit)
+        run_s(args.plname, args.pdir, args.Mdot[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite)
     elif (len(args.T) == 3 and len(args.Mdot) == 3): #then we run a grid over both parameters
-        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit)
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite)
     elif (len(args.T) == 3 and len(args.Mdot) == 1): #then we run a grid over only T
-        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit)
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite)
     elif (len(args.T) == 1 and len(args.Mdot) == 3): #then we run a grid over only Mdot
-        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit)
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite)
 
     print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
