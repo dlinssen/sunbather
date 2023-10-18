@@ -12,6 +12,7 @@ import glob
 import os
 import re
 import argparse
+import traceback
 
 
 def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):
@@ -168,6 +169,12 @@ def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname
     for given number of cores (=parallel processes).
     '''
 
+    def catch_errors_run_s(*args):
+        try:
+            run_s(*args)
+        except Exception as e:
+            traceback.print_exc()
+
     p = multiprocessing.Pool(cores)
 
     pars = []
@@ -175,7 +182,7 @@ def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname
         for T in np.arange(int(T_l), int(T_u)+1e-6, int(T_s)).astype(int):
             pars.append((plname, Mdot, T, 1, fc, dir, SEDname, overwrite, startT, pdir, zdict, altmax, save_sp, constantT))
 
-    p.starmap(run_s, pars)
+    p.starmap(catch_errors_run_s, pars)
     p.close()
     p.join()
 

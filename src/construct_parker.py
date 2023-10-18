@@ -15,6 +15,7 @@ from scipy.integrate import simps, trapz
 from scipy.interpolate import interp1d
 import argparse
 import multiprocessing
+import traceback
 
 
 def cloudy_spec_to_pwinds(SEDfilename, dist_SED, dist_planet):
@@ -356,6 +357,12 @@ def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, SEDname, f
     for given number of cores (=parallel processes).
     '''
 
+    def catch_errors_run_s(*args):
+        try:
+            run_s(*args)
+        except Exception as e:
+            traceback.print_exc()
+
     p = multiprocessing.Pool(cores)
 
     pars = []
@@ -363,7 +370,7 @@ def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, SEDname, f
         for T in np.arange(int(T_l), int(T_u)+1e-6, int(T_s)).astype(int):
             pars.append((plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit))
 
-    p.starmap(run_s, pars)
+    p.starmap(catch_errors_run_s, pars)
     p.close()
     p.join()
 
