@@ -361,17 +361,18 @@ def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit, overwrit
         save_cloudy_parker_profile(p, Mdot, T, spectrum, zdict, pdir, convergence=mu_conv, maxit=mu_maxit, cleantemp=True, overwrite=overwrite)
 
 
+def catch_errors_run_s(*args):
+    try:
+        run_s(*args)
+    except Exception as e:
+        traceback.print_exc()
+
+
 def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, SEDname, fH, zdict, mu_conv, mu_maxit, overwrite):
     '''
     Runs the function run_s in parallel for a given grid of Mdots and T, and
     for given number of cores (=parallel processes).
     '''
-
-    def catch_errors_run_s(*args):
-        try:
-            run_s(*args)
-        except Exception as e:
-            traceback.print_exc()
 
     p = multiprocessing.Pool(cores)
 

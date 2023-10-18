@@ -163,17 +163,18 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
     solveT.run_loop(path, itno, fc, altmax, planet.R, cextraprof, advecprof, zdict, save_sp)
 
 
+def catch_errors_run_s(*args):
+    try:
+        run_s(*args)
+    except Exception as e:
+        traceback.print_exc()
+
+
 def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname, overwrite, startT, pdir, zdict, altmax, save_sp, constantT):
     '''
     Runs the function run_s in parallel for a given grid of Mdots and T, and
     for given number of cores (=parallel processes).
     '''
-
-    def catch_errors_run_s(*args):
-        try:
-            run_s(*args)
-        except Exception as e:
-            traceback.print_exc()
 
     p = multiprocessing.Pool(cores)
 
