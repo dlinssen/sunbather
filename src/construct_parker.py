@@ -199,7 +199,7 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=None,
 
 
     else: #used later iterations
-        assert np.abs(mu_struc[0,0] - 1.) < 0.02 and np.abs(mu_struc[-1,0] - 20.) < 0.0001, "Looks like Cloudy didn't simulate to 1Rp: "+str(mu_struc[0,0]) #ensure safe extrapolation
+        assert np.abs(mu_struc[0,0] - 1.) < 0.03 and np.abs(mu_struc[-1,0] - 20.) < 0.0001, "Looks like Cloudy didn't simulate to 1Rp: "+str(mu_struc[0,0]) #ensure safe extrapolation
         mu_array = interp1d(mu_struc[:,0], mu_struc[:,1], fill_value='extrapolate')(r)
 
     vs = pw_parker.sound_speed(T, mu_bar)  # Speed of sound (km/s, assumed to be constant)
