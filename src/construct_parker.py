@@ -103,25 +103,13 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9, dir='fH
     # mu_0 is the constant mean molecular weight (assumed for now, will be updated later)
 
 
-    try:
-        initial_f_ion = 0.
-        f_r, mu_bar = pw_hydrogen.ion_fraction(r, R_pl, T, h_fraction,
-                                    m_dot, M_pl, mu_0,
-                                    spectrum_at_planet=spectrum, exact_phi=True,
-                                    initial_f_ion=initial_f_ion, relax_solution=True,
-                                    return_mu=True, atol=1e-8, rtol=1e-5)
+    initial_f_ion = 0.
+    f_r, mu_bar = pw_hydrogen.ion_fraction(r, R_pl, T, h_fraction,
+                                m_dot, M_pl, mu_0,
+                                spectrum_at_planet=spectrum, exact_phi=True,
+                                initial_f_ion=initial_f_ion, relax_solution=True,
+                                return_mu=True, atol=1e-8, rtol=1e-5)
 
-    except RuntimeError as e: #sometimes the solver cannot find a solution
-        print("We got this runtime error:", e)
-        print("So I will try to construct again, using initial_f_ion = 1.")
-        initial_f_ion = 1.0
-        f_r, mu_bar = pw_hydrogen.ion_fraction(r, R_pl, T, h_fraction,
-                                    m_dot, M_pl, mu_0,
-                                    spectrum_at_planet=spectrum, exact_phi=True,
-                                    initial_f_ion=initial_f_ion, relax_solution=True,
-                                    return_mu=True, atol=1e-8, rtol=1e-5)
-
-    #print("mu_bar:", mu_bar) #temporarily commented out, clutters output when doing grids.
 
     vs = pw_parker.sound_speed(T, mu_bar)  # Speed of sound (km/s, assumed to be constant)
     rs = pw_parker.radius_sonic_point(M_pl, vs)  # Radius at the sonic point (jupiterRad)
