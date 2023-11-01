@@ -28,7 +28,7 @@ def simtogrid(sim, grid):
     return Te, mu, htot, ctot, rho
 
 
-def getexpadvrates(grid, Te, mu, numsmooth, cextraprof, advecprof):
+def getexpadvrates(grid, Te, mu, cextraprof, advecprof, smoothsize=None):
     '''
     Calculates PdV and advection rates for a temperature/mu structure
     '''
@@ -39,9 +39,9 @@ def getexpadvrates(grid, Te, mu, numsmooth, cextraprof, advecprof):
     PdV = ifuncPdVT(grid) * Te / mu #POSITIVE
     assert len(PdV[PdV < 0]) == 0, "Found negative PdV rates. Check!"
     advec = ifuncadvec(grid) * np.gradient(Te / mu, grid)
-    if numsmooth != None:
-        PdV = tools.smooth_gaus_savgol(PdV, size=numsmooth)
-        advec = tools.smooth_gaus_savgol(advec, size=numsmooth)
+    if smoothsize != None:
+        PdV = tools.smooth_gaus_savgol(PdV, size=smoothsize)
+        advec = tools.smooth_gaus_savgol(advec, size=smoothsize)
     adveccool, advecheat = advec.copy(), advec.copy()
     adveccool[adveccool > 0] = 0 #only keep negative values
     advecheat[advecheat < 0] = 0 #only keep positive values
@@ -150,16 +150,17 @@ def relaxTstruc(sim, grid, altmax, Rp, cextraprof, advecprof, fc, path, itno):
 
     #make altgrid which contains the altitude values corresponding to the depth grid. In values of Rp
     altgrid = altmax - grid/Rp
-    Te, mu, htot, ctot, rho = simtogrid(sim, grid) #get all needed Cloudy quantities on the linear grid
-    PdV, advecheat, adveccool = getexpadvrates(grid, Te, mu, int(len(grid)/100), cextraprof, advecprof) #calculate other needed quantities (smoothed)
+    Te, mu, htot, ctot, rho = simtogrid(sim, grid) #get all needed Cloudy quantities on this grid
+    PdV, advecheat, adveccool = getexpadvrates(grid, Te, mu, cextraprof, advecprof) #calculate PdV and advection rates
     totheat, totcool, nettotal, hcratio, hcratiopos, hcrationeg = getbulkrates(htot, ctot, PdV, advecheat, adveccool)
 
     cloc = calc_cloc(path, itno, advecheat, adveccool, htot, ctot, totheat, PdV, hcratio)
 
+    #Check convergence.
     #Inner region really suffers from Cloudy roundoff errors and log interpolation and thus we are twice as lax there.
-    #When we start from nearby models, sometimes we converge immediately on the first iteration and we get the exact
-    #same Tstruc. We don't want that so I force here that we do two iterations before calling converged.
-    if max(np.abs(hcratio[:int(0.95*len(grid))])) < fc and max(np.abs(hcratio[int(0.95*len(grid)):])) < 1+(fc-1)*2 and itno > 2: #if the full atmosphere is converged, we are already done
+    #Also, when we start from nearby models, sometimes we converge immediately on the first iteration and we get the exact
+    #same temperature profile. To prevent that, I force here that we do two iterations before calling converged.
+    if max(np.abs(hcratio[:int(0.95*len(grid))])) < fc and max(np.abs(hcratio[int(0.95*len(grid)):])) < 1+(fc-1)*2 and itno > 2:
         converged = True
     else:
         converged = False
@@ -175,8 +176,8 @@ def relaxTstruc(sim, grid, altmax, Rp, cextraprof, advecprof, fc, path, itno):
     fac = iterations_file['fac'+str(itno-1)].values
 
     newTe = get_new_Tstruc(Te, hcratio, fac)
-    numsmoothTe = int(len(grid)/(20*itno))
-    snewTe = tools.smooth_gaus_savgol(newTe, size=numsmoothTe)
+    smoothsize = int(len(grid)/(20*itno))
+    snewTe = tools.smooth_gaus_savgol(newTe, size=smoothsize)
     snewTe = np.clip(snewTe, 1e1, 1e6) #smoothing may have pushed snewTe < 10K again.
 
     if itno >= 4: #check for fluctuations. If so, we decrease the deltaT factor
@@ -186,10 +187,9 @@ def relaxTstruc(sim, grid, altmax, Rp, cextraprof, advecprof, fc, path, itno):
         fl = (((previous_ratio < 1) & (this_ratio > 1)) | ((previous_ratio > 1) & (this_ratio < 1)))
         fac[fl] = 2/3 * fac[fl] #take smaller changes in T in regions where the temperature fluctuates
         fac = np.clip(tools.smooth_gaus_savgol(fac, size=10), 0.02, 0.3)
-        anewTe = get_new_Tstruc(Te, hcratio, fac)
-        anewTe = tools.smooth_gaus_savgol(anewTe, size=numsmoothTe)
-        anewTe = np.clip(anewTe, 1e1, 1e6)
-        snewTe = anewTe #set it here so for debugging you can still plot anewTe and snewTe above this line
+        snewTe = get_new_Tstruc(Te, hcratio, fac) #recalculate new temperature profile with updated fac
+        snewTe = tools.smooth_gaus_savgol(snewTe, size=smoothsize)
+        snewTe = np.clip(snewTe, 1e1, 1e6)
 
     #set up the figure with plotted quantities (if converged, we will make a plot later)
     if not converged:
@@ -252,8 +252,8 @@ def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, 
 
 def make_converged_plot(sim, grid, cextraprof, advecprof, altmax, Rp, path):
     altgrid = altmax - grid/Rp
-    Te, mu, htot, ctot, rho = simtogrid(sim, grid) #get all needed Cloudy quantities on the linear grid
-    PdV, advecheat, adveccool = getexpadvrates(grid, Te, mu, int(len(grid)/100), cextraprof, advecprof) #calculate other needed quantities (smoothed)
+    Te, mu, htot, ctot, rho = simtogrid(sim, grid)
+    PdV, advecheat, adveccool = getexpadvrates(grid, Te, mu, int(len(grid)/100), cextraprof, advecprof)
 
     #set up the figure with plotted quantities
     fig, (ax1, ax2) = plt.subplots(2, figsize=(4,5.5))
@@ -290,7 +290,7 @@ def constructTstruc(sim, grid, snewTe, cloc, cextraprof, advecprof, altmax, Rp, 
     by minimizing the heating/cooling ratio of all terms.
     '''
 
-    Te, mu, htot, ctot, rho = simtogrid(sim, grid) #get all needed Cloudy quantities on the grid
+    Te, mu, htot, ctot, rho = simtogrid(sim, grid) #get all needed Cloudy quantities on this grid
 
     ifuncPdVT = interp1d(10**cextraprof[:,0], 10**cextraprof[:,1], fill_value='extrapolate') #this is -1*k*v*drhodr/mH, so multiply with T and divide by mu still
     ifuncadvec = interp1d(10**advecprof[:,0], 10**advecprof[:,1], fill_value='extrapolate') #this is v*rho*(5/2)*k/mH, so multiply with d(T/mu)/dr still
@@ -329,7 +329,7 @@ def constructTstruc(sim, grid, snewTe, cloc, cextraprof, advecprof, altmax, Rp, 
     cnewTe = scnewTe * scweight + cnewTe * cweight
 
     #for the new T structure:
-    PdV, advecheat, adveccool = getexpadvrates(grid, cnewTe, mu, 30, cextraprof, advecprof) #calculate other needed quantities (smoothed)
+    PdV, advecheat, adveccool = getexpadvrates(grid, cnewTe, mu, cextraprof, advecprof) #calculate PdV and advection rates
     totheat, totcool, nettotal, hcratio, hcratiopos, hcrationeg = getbulkrates(htot, ctot, PdV, advecheat, adveccool)
 
     #make altgrid which contains the altitude values corresponding to the depth grid. In values of Rp
@@ -372,11 +372,11 @@ def run_once(path, itno, fc, altmax, Rp, cextraprof, advecprof):
     snewTe, cloc, converged = relaxTstruc(prev_iteration, loggrid, altmax, prev_iteration.p.R, cextraprof, advecprof, fc, path, itno)
 
     if converged:
-        print("\nFull atmosphere converged: "+path+"\nRun one more time with level output files and then stop.\n")
+        print("\nTemperature profile converged: "+path+"\nRun one more time with level output files and then stop.\n")
         make_converged_plot(prev_iteration, loggrid, cextraprof, advecprof, altmax, Rp, path)
         #calculate these terms for the output .txt file
         conv_Te, conv_mu, conv_htot, conv_ctot, conv_rho = simtogrid(prev_iteration, loggrid)
-        conv_PdV, conv_advecheat, conv_adveccool = getexpadvrates(loggrid, conv_Te, conv_mu, int(len(loggrid)/100), cextraprof, advecprof)
+        conv_PdV, conv_advecheat, conv_adveccool = getexpadvrates(loggrid, conv_Te, conv_mu, cextraprof, advecprof)
         np.savetxt(path+'converged.txt', np.column_stack(((altmax-loggrid/Rp)[::-1], conv_rho[::-1], conv_Te[::-1],
             conv_mu[::-1], conv_htot[::-1], conv_ctot[::-1], conv_PdV[::-1], conv_advecheat[::-1], conv_adveccool[::-1])), fmt='%1.5e',
             header='R rho Te mu radheat radcool PdV advheat advcool', comments='')
@@ -394,12 +394,12 @@ def run_once(path, itno, fc, altmax, Rp, cextraprof, advecprof):
         p_Te = iterations_file['Te'+str(itno-1)].values #previous-previous Te
         Tchanging = check_T_changing(fc, loggrid, snewTe, loggrid, p_Te, linthresh=50.)
         if not Tchanging:
-            print("\nAtmosphere not converged in the sense of max(heat/cool) ratio < fc, but still Temp. structure does"
-                    +" not change anymore. Round-off errors probably prevent this. I'll call it converged now: "+path+"\n")
+            print("\nTemperature profile not converged to H/C < fc, but it does not change substantially anymore between iterations. "
+                    +"Smoothing can cause this. The temperature profile should be accurate enough, I'll call it converged now: "+path+"\n")
             make_converged_plot(prev_iteration, loggrid, cextraprof, advecprof, altmax, Rp, path)
             #calculate these terms for the output .txt file
             conv_Te, conv_mu, conv_htot, conv_ctot, conv_rho = simtogrid(prev_iteration, loggrid)
-            conv_PdV, conv_advecheat, conv_adveccool = getexpadvrates(loggrid, conv_Te, conv_mu, int(len(loggrid)/100), cextraprof, advecprof)
+            conv_PdV, conv_advecheat, conv_adveccool = getexpadvrates(loggrid, conv_Te, conv_mu, cextraprof, advecprof)
             np.savetxt(path+'converged.txt', np.column_stack(((altmax-loggrid/Rp)[::-1], conv_rho[::-1], conv_Te[::-1],
                 conv_mu[::-1], conv_htot[::-1], conv_ctot[::-1], conv_PdV[::-1], conv_advecheat[::-1], conv_adveccool[::-1])), fmt='%1.5e',
                 header='R rho Te mu radheat radcool PdV advheat advcool', comments='')
