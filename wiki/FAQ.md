@@ -8,7 +8,7 @@ The composition usually has to be specified at two stages:
 
 1. When creating the Parker wind profiles with the `construct_parker.py` module: You can choose to use a pure H/He composition (which uses `p-winds` standalone) by specifying the hydrogen fraction by number with the `-fH` argument. You can also choose an arbitrary composition that includes metal species (which uses `p-winds` and _Cloudy_ in tandem) with the `-z` and `-zelem` arguments. In this case, `-z` specifies a metallicity relative to solar and is thus a scaling factor for all metal species. `-zelem` can be used to scale the abundance of individual elements, for example as `-zelem Na=3 Mg+=10 Fe+2=0.5 K=0`. Note that `-z` and `-zelem` can be used together and are **multiplicative**. In `construct_parker.py`, the composition only affects the wind structure through the mean molecular weight. Therefore, using `-z` and `-zelem` is only needed for (highly) supersolar metallicities; using `-fH 0.9` will usually suffice for a solar composition atmosphere.
 
-2. When simulating Parker wind profiles with _Cloudy_ with the `convergeT_parker.py` module: You can specify the composition with the `-z` and `-zelem` arguments as explained under point 1. The default is a solar composition, so `-z 1`. If you want to simulate a pure H/He composition with _Cloudy_, you can pass `-z 0` (and specify the He abundance through `-zelem He=...)`. Contrary to point 1 however, in `convergeT_parker.py`, the metal content directly affects the thermal structure and XUV absorption, so we reccommend using `-z 1` even when you only make hydrogen and helium spectra.
+2. When simulating Parker wind profiles with _Cloudy_ with the `convergeT_parker.py` module: You can specify the composition with the `-z` and `-zelem` arguments as explained under point 1. The default is a solar composition, so `-z 1`. If you want to simulate a pure H/He composition with _Cloudy_, you can pass `-z 0` (and specify the He abundance through `-zelem He=...)`. Contrary to point 1 however, in `convergeT_parker.py`, the metal content directly affects the thermal structure and XUV absorption, so we recommend using `-z 1` even when you only make hydrogen and helium spectra.
 
 ## How do I calculate the transmission spectrum?
 
@@ -18,7 +18,7 @@ Create the Parker wind profile with `construct_parker.py` and simulate it with _
 
 The safest way is to add another entry in the _sunbather/src/planets.txt_ file, with the same parameter values, but a different "name" and "SEDname" (the "full name" can be the same). 
 
-Alternatively and more prone to mistakes, the `construct_parker.py` and `convergeT_parker.py` modules also has the `-SEDname` argument which allows you to specify a different name of the SED file without making a new entry in the _planets.txt_ file. In this case, it is **strongly adviced** to use a different `-pdir` and `-dir` (that references the SED type) as well. 
+Alternatively and more prone to mistakes, the `construct_parker.py` and `convergeT_parker.py` modules also has the `-SEDname` argument which allows you to specify a different name of the SED file without making a new entry in the _planets.txt_ file. In this case, it is **strongly advised** to use a different `-pdir` and `-dir` (that references the SED type) as well. 
 
 ## Why do I have to specify a `-pdir` and a `-dir`?
 
