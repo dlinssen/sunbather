@@ -1688,6 +1688,6 @@ class Sim:
 
         self.ovr['v'] = interp1d(alt, v)(self.ovr.alt)
 
-        vseries = pd.Series(index=self.ovr.alt.index)
+        vseries = pd.Series(index=self.ovr.alt.index, dtype=float)
         vseries[self.ovr.alt.index] = interp1d(alt, v)(self.ovr.alt)
         self.v = vseries
