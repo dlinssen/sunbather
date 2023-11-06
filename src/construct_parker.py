@@ -77,8 +77,6 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9, dir='fH
                             the corresponding models there.
     '''
 
-    print("Making Parker wind profile with p_winds...")
-
     Mdot = float(Mdot)
     T = int(T)
 
@@ -121,7 +119,7 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9, dir='fH
 
     save_array = np.column_stack((r*planet.R, rho_array*rhos, v_array*vs*1e5, mu_array))
     np.savetxt(save_name, save_array, delimiter='\t', header="alt rho v mu")
-    print("Parker wind profile done.")
+    print("Parker wind profile done:", save_name)
 
 
 def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=None, mu_struc=None):
@@ -182,9 +180,6 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=None,
                                     convergence=0.0001, max_n_relax=30) #I personally think we can use more than 0.01 convergence
 
         mu_array = ((1-h_fraction)*4.0 + h_fraction)/(h_fraction*(1+f_r)+(1-h_fraction)) #this assumes no Helium ionization
-
-        print("mu_bar as reported by p-winds:", mu_bar)
-
 
     else: #used later iterations
         assert np.abs(mu_struc[0,0] - 1.) < 0.03 and np.abs(mu_struc[-1,0] - 20.) < 0.0001, "Looks like Cloudy didn't simulate to 1Rp: "+str(mu_struc[0,0]) #ensure safe extrapolation
@@ -259,12 +254,18 @@ def calc_mu_bar(sim, temperature):
     term_2 = grav * m_planet * int_4 + int_5 + k_b * temperature * int_6
     mu_bar = term_1 / term_2
 
-    print("mu_bar as reported by Cloudy:", mu_bar)
-
     return mu_bar
 
 
-def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, dir, convergence=0.01, maxit=7, cleantemp=False, overwrite=False):
+def verbose_print(message, verbose=False):
+    '''
+    Print message only if verbose is True.
+    '''
+    if verbose:
+        print(message)
+
+
+def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, dir, convergence=0.01, maxit=7, cleantemp=False, overwrite=False, verbose=False):
     '''
     Calculates a Parker wind profile with any composition by iteratively
     running the p-winds code (dos Santos et al. 2022) and Cloudy (Ferland 1998; 2017).
@@ -299,45 +300,44 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, dir, convergenc
         print("Parker profile already exists and overwrite = False:", planet.name, dir, "%.3f" %Mdot, T)
         return #this quits the function but if we're running a grid, it doesn't quit the whole Python code
 
-    print("Making initial parker profile with p-winds...")
+    verbose_print("Making initial parker profile with p-winds...", verbose=verbose)
     filename, previous_mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=None)
-    print("Saved temp parker profile.")
+    verbose_print(f"Saved temp parker profile with p-winds's mu_bar: {previous_mu_bar}" , verbose=verbose)
 
     for itno in range(maxit):
-        print("Iteration number:", itno+1)
-
-        print("Running parker profile through Cloudy...")
+        verbose_print(f"Iteration number: {itno+1}", verbose=verbose)
+        
+        verbose_print("Running parker profile through Cloudy...", verbose=verbose)
         simname, pprof = run_parker_with_cloudy(filename, T, planet, zdict)
-        print("Cloudy run done.")
+        verbose_print("Cloudy run done.", verbose=verbose)
 
         sim = tools.Sim(simname, altmax=20, planet=planet)
         sim.addv(pprof.alt, pprof.v) #add the velocity structure to the sim, so that calc_mu_bar() works.
 
         mu_bar = calc_mu_bar(sim, T)
-        print("Making new parker profile with p-winds based on Cloudy's reported mu_bar...")
+        verbose_print(f"Making new parker profile with p-winds based on Cloudy's reported mu_bar: {mu_bar}", verbose=verbose)
         mu_struc = np.column_stack((sim.ovr.alt.values[::-1]/planet.R, sim.ovr.mu[::-1].values)) #pass Cloudy's mu structure to save in the pprof
         filename, mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=mu_bar, mu_struc=mu_struc)
-        print("Saved temp parker profile.")
+        verbose_print("Saved temp parker profile.", verbose=verbose)
 
         if np.abs(mu_bar - previous_mu_bar)/previous_mu_bar < convergence:
-            print("mu_bar converged.")
+            print("mu_bar converged:", save_name)
             break
         else:
             previous_mu_bar = mu_bar
 
     copyfile(filename, filename.split('temp/')[0] + filename.split('temp/')[1])
-    print("Copied final parker profile from temp to parent folder.")
+    verbose_print("Copied final parker profile from temp to parent folder.", verbose=verbose)
 
     if cleantemp: #then we remove the temp files
-        print("Will remove temporarary files.")
         os.remove(simname+'.in')
         os.remove(simname+'.out')
         os.remove(simname+'.ovr')
         os.remove(filename)
-        print("Temporary files removed.")
+        verbose_print("Temporary files removed.", verbose=verbose)
 
 
-def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit, overwrite):
+def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit, overwrite, verbose):
     p = tools.Planet(plname)
     if SEDname != 'real':
         p.set_var(SEDname=SEDname)
@@ -346,7 +346,7 @@ def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit, overwrit
     if fH != None: #then run p_winds standalone
         save_plain_parker_profile(p, Mdot, T, spectrum, h_fraction=fH, dir=pdir, overwrite=overwrite)
     else: #then run p_winds/Cloudy iterative scheme
-        save_cloudy_parker_profile(p, Mdot, T, spectrum, zdict, pdir, convergence=mu_conv, maxit=mu_maxit, cleantemp=True, overwrite=overwrite)
+        save_cloudy_parker_profile(p, Mdot, T, spectrum, zdict, pdir, convergence=mu_conv, maxit=mu_maxit, cleantemp=True, overwrite=overwrite, verbose=verbose)
 
 
 def catch_errors_run_s(*args):
@@ -356,7 +356,7 @@ def catch_errors_run_s(*args):
         traceback.print_exc()
 
 
-def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, SEDname, fH, zdict, mu_conv, mu_maxit, overwrite):
+def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, SEDname, fH, zdict, mu_conv, mu_maxit, overwrite, verbose):
     '''
     Runs the function run_s in parallel for a given grid of Mdots and T, and
     for given number of cores (=parallel processes).
@@ -367,7 +367,7 @@ def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, SEDname, f
     pars = []
     for Mdot in np.arange(float(Mdot_l), float(Mdot_u)+1e-6, float(Mdot_s)): #1e-6 so that upper bound is inclusive
         for T in np.arange(int(T_l), int(T_u)+1e-6, int(T_s)).astype(int):
-            pars.append((plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit, overwrite))
+            pars.append((plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit, overwrite, verbose))
 
     p.starmap(catch_errors_run_s, pars)
     p.close()
@@ -422,6 +422,7 @@ if __name__ == '__main__':
     parser.add_argument("-mu_conv", type=float, default=0.01, help="relative change in mu allowed for convergence, when using p_winds/Cloudy iterative scheme [default=0.01]")
     parser.add_argument("-mu_maxit", type=int, default=7, help="maximum number of iterations the p_winds/Cloudy iterative scheme is ran " \
                                         "if convergence is not reached [default =7]")
+    parser.add_argument("-verbose", action='store_true', help="print out mu-bar values of each iteration [default=False]")
     args = parser.parse_args()
 
     if args.z != None:
@@ -443,12 +444,12 @@ if __name__ == '__main__':
         os.mkdir(tools.projectpath+'/parker_profiles/'+args.plname+'/'+args.pdir+'/temp')
 
     if (len(args.T) == 1 and len(args.Mdot) == 1): #then we run a single model
-        run_s(args.plname, args.pdir, args.Mdot[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite)
+        run_s(args.plname, args.pdir, args.Mdot[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose)
     elif (len(args.T) == 3 and len(args.Mdot) == 3): #then we run a grid over both parameters
-        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite)
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose)
     elif (len(args.T) == 3 and len(args.Mdot) == 1): #then we run a grid over only T
-        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite)
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose)
     elif (len(args.T) == 1 and len(args.Mdot) == 3): #then we run a grid over only Mdot
-        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite)
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose)
 
     print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
