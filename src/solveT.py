@@ -253,7 +253,7 @@ def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, 
 def make_converged_plot(sim, grid, cextraprof, advecprof, altmax, Rp, path):
     altgrid = altmax - grid/Rp
     Te, mu, htot, ctot, rho = simtogrid(sim, grid)
-    PdV, advecheat, adveccool = getexpadvrates(grid, Te, mu, int(len(grid)/100), cextraprof, advecprof)
+    PdV, advecheat, adveccool = getexpadvrates(grid, Te, mu, cextraprof, advecprof)
 
     #set up the figure with plotted quantities
     fig, (ax1, ax2) = plt.subplots(2, figsize=(4,5.5))
