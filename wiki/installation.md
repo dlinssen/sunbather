@@ -18,5 +18,5 @@ If you have trouble installing _Cloudy v17.02_, we refer to the download instruc
 
 # Getting started
 
-1. To get familiar with _sunbather_, we reccommend you go through the Jupyter notebooks in the _/sunbather/examples/_ folder, where example use cases (such as creating atmospheric profiles, calculating transmission spectra and fitting observational data) are worked out and explained. 
-2. For more details on how to use the code, check out the Glossary page on this wiki. We specifically reccommend you read the sections "The _src/planets.txt_ file" and "Stellar SED handling". 
+1. To get familiar with _sunbather_, we recommend you go through the Jupyter notebooks in the _/sunbather/examples/_ folder, where example use cases (such as creating atmospheric profiles, calculating transmission spectra and fitting observational data) are worked out and explained. 
+2. For more details on how to use the code, check out the Glossary page on this wiki. We specifically recommend you read the sections "The _src/planets.txt_ file" and "Stellar SED handling". 
