@@ -202,6 +202,14 @@ def process_heating(filename, Rp=None, altmax=None):
     all_column_names = fixed_column_names + additional_column_names
     heat = pd.read_table(filename, delimiter='\t', skiprows=1, header=None, names=all_column_names)
 
+    if heat['depth'].str.contains("#>>>>  Ionization not converged.").any():
+        print(f"WARNING: the simulation you are reading in exited OK but does contain ionization convergence failures: {filename[:-5]}")
+        #remove those extra lines from the heat DataFrame
+        heat = heat[heat['depth'] != "#>>>>  Ionization not converged."]
+        heat['depth'] = heat['depth'].astype(float)
+        heat = heat.reset_index(drop=True) #so it matches other dfs like .ovr
+
+
     #remove the "second rows", which sometimes are in the .heat file and do not give the heating at a given depth
     if type(heat.depth.iloc[0]) == str: #in some cases there are no second rows
         heat = heat[heat.depth.map(len)<12] #delete second rows
@@ -260,6 +268,14 @@ def process_cooling(filename, Rp=None, altmax=None):
     additional_column_names[1::2] = [f'cfrac{i}' for i in range(1, num_additional_columns + 1)]
     all_column_names = fixed_column_names + additional_column_names
     cool = pd.read_table(filename, delimiter='\t', skiprows=1, header=None, names=all_column_names)
+    
+    if cool['depth'].str.contains("#>>>>  Ionization not converged.").any():
+        print(f"WARNING: the simulation you are reading in exited OK but does contain ionization convergence failures: {filename[:-5]}")
+        #remove those extra lines from the cool DataFrame
+        cool = cool[cool['depth'] != "#>>>>  Ionization not converged."]
+        cool['depth'] = cool['depth'].astype(float)
+        cool = cool.reset_index(drop=True) #so it matches other dfs like .ovr
+    
 
     if Rp != None and altmax != None: #add altitude scale
         cool['alt'] = altmax * Rp - cool.depth
