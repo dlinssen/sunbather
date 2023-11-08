@@ -202,7 +202,7 @@ def process_heating(filename, Rp=None, altmax=None):
     all_column_names = fixed_column_names + additional_column_names
     heat = pd.read_table(filename, delimiter='\t', skiprows=1, header=None, names=all_column_names)
 
-    if heat['depth'].str.contains("#>>>>  Ionization not converged.").any():
+    if heat['depth'].eq("#>>>>  Ionization not converged.").any():
         print(f"WARNING: the simulation you are reading in exited OK but does contain ionization convergence failures: {filename[:-5]}")
         #remove those extra lines from the heat DataFrame
         heat = heat[heat['depth'] != "#>>>>  Ionization not converged."]
@@ -269,7 +269,7 @@ def process_cooling(filename, Rp=None, altmax=None):
     all_column_names = fixed_column_names + additional_column_names
     cool = pd.read_table(filename, delimiter='\t', skiprows=1, header=None, names=all_column_names)
     
-    if cool['depth'].str.contains("#>>>>  Ionization not converged.").any():
+    if cool['depth'].eq("#>>>>  Ionization not converged.").any():
         print(f"WARNING: the simulation you are reading in exited OK but does contain ionization convergence failures: {filename[:-5]}")
         #remove those extra lines from the cool DataFrame
         cool = cool[cool['depth'] != "#>>>>  Ionization not converged."]
