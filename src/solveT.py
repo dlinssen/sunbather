@@ -445,7 +445,7 @@ def clean_converged_folder(folder):
                 #print("[solveT.clean_converged_folder()]: Cleaned: "+folder)
 
 
-def run_loop(path, itno, fc, altmax, Rp, cextraprof, advecprof, zdict=None, save_sp=[]):
+def run_loop(path, itno, fc, altmax, Rp, cextraprof, advecprof, save_sp=[]):
     if itno == 0: #this means we resume from the highest found previously ran iteration
         pattern = r'iteration(\d+)\.out'
         max_iteration = -1
