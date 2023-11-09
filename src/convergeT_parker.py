@@ -48,7 +48,7 @@ def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):
     return clconv
 
 
-def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdict=None, altmax=8, save_sp=[], constantT=False):
+def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdict=None, altmax=8, save_sp=[], constantT=False, maxit=16):
     '''
     Solves for the converged temperature structure of a single parker wind profile.
 
@@ -160,7 +160,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
 
 
     #with everything in order, run the actual temperature convergence scheme
-    solveT.run_loop(path, itno, fc, altmax, planet.R, PdVprof, advecprof, save_sp)
+    solveT.run_loop(path, itno, fc, altmax, planet.R, PdVprof, advecprof, save_sp, maxit)
 
 
 def catch_errors_run_s(*args):
@@ -170,7 +170,7 @@ def catch_errors_run_s(*args):
         traceback.print_exc()
 
 
-def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname, overwrite, startT, pdir, zdict, altmax, save_sp, constantT):
+def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname, overwrite, startT, pdir, zdict, altmax, save_sp, constantT, maxit):
     '''
     Runs the function run_s in parallel for a given grid of Mdots and T, and
     for given number of cores (=parallel processes).
@@ -181,7 +181,7 @@ def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname
     pars = []
     for Mdot in np.arange(float(Mdot_l), float(Mdot_u)+1e-6, float(Mdot_s)): #1e-6 so that upper bound is inclusive
         for T in np.arange(int(T_l), int(T_u)+1e-6, int(T_s)).astype(int):
-            pars.append((plname, Mdot, T, 1, fc, dir, SEDname, overwrite, startT, pdir, zdict, altmax, save_sp, constantT))
+            pars.append((plname, Mdot, T, 1, fc, dir, SEDname, overwrite, startT, pdir, zdict, altmax, save_sp, constantT, maxit))
 
     p.starmap(catch_errors_run_s, pars)
     p.close()
@@ -225,6 +225,7 @@ if __name__ == '__main__':
     parser.add_argument("-startT", choices=["nearby", "free", "constant"], default="nearby", help="initial T structure, either 'constant', 'free' or 'nearby' [default=nearby]")
     parser.add_argument("-itno", type=int, default=1, help="starting iteration number (itno != 1 only works with -overwrite). As a special use, you can pass " \
                                     "-itno 0 which will automatically find the highest previously ran iteration number [default=1]")
+    parser.add_argument("-maxit", type=int, default=16, help="maximum number of iterations [default = 16]")
     parser.add_argument("-SEDname", type=str, default='real', help="name of SED to use. Must be in Cloudy's data/SED/ folder [default=SEDname set in planet.txt file]")
     parser.add_argument("-overwrite", action='store_true', help="overwrite existing simulation if passed [default=False]")
     parser.add_argument("-z", type=float, default=1., help="metallicity (=scale factor relative to solar for all elements except H and He) [default=1.]")
@@ -259,12 +260,12 @@ if __name__ == '__main__':
         os.mkdir(tools.projectpath+'/sims/1D/'+args.plname+'/'+args.dir)
 
     if (len(args.T) == 1 and len(args.Mdot) == 1): #then we run a single model
-        run_s(args.plname, args.Mdot[0], str(args.T[0]), args.itno, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.pdir, zdict, args.altmax, args.save_sp, args.constantT)
+        run_s(args.plname, args.Mdot[0], str(args.T[0]), args.itno, args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.pdir, zdict, args.altmax, args.save_sp, args.constantT, args.maxit)
     elif (len(args.T) == 3 and len(args.Mdot) == 3): #then we run a grid over both parameters
-        run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.pdir, zdict, args.altmax, args.save_sp, args.constantT)
+        run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.pdir, zdict, args.altmax, args.save_sp, args.constantT, args.maxit)
     elif (len(args.T) == 3 and len(args.Mdot) == 1): #then we run a grid over only T
-        run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.pdir, zdict, args.altmax, args.save_sp, args.constantT)
+        run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.pdir, zdict, args.altmax, args.save_sp, args.constantT, args.maxit)
     elif (len(args.T) == 1 and len(args.Mdot) == 3): #then we run a grid over only Mdot
-        run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.pdir, zdict, args.altmax, args.save_sp, args.constantT)
+        run_g(args.plname, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.fc, args.dir, args.SEDname, args.overwrite, args.startT, args.pdir, zdict, args.altmax, args.save_sp, args.constantT, args.maxit)
 
     print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")

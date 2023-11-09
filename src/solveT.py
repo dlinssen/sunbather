@@ -445,7 +445,7 @@ def clean_converged_folder(folder):
                 #print("[solveT.clean_converged_folder()]: Cleaned: "+folder)
 
 
-def run_loop(path, itno, fc, altmax, Rp, PdVprof, advecprof, save_sp=[]):
+def run_loop(path, itno, fc, altmax, Rp, PdVprof, advecprof, save_sp=[], maxit=16):
     if itno == 0: #this means we resume from the highest found previously ran iteration
         pattern = r'iteration(\d+)\.out'
         max_iteration = -1
@@ -467,7 +467,7 @@ def run_loop(path, itno, fc, altmax, Rp, PdVprof, advecprof, save_sp=[]):
         itno += 1
 
     converged = False
-    while not converged and itno <= 16:
+    while not converged and itno <= maxit:
         converged = run_once(path, itno, fc, altmax, Rp, PdVprof, advecprof)
         if converged: #we run the last simulation one more time but with all the output files
             if save_sp == []:
@@ -478,7 +478,7 @@ def run_loop(path, itno, fc, altmax, Rp, PdVprof, advecprof, save_sp=[]):
             tools.Sim(path+'converged') #by reading in the simulation, we open the .en file (if it exists) and hence compress its size.
             clean_converged_folder(path) #remove all non-converged files
             break
-        if itno != 16:
+        if itno != maxit:
             os.system("cd "+path+" && "+tools.cloudyruncommand+" iteration"+str(itno)+" && cd "+tools.projectpath+"/sims/1D")
 
         itno += 1
