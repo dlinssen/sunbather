@@ -895,10 +895,10 @@ def cl_table(r, rho, v, altmax, Rp, nmax, negtozero=False, zdict=None):
 
     #stack in 2D table that can be used with write_Cloudy_in()
     hdenprof = np.log10(np.column_stack((r_ill, hden_ill)))
-    cextraprof = np.log10(np.column_stack((r_ill, PdVT_ill)))
+    PdVprof = np.log10(np.column_stack((r_ill, PdVT_ill)))
     advecprof = np.log10(np.column_stack((r_ill, advec_ill)))
 
-    return hdenprof, cextraprof, advecprof
+    return hdenprof, PdVprof, advecprof
 
 
 def calc_expansionTmu(r, rho, v):
