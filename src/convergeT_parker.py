@@ -118,7 +118,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
         os.mkdir(path[:-1]) #make the folder
 
     #get profiles and parameters we need for the input file
-    hdenprof, cextraprof, advecprof = tools.cl_table(pprof.alt.values, pprof.rho.values, pprof.v.values,
+    hdenprof, PdVprof, advecprof = tools.cl_table(pprof.alt.values, pprof.rho.values, pprof.v.values,
                                             altmax, planet.R, 1000, zdict=zdict)
 
     nuFnu_1AU_linear, Ryd = tools.get_SED_norm_1AU(planet.SEDname)
@@ -160,7 +160,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
 
 
     #with everything in order, run the actual temperature convergence scheme
-    solveT.run_loop(path, itno, fc, altmax, planet.R, cextraprof, advecprof, save_sp)
+    solveT.run_loop(path, itno, fc, altmax, planet.R, PdVprof, advecprof, save_sp)
 
 
 def catch_errors_run_s(*args):

@@ -28,12 +28,12 @@ def simtogrid(sim, grid):
     return Te, mu, htot, ctot, rho
 
 
-def getexpadvrates(grid, Te, mu, cextraprof, advecprof, smoothsize=None):
+def getexpadvrates(grid, Te, mu, PdVprof, advecprof, smoothsize=None):
     '''
     Calculates PdV and advection rates for a temperature/mu structure
     '''
 
-    ifuncPdVT = interp1d(10**cextraprof[:,0], 10**cextraprof[:,1], fill_value='extrapolate') #this is -1*k*v*drhodr/mH, so multiply with T and divide by mu still
+    ifuncPdVT = interp1d(10**PdVprof[:,0], 10**PdVprof[:,1], fill_value='extrapolate') #this is -1*k*v*drhodr/mH, so multiply with T and divide by mu still
     ifuncadvec = interp1d(10**advecprof[:,0], 10**advecprof[:,1], fill_value='extrapolate') #this is v*rho*(5/2)*k/mH, so multiply with d(T/mu)/dr still
 
     PdV = ifuncPdVT(grid) * Te / mu #POSITIVE
@@ -138,7 +138,7 @@ def calc_cloc(path, itno, advecheat, adveccool, htot, ctot, totheat, PdV, hcrati
     return cloc
 
 
-def relaxTstruc(sim, grid, altmax, Rp, cextraprof, advecprof, fc, path, itno):
+def relaxTstruc(sim, grid, altmax, Rp, PdVprof, advecprof, fc, path, itno):
     '''
     This function finds a new temperature structure by relaxation:
     Add all rates, find ratio of heating to cooling rate,
@@ -151,7 +151,7 @@ def relaxTstruc(sim, grid, altmax, Rp, cextraprof, advecprof, fc, path, itno):
     #make altgrid which contains the altitude values corresponding to the depth grid. In values of Rp
     altgrid = altmax - grid/Rp
     Te, mu, htot, ctot, rho = simtogrid(sim, grid) #get all needed Cloudy quantities on this grid
-    PdV, advecheat, adveccool = getexpadvrates(grid, Te, mu, cextraprof, advecprof) #calculate PdV and advection rates
+    PdV, advecheat, adveccool = getexpadvrates(grid, Te, mu, PdVprof, advecprof) #calculate PdV and advection rates
     totheat, totcool, nettotal, hcratio, hcratiopos, hcrationeg = getbulkrates(htot, ctot, PdV, advecheat, adveccool)
 
     cloc = calc_cloc(path, itno, advecheat, adveccool, htot, ctot, totheat, PdV, hcratio)
@@ -250,10 +250,10 @@ def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, 
     plt.close()
 
 
-def make_converged_plot(sim, grid, cextraprof, advecprof, altmax, Rp, path):
+def make_converged_plot(sim, grid, PdVprof, advecprof, altmax, Rp, path):
     altgrid = altmax - grid/Rp
     Te, mu, htot, ctot, rho = simtogrid(sim, grid)
-    PdV, advecheat, adveccool = getexpadvrates(grid, Te, mu, cextraprof, advecprof)
+    PdV, advecheat, adveccool = getexpadvrates(grid, Te, mu, PdVprof, advecprof)
 
     #set up the figure with plotted quantities
     fig, (ax1, ax2) = plt.subplots(2, figsize=(4,5.5))
@@ -284,7 +284,7 @@ def make_converged_plot(sim, grid, cextraprof, advecprof, altmax, Rp, path):
     plt.close()
 
 
-def constructTstruc(sim, grid, snewTe, cloc, cextraprof, advecprof, altmax, Rp, itno, path, fc):
+def constructTstruc(sim, grid, snewTe, cloc, PdVprof, advecprof, altmax, Rp, itno, path, fc):
     '''
     This function constructs the temperature structure from a given location (cloc),
     by minimizing the heating/cooling ratio of all terms.
@@ -292,7 +292,7 @@ def constructTstruc(sim, grid, snewTe, cloc, cextraprof, advecprof, altmax, Rp, 
 
     Te, mu, htot, ctot, rho = simtogrid(sim, grid) #get all needed Cloudy quantities on this grid
 
-    ifuncPdVT = interp1d(10**cextraprof[:,0], 10**cextraprof[:,1], fill_value='extrapolate') #this is -1*k*v*drhodr/mH, so multiply with T and divide by mu still
+    ifuncPdVT = interp1d(10**PdVprof[:,0], 10**PdVprof[:,1], fill_value='extrapolate') #this is -1*k*v*drhodr/mH, so multiply with T and divide by mu still
     ifuncadvec = interp1d(10**advecprof[:,0], 10**advecprof[:,1], fill_value='extrapolate') #this is v*rho*(5/2)*k/mH, so multiply with d(T/mu)/dr still
 
 
@@ -329,7 +329,7 @@ def constructTstruc(sim, grid, snewTe, cloc, cextraprof, advecprof, altmax, Rp, 
     cnewTe = scnewTe * scweight + cnewTe * cweight
 
     #for the new T structure:
-    PdV, advecheat, adveccool = getexpadvrates(grid, cnewTe, mu, cextraprof, advecprof) #calculate PdV and advection rates
+    PdV, advecheat, adveccool = getexpadvrates(grid, cnewTe, mu, PdVprof, advecprof) #calculate PdV and advection rates
     totheat, totcool, nettotal, hcratio, hcratiopos, hcrationeg = getbulkrates(htot, ctot, PdV, advecheat, adveccool)
 
     #make altgrid which contains the altitude values corresponding to the depth grid. In values of Rp
@@ -362,28 +362,28 @@ def check_T_changing(fc, grid, newTe, prevgrid, prevTe, fac=0.5, linthresh=50.):
     return Tchanging
 
 
-def run_once(path, itno, fc, altmax, Rp, cextraprof, advecprof):
+def run_once(path, itno, fc, altmax, Rp, PdVprof, advecprof):
     prev_iteration = tools.Sim(path+'iteration'+str(itno-1))
     #make logspaced grid to use throughout the code, interpolate all useful quantities to this grid. 5000 steps is usually enough (>> Cloudy internal grid)
     loggrid = altmax*Rp - np.logspace(np.log10(prev_iteration.ovr.alt.iloc[-1]), np.log10(prev_iteration.ovr.alt.iloc[0]), num=2500)[::-1]
 
 
     #now the procedure starts
-    snewTe, cloc, converged = relaxTstruc(prev_iteration, loggrid, altmax, prev_iteration.p.R, cextraprof, advecprof, fc, path, itno)
+    snewTe, cloc, converged = relaxTstruc(prev_iteration, loggrid, altmax, prev_iteration.p.R, PdVprof, advecprof, fc, path, itno)
 
     if converged:
         print("\nTemperature profile converged: "+path+"\nRun one more time with level output files and then stop.\n")
-        make_converged_plot(prev_iteration, loggrid, cextraprof, advecprof, altmax, Rp, path)
+        make_converged_plot(prev_iteration, loggrid, PdVprof, advecprof, altmax, Rp, path)
         #calculate these terms for the output .txt file
         conv_Te, conv_mu, conv_htot, conv_ctot, conv_rho = simtogrid(prev_iteration, loggrid)
-        conv_PdV, conv_advecheat, conv_adveccool = getexpadvrates(loggrid, conv_Te, conv_mu, cextraprof, advecprof)
+        conv_PdV, conv_advecheat, conv_adveccool = getexpadvrates(loggrid, conv_Te, conv_mu, PdVprof, advecprof)
         np.savetxt(path+'converged.txt', np.column_stack(((altmax-loggrid/Rp)[::-1], conv_rho[::-1], conv_Te[::-1],
             conv_mu[::-1], conv_htot[::-1], conv_ctot[::-1], conv_PdV[::-1], conv_advecheat[::-1], conv_adveccool[::-1])), fmt='%1.5e',
             header='R rho Te mu radheat radcool PdV advheat advcool', comments='')
         return converged
 
     if cloc != None:
-        snewTe = constructTstruc(prev_iteration, loggrid, snewTe, cloc, cextraprof, advecprof, altmax, Rp, itno, path, fc)
+        snewTe = constructTstruc(prev_iteration, loggrid, snewTe, cloc, PdVprof, advecprof, altmax, Rp, itno, path, fc)
 
     iterations_file = pd.read_csv(path+'iterations.txt', header=0, sep=' ')
     iterations_file['Te'+str(itno)] = snewTe
@@ -396,10 +396,10 @@ def run_once(path, itno, fc, altmax, Rp, cextraprof, advecprof):
         if not Tchanging:
             print("\nTemperature profile not converged to H/C < fc, but it does not change substantially anymore between iterations. "
                     +"Smoothing can cause this. The temperature profile should be accurate enough, I'll call it converged now: "+path+"\n")
-            make_converged_plot(prev_iteration, loggrid, cextraprof, advecprof, altmax, Rp, path)
+            make_converged_plot(prev_iteration, loggrid, PdVprof, advecprof, altmax, Rp, path)
             #calculate these terms for the output .txt file
             conv_Te, conv_mu, conv_htot, conv_ctot, conv_rho = simtogrid(prev_iteration, loggrid)
-            conv_PdV, conv_advecheat, conv_adveccool = getexpadvrates(loggrid, conv_Te, conv_mu, cextraprof, advecprof)
+            conv_PdV, conv_advecheat, conv_adveccool = getexpadvrates(loggrid, conv_Te, conv_mu, PdVprof, advecprof)
             np.savetxt(path+'converged.txt', np.column_stack(((altmax-loggrid/Rp)[::-1], conv_rho[::-1], conv_Te[::-1],
                 conv_mu[::-1], conv_htot[::-1], conv_ctot[::-1], conv_PdV[::-1], conv_advecheat[::-1], conv_adveccool[::-1])), fmt='%1.5e',
                 header='R rho Te mu radheat radcool PdV advheat advcool', comments='')
@@ -445,7 +445,7 @@ def clean_converged_folder(folder):
                 #print("[solveT.clean_converged_folder()]: Cleaned: "+folder)
 
 
-def run_loop(path, itno, fc, altmax, Rp, cextraprof, advecprof, save_sp=[]):
+def run_loop(path, itno, fc, altmax, Rp, PdVprof, advecprof, save_sp=[]):
     if itno == 0: #this means we resume from the highest found previously ran iteration
         pattern = r'iteration(\d+)\.out'
         max_iteration = -1
@@ -468,7 +468,7 @@ def run_loop(path, itno, fc, altmax, Rp, cextraprof, advecprof, save_sp=[]):
 
     converged = False
     while not converged and itno <= 16:
-        converged = run_once(path, itno, fc, altmax, Rp, cextraprof, advecprof)
+        converged = run_once(path, itno, fc, altmax, Rp, PdVprof, advecprof)
         if converged: #we run the last simulation one more time but with all the output files
             if save_sp == []:
                 tools.copyadd_Cloudy_in(path+'iteration'+str(itno-1), path+'converged', outfiles=['.heat'], hcfrac=0.01)
