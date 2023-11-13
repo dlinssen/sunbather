@@ -15,7 +15,8 @@ from scipy.interpolate import interp1d
 
 
 
-print("\nWill perform installation check. Expected run-time: 15 minutes.\n")
+print("\nWill perform installation check by running the three main sunbather modules and checking if the output is as expected. " \
+      +"Expected total run-time: 10 to 60 minutes. Should print 'success' at the end.\n")
 
 ### SETUP CHECKS ###
 
@@ -29,12 +30,12 @@ assert os.path.isfile(tools.cloudypath+'/data/SED/eps_Eri_binned.spec'), "Please
 
 
 
-print("\nChecking construct_parker.py...\n")
+print("\nChecking construct_parker.py. A runtime for this module will follow when done...\n")
 
-### CREATING PARKER PROFILE CHECKS ###
+### CREATING PARKER PROFILE ###
 
 #create a parker profile - we use the p-winds/Cloudy hybrid scheme
-os.system("cd .. && cd src && python construct_parker.py -plname WASP52b -pdir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0")
+os.system("cd .. && cd src && python construct_parker.py -plname WASP52b -pdir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0 -overwrite")
 #load the created profile
 pprof_created = pd.read_table(tools.projectpath+'/parker_profiles/WASP52b/test/pprof_WASP52b_T=9000_M=11.000.txt',
                                 names=['alt', 'rho', 'v', 'mu'], dtype=np.float64, comment='#')
@@ -47,9 +48,9 @@ assert np.isclose(pprof_created[['rho', 'v']], pprof_expected[['rho', 'v']], rto
 
 
 
-print("\nChecking convergeT_parker.py...\n")
+print("\nChecking convergeT_parker.py. A runtime for this module will follow when done...\n")
 
-### CONVERGING TEMPERATURE STRUCTURE WITH CLOUDY CHECKS ###
+### CONVERGING TEMPERATURE STRUCTURE WITH CLOUDY ###
 
 #run the created profile through Cloudy
 os.system("cd .. && cd src && python convergeT_parker.py -plname WASP52b -pdir test -dir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0 -save_sp He Mg+ -overwrite")
@@ -57,8 +58,9 @@ os.system("cd .. && cd src && python convergeT_parker.py -plname WASP52b -pdir t
 sim_created = tools.Sim(tools.projectpath+'/sims/1D/WASP52b/test/parker_9000_11.000/converged')
 #load the expected simulation
 sim_expected = tools.Sim('materials/converged')
-#interpolate them to the same altitude grid as Cloudy's internal depth-grid can be different
-alt_grid = np.logspace(np.log10(9.1e9), np.log10(7.25e10), num=100)
+#interpolate them to a common altitude grid as Cloudy's internal depth-grid may vary between simulations
+alt_grid = np.logspace(np.log10(max(sim_created.ovr.alt.iloc[-1], sim_expected.ovr.alt.iloc[-1])), 
+                       np.log10(min(sim_created.ovr.alt.iloc[0], sim_expected.ovr.alt.iloc[0])), num=100)
 T_created = interp1d(sim_created.ovr.alt, sim_created.ovr.Te)(alt_grid)
 T_expected = interp1d(sim_expected.ovr.alt, sim_expected.ovr.Te)(alt_grid)
 #check if they are equal to within 10%
@@ -68,7 +70,7 @@ assert np.isclose(T_created, T_expected, rtol=0.1).all(), "The converged tempera
 
 print("\nChecking RT.py...\n")
 
-### MAKING TRANSIT SPECTRA CHECKS ###
+### MAKING TRANSIT SPECTRA ###
 
 #make a helium spectrum
 wavs = np.linspace(10830, 10836, num=300)
