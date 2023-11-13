@@ -562,7 +562,7 @@ def get_SED_norm_1AU(SEDname):
                 The SED is expected to be present in the /c17.02/data/SED/ folder.
     '''
 
-    with open(cloudypath+'data/SED/'+SEDname, 'r') as f:
+    with open(cloudypath+'/data/SED/'+SEDname, 'r') as f:
         for line in f:
             if not line.startswith('#'): #skip through the comments at the top
                 assert ('angstrom' in line) or ('Angstrom' in line) #verify the units
