@@ -1391,7 +1391,7 @@ def insertden_Cloudy_in(simname, denspecies, selected_den_levels=True, rerun=Fal
         newcontent.append('\nsave species energies last ".en"\n'+speciesstring(denspecies, selected_levels=selected_den_levels)+"\nend")
 
     elif len(indices) == 1: #then there already is a 'save species densities' command with some species
-        for sp in denspecies:
+        for sp in denspecies.copy():
             if len([i for i, s in enumerate(oldcontent) if sp+"[" in s]) != 0: #check if this species is already in the file
                 denspecies.remove(sp)
                 print(sp, "was already in the .in file so I did not add it again.")
