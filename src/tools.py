@@ -204,17 +204,14 @@ def process_heating(filename, Rp=None, altmax=None):
 
     if heat['depth'].eq("#>>>>  Ionization not converged.").any():
         print(f"WARNING: the simulation you are reading in exited OK but does contain ionization convergence failures: {filename[:-5]}")
-        #remove those extra lines from the heat DataFrame
-        heat = heat[heat['depth'] != "#>>>>  Ionization not converged."]
-        heat['depth'] = heat['depth'].astype(float)
-        heat = heat.reset_index(drop=True) #so it matches other dfs like .ovr
-
+        heat = heat[heat['depth'] != "#>>>>  Ionization not converged."] #remove those extra lines from the heat DataFrame
 
     #remove the "second rows", which sometimes are in the .heat file and do not give the heating at a given depth
     if type(heat.depth.iloc[0]) == str: #in some cases there are no second rows
         heat = heat[heat.depth.map(len)<12] #delete second rows
-        heat.depth = pd.to_numeric(heat.depth) #str to float
-        heat.reset_index(drop=True, inplace=True) #reindex so that it has same index as e.g. .ovr
+    
+    heat.depth = pd.to_numeric(heat.depth) #str to float
+    heat.reset_index(drop=True, inplace=True) #reindex so that it has same index as e.g. .ovr
 
     if Rp != None and altmax != None: #add altitude scale
         heat['alt'] = altmax * Rp - heat.depth
