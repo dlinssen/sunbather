@@ -1192,7 +1192,7 @@ def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
             f.write("\nend of coolextra #last point added to prevent roundoff")
 
 
-def write_Cloudy_in(simname, title='Default title for Cloudy planet sim', flux_scaling=None,
+def write_Cloudy_in(simname, title=None, flux_scaling=None,
                     SED=None, set_thickness=True,
                     dlaw=None, tlaw=None, alaw=None, pTmulaw=None, cextra=None, hextra=None,
                     coolextra=None, othercommands=None, overwrite=False, iterate='convergence',
@@ -1253,7 +1253,8 @@ def write_Cloudy_in(simname, title='Default title for Cloudy planet sim', flux_s
     with open(simname+".in", "w") as f:
         if comments != None:
             f.write(comments+'\n')
-        f.write('title '+title)
+        if title != None:
+            f.write('title '+title)
         f.write("\n# ========= input spectrum ================")
         f.write("\nnuF(nu) = "+str(flux_scaling[0])+" at "+str(flux_scaling[1])+" Ryd")
         f.write('\ntable SED "'+SED+'"')
@@ -1268,7 +1269,8 @@ def write_Cloudy_in(simname, title='Default title for Cloudy planet sim', flux_s
                 elif zdict[element] != 1.: #only write it to Cloudy if the scale factor is not 1
                     f.write("\nelement scale factor "+element_names[element]+" "+str(zdict[element]))
         f.write("\n# ========= other          ================")
-        f.write("\nset nend "+str(nend)+"   #models at high density need >1400 zones")
+        if nend != None:
+            f.write("\nset nend "+str(nend)+"   #models at high density need >1400 zones")
         f.write("\nset temperature floor 5 linear")
         f.write("\nstop temperature off     #otherwise it stops at 1e4 K")
         if iterate == 'convergence':
