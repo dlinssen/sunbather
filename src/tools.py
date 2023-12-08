@@ -1628,25 +1628,32 @@ class Sim:
 
         self.simfiles = [] #store the types of simulation files
         #add the simulation files as methods
+        if hasattr(self, 'Rp') and hasattr(self, 'altmax'):
+            temp_Rp = self.Rp
+            temp_altmax = self.altmax
+        else:
+            temp_Rp = None
+            temp_altmax = None
+
         for simfile in glob.glob(simname+'.*', recursive=True):
             filetype = simfile.split('.')[-1]
             if filetype=='ovr' and ('ovr' in files or 'all' in files):
-                self.ovr = process_overview(self.simname+'.ovr', Rp=self.p.R, altmax=self.altmax, abundances=self.abundances)
+                self.ovr = process_overview(self.simname+'.ovr', Rp=temp_Rp, altmax=temp_altmax, abundances=self.abundances)
                 self.simfiles.append('ovr')
             if filetype=='con' and ('con' in files or 'all' in files):
                 self.con = process_continuum(self.simname+'.con')
                 self.simfiles.append('con')
             if filetype=='heat' and ('heat' in files or 'all' in files):
-                self.heat = process_heating(self.simname+'.heat', Rp=self.p.R, altmax=self.altmax)
+                self.heat = process_heating(self.simname+'.heat', Rp=temp_Rp, altmax=temp_altmax)
                 self.simfiles.append('heat')
             if filetype=='cool' and ('cool' in files or 'all' in files):
-                self.cool = process_cooling(self.simname+'.cool', Rp=self.p.R, altmax=self.altmax)
+                self.cool = process_cooling(self.simname+'.cool', Rp=temp_Rp, altmax=temp_altmax)
                 self.simfiles.append('cool')
             if filetype=='coolH2' and ('coolH2' in files or 'all' in files):
-                self.coolH2 = process_coolingH2(self.simname+'.coolH2', Rp=self.p.R, altmax=self.altmax)
+                self.coolH2 = process_coolingH2(self.simname+'.coolH2', Rp=temp_Rp, altmax=temp_altmax)
                 self.simfiles.append('coolH2')
             if filetype=='den' and ('den' in files or 'all' in files):
-                self.den = process_densities(self.simname+'.den', Rp=self.p.R, altmax=self.altmax)
+                self.den = process_densities(self.simname+'.den', Rp=temp_Rp, altmax=temp_altmax)
                 self.simfiles.append('den')
             if filetype=='en' and ('en' in files or 'all' in files):
                 self.en = process_energies(self.simname+'.en')
