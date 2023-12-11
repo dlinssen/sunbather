@@ -1571,6 +1571,7 @@ class Sim:
         #read the .in file to extract some sim info like changes to the chemical composition and altmax
         self.disabled_elements = []
         zelem = {}
+        _parker_T, _parker_Mdot, _parker_dir = None, None, None #temp variables
         with open(simname+'.in', 'r') as f:
             for line in f:
                 if line[0] == '#': #then it is a comment written by sunbather, extract info:
@@ -1579,7 +1580,6 @@ class Sim:
                         self.p = Planet(line.split('=')[-1].strip('\n'))
                     
                     #check if a Parker profile was defined
-                    _parker_T, _parker_Mdot, _parker_pdir = None, None, None
                     if 'parker_T' in line:
                         _parker_T = int(line.split('=')[-1].strip('\n'))
                     if 'parker_Mdot' in line:
@@ -1623,7 +1623,7 @@ class Sim:
 
         #try to set a Parker object if the .in file had the required info for that
         if hasattr(self, 'p') and (_parker_T != None) and (_parker_Mdot != None) and (_parker_dir != None):
-            self.par = Parker(self.p.name, self.parker_T, self.parker_Mdot, self.parker_dir)
+            self.par = Parker(self.p.name, _parker_T, _parker_Mdot, _parker_dir)
         
         #overwrite/set manually given Parker object
         if parker != None:
