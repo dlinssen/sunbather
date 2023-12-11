@@ -1,6 +1,6 @@
 # sunbather
 
-![logo](logo/Logo 1000dpi.png)
+![sunbather logo](logo/Logo_1000dpi.png)
 
 This is a Python package to simulate the upper atmospheres of exoplanets and their observational signatures.
 
