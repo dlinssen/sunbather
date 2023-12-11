@@ -206,7 +206,7 @@ def run_parker_with_cloudy(filename, T, planet, zdict):
     '''
     Runs a parker profile with Cloudy.
     '''
-    pprof = tools.read_parker('', '', '', filename=filename)
+    pprof = tools.read_parker('', '', '', '', filename=filename)
 
     altmax = 20
     hdenprof, _, _ = tools.cl_table(pprof.alt.values, pprof.rho.values, pprof.v.values,

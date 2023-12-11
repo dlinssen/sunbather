@@ -602,14 +602,14 @@ def speciesstring(specieslist, selected_levels=False):
     return speciesstr
 
 
-def read_parker(plname, T, Mdot, dir=None, filename=None):
+def read_parker(plname, T, Mdot, pdir, filename=None):
     '''
     Reads a parker wind profile and returns it as a pandas Dataframe.
     Arguments:
         plname: [str]       planet name
         T:                  temperature
         Mdot: [float/str]   log10 of the mass-loss rate
-        dir: [str]          folder to use for the parker profile. This can be
+        pdir: [str]         folder to use for the parker profile. This can be
                             any folder name as long as it exists. So e.g. you
                             can have a folder with pure H/He profiles named
                             fH=0.9 or fH=0.99, or have a folder with Cloudy-
@@ -622,7 +622,7 @@ def read_parker(plname, T, Mdot, dir=None, filename=None):
     if filename == None:
         Mdot = "%.3f" % float(Mdot)
         T = str(int(T))
-        filename = projectpath+'/parker_profiles/'+plname+'/'+dir+'/pprof_'+plname+'_T='+T+'_M='+Mdot+'.txt'
+        filename = projectpath+'/parker_profiles/'+plname+'/'+pdir+'/pprof_'+plname+'_T='+T+'_M='+Mdot+'.txt'
 
     pprof = pd.read_table(filename, names=['alt', 'rho', 'v', 'mu'], dtype=np.float64, comment='#')
     pprof['drhodr'] = np.gradient(pprof['rho'], pprof['alt'])
@@ -1435,7 +1435,7 @@ class Parker:
                     If you don't want to read in, use filename=''
     '''
 
-    def __init__(self, plname, T, Mdot, dir='AO', fH=None, zdict=None, SED=None, readin=True):
+    def __init__(self, plname, T, Mdot, pdir, fH=None, zdict=None, SED=None, readin=True):
         self.plname = plname
         self.T = int(T)
         if type(Mdot) == str:
@@ -1451,7 +1451,7 @@ class Parker:
         if SED != None:
             self.SED = SED
         if readin:
-            self.prof = read_parker(plname, T, Mdot, dir=dir)
+            self.prof = read_parker(plname, T, Mdot, pdir)
 
 
 class Planet:

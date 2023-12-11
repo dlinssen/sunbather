@@ -104,7 +104,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
 
     #check if this parker profile exists in the given pdir
     try:
-        pprof = tools.read_parker(planet.name, T, Mdot, dir=pdir)
+        pprof = tools.read_parker(planet.name, T, Mdot, pdir)
     except FileNotFoundError:
         print("This parker profile does not exist:", tools.projectpath+'/parker_profiles/'+planet.name+'/'+pdir+'/pprof_'+planet.name+'_T='+str(T)+'_M='+Mdot+'.txt')
         return #quit the run_s function but not the code
