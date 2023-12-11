@@ -1561,11 +1561,11 @@ class Sim:
         self.simname = simname
 
         #check if the simulation did not crash.
-        succesful = False
+        _succesful = False
         with open(simname+'.out', 'r') as f:
             if "Cloudy exited OK" in f.read():
-                succesful = True
-        if not succesful and not proceedFail:
+                _succesful = True
+        if not _succesful and not proceedFail:
             raise FileNotFoundError("This simulation went wrong:", simname, "Check the .out file!")
 
         #read the .in file to extract some sim info like changes to the chemical composition and altmax
@@ -1573,35 +1573,66 @@ class Sim:
         zelem = {}
         with open(simname+'.in', 'r') as f:
             for line in f:
-                if line[0] == '#': #look for sim info in comments
+                if line[0] == '#': #then it is a comment written by sunbather, extract info:
+                    #check if a planet was defined
                     if 'plname' in line:
                         self.p = Planet(line.split('=')[-1].strip('\n'))
+                    
+                    #check if a Parker profile was defined
+                    _parker_T, _parker_Mdot, _parker_pdir = None, None, None
                     if 'parker_T' in line:
-                        self.parker_T = int(line.split('=')[-1].strip('\n'))
+                        _parker_T = int(line.split('=')[-1].strip('\n'))
                     if 'parker_Mdot' in line:
-                        self.parker_Mdot = line.split('=')[-1].strip('\n')
+                        _parker_Mdot = line.split('=')[-1].strip('\n')
                     if 'parker_dir' in line:
-                        self.parker_dir = line.split('=')[-1].strip('\n')
+                        _parker_dir = line.split('=')[-1].strip('\n')
+                    
+                    #check if an altmax was defined
                     if 'altmax' in line:
                         self.altmax = int(line.split('=')[1].strip('\n'))
+                
+                #read SED
                 if 'table SED' in line:
                     self.SEDname = line.split('"')[1]
+                
+                #read chemical composition
                 if 'element scale factor' in line.rstrip():
                     zelem[element_symbols[line.split(' ')[3]]] = float(line.rstrip().split(' ')[-1])
                 elif 'element' in line.rstrip() and 'off' in line.rstrip():
                     self.disabled_elements.append(element_symbols[line.split(' ')[1]])
                     zelem[element_symbols[line.split(' ')[1]]] = 0.
+        
+        #set zdict and abundances as attributes
         self.zdict = get_zdict(zelem=zelem)
         self.abundances = get_abundances(zdict=self.zdict)
-        if hasattr(self, 'p') and hasattr(self, 'parker_T') and hasattr(self, 'parker_Mdot') and hasattr(self, 'parker_dir'):
+
+        #overwrite/set manually given Planet object
+        if planet != None:
+            assert isinstance(planet, Planet)
+            if hasattr(self, 'p'):
+                print("I had already read out the Planet object from the .in file, but I will overwrite that with the object you have given.")
+            self.p = planet
+
+        #check if the SED of the Planet object matches the SED of the Cloudy simulation
+        if hasattr(self, 'p') and hasattr(self, 'SEDname'):
+            if self.p.SEDname != self.SEDname:
+                print("I read in the .in file that the SED used is", self.SEDname, "which is different from the one of your Planet object. " \
+                        "I will change the .SEDname attribute of the Planet object to match the one actually used in the simulation. Are you " \
+                        "sure that also the associated Parker wind profile is correct?")
+                self.p.set_var(SEDname = self.SEDname)
+
+        #try to set a Parker object if the .in file had the required info for that
+        if hasattr(self, 'p') and (_parker_T != None) and (_parker_Mdot != None) and (_parker_dir != None):
             self.par = Parker(self.p.name, self.parker_T, self.parker_Mdot, self.parker_dir)
+        
+        #overwrite/set manually given Parker object
         if parker != None:
             assert isinstance(parker, Parker)
             if hasattr(self, 'par'):
                 print("I had already read out the Parker object from the .in file, but I will overwrite that with the object you have given.")
             self.par = parker
 
-
+        #overwrite/set manually given altmax
         if altmax != None:
             if not (isinstance(altmax, float) or isinstance(altmax, int)):
                 raise TypeError("altmax must be set to a float or int") #can it actually be a float? I'm not sure if my code can handle it - check and try.
@@ -1612,60 +1643,52 @@ class Sim:
             self.altmax = altmax
 
 
-        if planet != None:
-            assert isinstance(planet, Planet)
-            if hasattr(self, 'planet'):
-                print("I had already read out the Planet object from the .in file, but I will overwrite that with the object you have given.")
-            self.p = planet
-            self.Rp = planet.R
-
-        if hasattr(self, 'p') and hasattr(self, 'SEDname'):
-            if self.p.SEDname != self.SEDname:
-                print("I read in the .in file that the SED used is", self.SEDname, "which is different from the one of your Planet object. " \
-                        "I will change the .SEDname attribute of the Planet object to match the one actually used in the simulation. Are you " \
-                        "sure that also the associated Parker wind profile is correct?")
-                self.p.set_var(SEDname = self.SEDname)
-
-        self.simfiles = [] #store the types of simulation files
-        #add the simulation files as methods
-        if hasattr(self, 'Rp') and hasattr(self, 'altmax'):
-            temp_Rp = self.Rp
-            temp_altmax = self.altmax
-        else:
-            temp_Rp = None
-            temp_altmax = None
-
+        #temporary variables for adding the alt-columns to the pandas dataframes
+        _Rp, _altmax = None, None
+        if hasattr(self, 'p') and hasattr(self, 'altmax'):
+            _Rp = self.p.R
+            _altmax = self.altmax
+        
+        #read in the Cloudy simulation files
+        self.simfiles = []
         for simfile in glob.glob(simname+'.*', recursive=True):
             filetype = simfile.split('.')[-1]
             if filetype=='ovr' and ('ovr' in files or 'all' in files):
-                self.ovr = process_overview(self.simname+'.ovr', Rp=temp_Rp, altmax=temp_altmax, abundances=self.abundances)
+                self.ovr = process_overview(self.simname+'.ovr', Rp=_Rp, altmax=_altmax, abundances=self.abundances)
                 self.simfiles.append('ovr')
             if filetype=='con' and ('con' in files or 'all' in files):
                 self.con = process_continuum(self.simname+'.con')
                 self.simfiles.append('con')
             if filetype=='heat' and ('heat' in files or 'all' in files):
-                self.heat = process_heating(self.simname+'.heat', Rp=temp_Rp, altmax=temp_altmax)
+                self.heat = process_heating(self.simname+'.heat', Rp=_Rp, altmax=_altmax)
                 self.simfiles.append('heat')
             if filetype=='cool' and ('cool' in files or 'all' in files):
-                self.cool = process_cooling(self.simname+'.cool', Rp=temp_Rp, altmax=temp_altmax)
+                self.cool = process_cooling(self.simname+'.cool', Rp=_Rp, altmax=_altmax)
                 self.simfiles.append('cool')
             if filetype=='coolH2' and ('coolH2' in files or 'all' in files):
-                self.coolH2 = process_coolingH2(self.simname+'.coolH2', Rp=temp_Rp, altmax=temp_altmax)
+                self.coolH2 = process_coolingH2(self.simname+'.coolH2', Rp=_Rp, altmax=_altmax)
                 self.simfiles.append('coolH2')
             if filetype=='den' and ('den' in files or 'all' in files):
-                self.den = process_densities(self.simname+'.den', Rp=temp_Rp, altmax=temp_altmax)
+                self.den = process_densities(self.simname+'.den', Rp=_Rp, altmax=_altmax)
                 self.simfiles.append('den')
             if filetype=='en' and ('en' in files or 'all' in files):
                 self.en = process_energies(self.simname+'.en')
                 self.simfiles.append('en')
 
-        if hasattr(self, 'par'): #if a parker profile was either read out or manually added, we set the velocity structure in .ovr
+        #set the velocity structure in .ovr if we have an associated Parker profile - needed for radiative transfer
+        if hasattr(self, 'par'): 
             if hasattr(self.par, 'prof'):
                 Sim.addv(self, self.par.prof.alt, self.par.prof.v)
 
 
     def get_simfile(self, simfile):
-        assert simfile in self.simfiles
+        '''
+        Allows accessing the Cloudy simulation files.
+        They can all also be accessed as an attribute,
+        for example sim.ovr or sim.cool
+        '''
+        if simfile not in self.simfiles:
+            raise FileNotFoundError("This simulation does not have a", simfile, "output file.")
 
         if simfile == 'ovr':
             return self.ovr
@@ -1686,6 +1709,7 @@ class Sim:
         elif simfile == 'ionNa':
             return self.ionNa
 
+
     def add_parker(self, parker):
         '''
         Adds a Parker profile object to the Sim, in case it wasn't added upon initialization.
@@ -1695,6 +1719,7 @@ class Sim:
         self.par = parker
         if hasattr(parker, 'prof'):
             Sim.addv(self, parker.prof.alt, parker.prof.v)
+
 
     def addv(self, alt, v, delete_negative=True):
         '''
