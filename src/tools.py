@@ -1469,7 +1469,8 @@ class Planet:
         Mstar:  [float] optional, mass of the host star in solar masses
         bp:     [float] optional, transit impact parameter (dimensionless)
         Rroche: [float] optional, Roche radius in cm,
-                if not given will be calculated based on other parameters.
+                if not given (preffered), will be calculated based on other parameters
+        SEDname:[str]   optional, name of the stellar SED used, including file extension
 
         If the planet name was found in 'planets.txt', but any of the other
         parameters are given as well, those values will overwrite the values
@@ -1512,9 +1513,12 @@ class Planet:
         if SEDname != None:
             self.SEDname = SEDname
 
-        self.Rroche = roche_radius(self.a, self.M * MJ, self.Mstar * Msun)
-        if Rroche != None:
+        self.__update_Rroche()
+        if Rroche != None: #use manually passed value, if any
             self.Rroche = Rroche
+
+        self.__update_phi()
+
 
     def set_var(self, name=None, R=None, Rstar=None, a=None, M=None, Mstar=None, bp=None, Rroche=None, SEDname=None):
         '''
@@ -1524,20 +1528,39 @@ class Planet:
             self.name = name
         if R != None:
             self.R = R
+            self.__update_phi()
         if Rstar != None:
             self.Rstar = Rstar
         if a != None:
             self.a = a
+            self.__update_Rroche()
         if M != None:
             self.M = M
+            self.__update_phi()
+            self.__update_Rroche()
         if Mstar != None:
             self.Mstar = Mstar
+            self.__update_Rroche()
         if bp != None:
             self.bp = bp
         if Rroche != None:
             self.Rroche = Rroche
         if SEDname != None:
             self.SEDname = SEDname
+
+    def __update_phi(self):
+        '''
+        Tries to update the gravitational potential.
+        '''
+        if (self.M != None) and (self.R != None):
+            self.phi = G * self.M * MJ / self.R
+
+    def __update_Rroche(self):
+        '''
+        Tries to update the Roche radius.
+        '''
+        if (self.a != None) and (self.M != None) and (self.Mstar != None):
+            self.Rroche = roche_radius(self.a, self.M * MJ, self.Mstar * Msun)
 
 
 class Sim:
