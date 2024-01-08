@@ -758,17 +758,17 @@ def hden_to_rho(hden, abundances=None):
     return rho
 
 
-def roche_radius(semimajor_AU, Mpl, Mstar):
+def roche_radius(a, Mp, Mstar):
     '''
     Returns the Roche / Hill radius.
     This is a small planet-to-star mass approximation.
 
-    semimajor_AU:   semi-major axis of the planet in units of AU
-    Mpl:            planet mass
-    Mstar:          star mass
+    a:   semi-major axis of the planet in cm
+    Mp:            planet mass in g
+    Mstar:          star mass in g
     '''
 
-    return semimajor_AU*1.496e13*pow(Mpl/(3.0*(Mstar+Mpl)), 1.0/3.0)
+    return a * pow(Mp/(3.0*(Mstar+Mp)), 1.0/3.0)
 
 
 def set_alt_ax(ax, altmax=8, labels=True):
@@ -1464,9 +1464,9 @@ class Planet:
 
         R:      [float] optional, radius in cm
         Rstar:  [float] optional, radius of the host star in cm
-        a:      [float] optional, semimajor axis in AU
-        M:      [float] optional, mass in Jupiter Masses
-        Mstar:  [float] optional, mass of the host star in solar masses
+        a:      [float] optional, semimajor axis in cm
+        M:      [float] optional, mass in g
+        Mstar:  [float] optional, mass of the host star in g
         bp:     [float] optional, transit impact parameter (dimensionless)
         Rroche: [float] optional, Roche radius in cm,
                 if not given (preffered), will be calculated based on other parameters
@@ -1485,9 +1485,9 @@ class Planet:
 
             self.R = this_planet['R [RJ]'].values[0] * RJ #in cm
             self.Rstar = this_planet['Rstar [Rsun]'].values[0] *Rsun #in cm
-            self.a = this_planet['a [AU]'].values[0] #in AU
-            self.M = this_planet['M [MJ]'].values[0] #M_J
-            self.Mstar = this_planet['Mstar [Msun]'].values[0] #M_sun
+            self.a = this_planet['a [AU]'].values[0] * AU #in cm
+            self.M = this_planet['M [MJ]'].values[0] * MJ #in g
+            self.Mstar = this_planet['Mstar [Msun]'].values[0] * Msun #in g
             self.bp = this_planet['transit impact parameter'].values[0] #dimensionless
             self.name = this_planet['name'].values[0]
             self.fullname = this_planet['full name'].values[0]
@@ -1553,14 +1553,14 @@ class Planet:
         Tries to update the gravitational potential.
         '''
         if (self.M != None) and (self.R != None):
-            self.phi = G * self.M * MJ / self.R
+            self.phi = G * self.M / self.R
 
     def __update_Rroche(self):
         '''
         Tries to update the Roche radius.
         '''
         if (self.a != None) and (self.M != None) and (self.Mstar != None):
-            self.Rroche = roche_radius(self.a, self.M * MJ, self.Mstar * Msun)
+            self.Rroche = roche_radius(self.a, self.M, self.Mstar)
 
 
 class Sim:

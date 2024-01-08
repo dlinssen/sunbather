@@ -87,8 +87,8 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9, dir='fH
         return #this quits the function but if we're running a grid, it doesn't quit the whole Python code
 
 
-    R_pl = planet.R / tools.RJ #because my planet object has it in cm
-    M_pl = planet.M #already in MJ
+    R_pl = planet.R / tools.RJ #convert from cm to Rjup
+    M_pl = planet.M / tools.MJ #convert from g to Mjup
 
     m_dot = 10 ** Mdot  # Total atmospheric escape rate in g / s
     r = np.logspace(0, np.log10(20), 200)  # Radial distance profile in unit of planetary radii
@@ -151,8 +151,8 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=None,
     Mdot = float(Mdot)
     T = int(T)
 
-    R_pl = planet.R / tools.RJ #radius in RJ (my planet object has it in cm)
-    M_pl = planet.M #already in MJ
+    R_pl = planet.R / tools.RJ #convert from cm to Rjup
+    M_pl = planet.M / tools.MJ #convert from g to Mjup
 
     m_dot = 10 ** Mdot  # Total atmospheric escape rate in g / s
     r = np.logspace(0, np.log10(20), 200)  # Radial distance profile in unit of planetary radii
@@ -213,7 +213,7 @@ def run_parker_with_cloudy(filename, T, planet, zdict):
                                             altmax, planet.R, 1000, zdict=zdict)
 
     nuFnu_1AU_linear, Ryd = tools.get_SED_norm_1AU(planet.SEDname)
-    nuFnu_a_log = np.log10(nuFnu_1AU_linear / (planet.a - altmax*planet.R/tools.AU)**2)
+    nuFnu_a_log = np.log10(nuFnu_1AU_linear / ((planet.a - altmax*planet.R)/tools.AU)**2)
 
     simname = filename.split('.txt')[0]
     tools.write_Cloudy_in(simname, title='Simulation of '+filename, overwrite=True,
@@ -231,7 +231,7 @@ def calc_mu_bar(sim, temperature):
     a Cloudy simulation Sim object. Based on Eq. A.3 of Lampon et al. 2020.
     '''
     # Converting units
-    m_planet = sim.p.M * tools.MJ / 1000. #planet mass in kg
+    m_planet = sim.p.M / 1000. #planet mass in kg
     r = sim.ovr.alt.values[::-1] / 100.  # Radius profile in m
     v_r = sim.ovr.v.values[::-1] / 100.  # Velocity profile in unit of m / s
 
@@ -341,7 +341,7 @@ def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit, overwrit
     p = tools.Planet(plname)
     if SEDname != 'real':
         p.set_var(SEDname=SEDname)
-    spectrum = cloudy_spec_to_pwinds(tools.cloudypath+'/data/SED/'+p.SEDname, 1., p.a - 20*p.R / tools.AU) #assumes SED is at 1 AU
+    spectrum = cloudy_spec_to_pwinds(tools.cloudypath+'/data/SED/'+p.SEDname, 1., (p.a - 20*p.R)/tools.AU) #assumes SED is at 1 AU
 
     if fH != None: #then run p_winds standalone
         save_plain_parker_profile(p, Mdot, T, spectrum, h_fraction=fH, dir=pdir, overwrite=overwrite)

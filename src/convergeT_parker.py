@@ -122,7 +122,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
                                             altmax, planet.R, 1000, zdict=zdict)
 
     nuFnu_1AU_linear, Ryd = tools.get_SED_norm_1AU(planet.SEDname)
-    nuFnu_a_log = np.log10(nuFnu_1AU_linear / (planet.a - altmax*planet.R/tools.AU)**2)
+    nuFnu_a_log = np.log10(nuFnu_1AU_linear / ((planet.a - altmax*planet.R)/tools.AU)**2)
 
     comments = '# plname='+planet.name+'\n# parker_T='+str(T)+'\n# parker_Mdot='+str(Mdot)+'\n# parker_dir='+pdir+'\n# altmax='+str(altmax)
 

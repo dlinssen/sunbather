@@ -284,7 +284,7 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., bp=0., ab=[0., 0
             tau_line = calc_tau(x, ndens_lw, Te, vx, nus_line, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno])
             tau[(nus > linenu_low) & (nus < linenu_hi), :] += tau_line #add the tau values to the correct nu bins
 
-    FinFout = tau_to_FinFout(b, tau, Rs, bp=bp, ab=ab, phase=phase, a=sim.p.a*tools.AU)
+    FinFout = tau_to_FinFout(b, tau, Rs, bp=bp, ab=ab, phase=phase, a=sim.p.a)
 
     return FinFout, found_lines, notfound_lines
 
