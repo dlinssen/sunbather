@@ -1467,7 +1467,7 @@ class Planet:
         a:      [float] optional, semimajor axis in cm
         M:      [float] optional, mass in g
         Mstar:  [float] optional, mass of the host star in g
-        bp:     [float] optional, transit impact parameter (dimensionless)
+        bp:     [float] optional, transit impact parameter (dimensionless, between 0 and 1 in units of Rstar)
         Rroche: [float] optional, Roche radius in cm,
                 if not given (preffered), will be calculated based on other parameters
         SEDname:[str]   optional, name of the stellar SED used, including file extension

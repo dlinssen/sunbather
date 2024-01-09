@@ -195,7 +195,7 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
     return spNIST
 
 
-def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., bp=0., ab=[0., 0.], phase=0., **kwargs):
+def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=[0., 0.], phase=0., **kwargs):
     '''
     Calculates Fin/Fout transit spectrum for a given wavelength range, and a given
     (list of) species. Includes limb darkening.
@@ -212,7 +212,6 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., bp=0., ab=[0., 0
                 Standard value is 5 Gaussian standard deviations + 10 Lorentzian gammas.
                 For e.g. Lyman alpha, you probably need a >1 factor here,
                 since the far Lorentzian wings are probed.
-    bp:         impact parameter of the planet w.r.t the star center 0<bp<1  [in units of Rs]
     ab:         quadratic limb darkening parameters (list of 2 values)
     phase:      planetary orbital phase 0<phase<1 where 0 is mid-transit.
                 my implementation of phase does not (yet) take into account the
@@ -284,7 +283,7 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., bp=0., ab=[0., 0
             tau_line = calc_tau(x, ndens_lw, Te, vx, nus_line, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno])
             tau[(nus > linenu_low) & (nus < linenu_hi), :] += tau_line #add the tau values to the correct nu bins
 
-    FinFout = tau_to_FinFout(b, tau, Rs, bp=bp, ab=ab, phase=phase, a=sim.p.a)
+    FinFout = tau_to_FinFout(b, tau, Rs, bp=sim.p.bp, ab=ab, phase=phase, a=sim.p.a)
 
     return FinFout, found_lines, notfound_lines
 
