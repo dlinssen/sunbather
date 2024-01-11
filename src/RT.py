@@ -20,27 +20,33 @@ def limbdark_quad(mu, ab):
     the normal direction and beam direction. The following holds:
     mu = sqrt(1 - (r/Rs)^2)     with r/Rs the fractional distance to the
     center of the star (i.e. =0 at stellar disk center and =1 at limb).
+
+    The quantities are all treated as 3D here internally, where:
+    axis 0: the frequency axis
+    axis 1: radial direction (rings) from planet core
+    axis 2: angle phi within each radial ring
     '''
 
-    a, b = ab #turn list into separate parameters
-    return 1 - a*(1-mu) - b*(1-mu)**2
+    a, b = ab[:,0], ab[:,1]
+    return 1 - a[:,None,None]*(1-mu[None,:,:]) - b[:,None,None]*(1-mu[None,:,:])**2
 
 
 def avg_limbdark_quad(ab):
     '''
     Average of the quadratic limb darkening I(mu) over the stellar disk.
 
-    ab: list of the two quadratic limb darkening coefficients
+    In the calculation of I, axis 0 is the frequency axis and axis 1 is the radial axis.
+    The returned I_avg will then have only the frequency axis left.
     '''
 
-    a, b = ab #turn list into separate parameters
-    rf = np.linspace(0, 1, num=1000) #sample the stellar disk in 1000 donuts
+    a, b = ab[:,0], ab[:,1]
+    rf = np.linspace(0, 1, num=1000) #sample the stellar disk in 1000 rings
     rfm = (rf[:-1] + rf[1:])/2 #midpoints
-    mu = np.sqrt(1 - rfm**2) #mu of each donut
-    I = 1 - a*(1-mu) - b*(1-mu)**2 #I of each donut
-    projsurf = np.pi*(rf[1:]**2 - rf[:-1]**2) #area of each donut
+    mu = np.sqrt(1 - rfm**2) #mu of each ring
+    I = 1 - a[:,None]*(1-mu[None,:]) - b[:,None]*(1-mu[None,:])**2 #I of each ring
+    projsurf = np.pi*(rf[1:]**2 - rf[:-1]**2) #area of each ring
 
-    I_avg = np.sum(I * projsurf) / np.pi
+    I_avg = np.sum(I * projsurf, axis=1) / np.pi #sum over the radial axis
 
     return I_avg
 
@@ -128,7 +134,7 @@ def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma):
     return cum_tau, bin_tau
 
 
-def tau_to_FinFout(b, tau, Rs, bp=0., ab=[0., 0.], a=0., phase=0.):
+def tau_to_FinFout(b, tau, Rs, bp=0., ab=np.zeros(2), a=0., phase=0.):
     '''
     Takes in tau values and calculates the Fin/Fout transit spectrum,
     using the stellar radius and optional limb darkening and transit phase
@@ -139,7 +145,9 @@ def tau_to_FinFout(b, tau, Rs, bp=0., ab=[0., 0.], a=0., phase=0.):
     tau:    optical depth values per frequency and ray (2D: freq, ray)
     Rs:     stellar radius in cm
     bp:     impact parameter of the planet w.r.t the star center 0<bp<1  [in units of Rs]
-    ab:     quadratic limb darkening parameters (list of 2 values)
+    ab:     quadratic limb darkening parameters. Either a list/array of two values if the
+            limb-darkening is wavelength-independent, or an array with shape (len(wavs),2)
+            if the limb-darkening is wavelength-dependent.
     a:      planet orbital semi-major axis in cm
     phase:  planetary orbital phase 0<phase<1 where 0 is mid-transit.
             The current implementation of phase does not take into account the
@@ -149,6 +157,10 @@ def tau_to_FinFout(b, tau, Rs, bp=0., ab=[0., 0.], a=0., phase=0.):
             symmetric, which we are assuming, this is exactly the same. But if in the
             future e.g. day-to-nightside winds are added on top, it will matter.
     '''
+
+    if ab.ndim == 1:
+        ab = ab[None,:]
+    
     #add some impact parameters and tau=inf bins that make up the planet core:
     b = np.concatenate((np.linspace(0, b[0], num=50, endpoint=False), b))
     tau = np.concatenate((np.ones((np.shape(tau)[0], 50))*np.inf, tau), axis=1)
@@ -160,11 +172,11 @@ def tau_to_FinFout(b, tau, Rs, bp=0., ab=[0., 0.], a=0., phase=0.):
     rc = ma.masked_where(rc > Rs, rc) #will ensure I is masked (and later set to 0) outside stellar projected disk
     mu = np.sqrt(1 - (rc/Rs)**2) #angle, see 'limbdark_quad' function
     I = limbdark_quad(mu, ab)
-    Ir_avg = np.sum(I, axis=1) / len(phis) #average I per ray
+    Ir_avg = np.sum(I, axis=2) / len(phis) #average I per ray
     Ir_avg = Ir_avg.filled(fill_value=0.) #convert back to regular numpy array
     Is_avg = avg_limbdark_quad(ab) #average I of the full stellar disk
 
-    FinFout = np.ones_like(tau[:,0]) - np.sum(((1 - np.exp(-tau[:,:-1])) * Ir_avg*projsurf/(Is_avg*np.pi*Rs**2)), axis=1)
+    FinFout = np.ones_like(tau[:,0]) - np.sum(((1 - np.exp(-tau[:,:-1])) * Ir_avg*projsurf[None,:]/(Is_avg[:,None]*np.pi*Rs**2)), axis=1)
 
     return FinFout
 
@@ -195,7 +207,7 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
     return spNIST
 
 
-def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=[0., 0.], phase=0., **kwargs):
+def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), phase=0., **kwargs):
     '''
     Calculates Fin/Fout transit spectrum for a given wavelength range, and a given
     (list of) species. Includes limb darkening.
@@ -212,7 +224,9 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=[0., 0.], pha
                 Standard value is 5 Gaussian standard deviations + 10 Lorentzian gammas.
                 For e.g. Lyman alpha, you probably need a >1 factor here,
                 since the far Lorentzian wings are probed.
-    ab:         quadratic limb darkening parameters (list of 2 values)
+    ab:     quadratic limb darkening parameters. Either a list/array of two values if the
+            limb-darkening is wavelength-independent, or an array with shape (len(wavs),2)
+            if the limb-darkening is wavelength-dependent.
     phase:      planetary orbital phase 0<phase<1 where 0 is mid-transit.
                 my implementation of phase does not (yet) take into account the
                 tidally-locked rotation of the planet. so you'll always see the
@@ -222,6 +236,11 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=[0., 0.], pha
 
     assert hasattr(sim, 'p'), "The sim must have an attributed Planet object"
     assert 'v' in sim.ovr.columns, "We need a velocity structure, such as that from adding a Parker object to the sim."
+    
+    ab = np.array(ab) #turn possible list into array
+    if ab.ndim == 1:
+        ab = ab[None,:] #add frequency axis
+    assert ab.ndim == 2 and np.shape(ab)[1] == 2 and (np.shape(ab)[0] == 1 or np.shape(ab)[0] == len(wavsAA)), "Give ab as shape (1,2) or (2,) or (len(wavsAA),2)"
 
     Rs, Rp = sim.p.Rstar, sim.p.R
     nus = tools.c*1e8 / wavsAA #Hz, converted c to AA/s
