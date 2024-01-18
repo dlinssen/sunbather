@@ -37,7 +37,7 @@ RE = 6.371e8 #cm
 Rsun = 69634000000 #cm
 Msun = 1.9891e33 #g
 MJ = 1.898e30 #g
-ME = 5.9722e26 #g
+ME = 5.9722e27 #g
 G = 6.6743e-8 #cm3/g/s2
 Ldict = {'S':0, 'P':1, 'D':2, 'F':3, 'G':4, 'H':5, 'I':6, 'K':7, 'L':8,
         'M':9, 'N':10, 'O':11, 'Q':12, 'R':13, 'T':14} #atom number of states per L orbital
