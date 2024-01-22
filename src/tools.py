@@ -1577,12 +1577,14 @@ class Planet:
         if hasattr(self, 'phi'):
             print("log10(Gravitational potential):", np.log10(self.phi))
 
-    def plot_transit_geometry(self, phase=0.):
+    def plot_transit_geometry(self, phase=0., altmax=None):
         fig, ax = plt.subplots(1)
         ax.plot(self.Rstar*np.cos(np.linspace(0, 2*np.pi, 100)), self.Rstar*np.sin(np.linspace(0, 2*np.pi, 100)), c='k')
         ax.plot(self.a*np.sin(2*np.pi*phase) + self.R*np.cos(np.linspace(0, 2*np.pi, 100)), self.bp*self.Rstar + self.R*np.sin(np.linspace(0, 2*np.pi, 100)), c='b')
         if hasattr(self, 'Rroche'):
             ax.plot(self.a*np.sin(2*np.pi*phase) + self.Rroche*np.cos(np.linspace(0, 2*np.pi, 100)), self.bp*self.Rstar + self.Rroche*np.sin(np.linspace(0, 2*np.pi, 100)), c='b', linestyle='dotted')
+        if altmax is not None:
+            ax.plot(self.a*np.sin(2*np.pi*phase) + altmax*self.R*np.cos(np.linspace(0, 2*np.pi, 100)), self.bp*self.Rstar + altmax*self.R*np.sin(np.linspace(0, 2*np.pi, 100)), c='b', linestyle='dashed')
         plt.axis('equal')
         ax.set_xlabel('x [cm]')
         ax.set_ylabel('y [cm]')
