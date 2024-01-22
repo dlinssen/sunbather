@@ -1562,6 +1562,33 @@ class Planet:
         if (self.a != None) and (self.M != None) and (self.Mstar != None):
             self.Rroche = roche_radius(self.a, self.M, self.Mstar)
 
+    def print_params(self):
+        print("Name:", self.name)
+        print("Full name:", self.fullname)
+        print("Planet radius [cm, RJ]:", self.R, self.R / RJ)
+        print("Star radius [cm, Rsun]:", self.Rstar, self.Rstar / Rsun)
+        print("Semi-major axis [cm, AU]:", self.a, self.a / AU)
+        print("Planet mass [g, MJ]:", self.M, self.M / MJ)
+        print("Star mass [g, Msun]:", self.Mstar, self.Mstar / Msun)
+        print("Transit impact parameter:", self.bp)
+        print("Stellar spectrum:", self.SEDname)
+        if hasattr(self, 'Rroche'):
+            print("Roche radius [cm, RJ, Rp]:", self.Rroche, self.Rroche / RJ, self.Rroche / self.R)
+        if hasattr(self, 'phi'):
+            print("log10(Gravitational potential):", np.log10(self.phi))
+
+    def plot_transit_geometry(self, phase=0.):
+        fig, ax = plt.subplots(1)
+        ax.plot(self.Rstar*np.cos(np.linspace(0, 2*np.pi, 100)), self.Rstar*np.sin(np.linspace(0, 2*np.pi, 100)), c='k')
+        ax.plot(self.a*np.sin(2*np.pi*phase) + self.R*np.cos(np.linspace(0, 2*np.pi, 100)), self.bp*self.Rstar + self.R*np.sin(np.linspace(0, 2*np.pi, 100)), c='b')
+        if hasattr(self, 'Rroche'):
+            ax.plot(self.a*np.sin(2*np.pi*phase) + self.Rroche*np.cos(np.linspace(0, 2*np.pi, 100)), self.bp*self.Rstar + self.Rroche*np.sin(np.linspace(0, 2*np.pi, 100)), c='b', linestyle='dotted')
+        plt.axis('equal')
+        ax.set_xlabel('x [cm]')
+        ax.set_ylabel('y [cm]')
+        ax.set_title(f"Phase: {phase}")
+        plt.show()
+
 
 class Sim:
     '''
