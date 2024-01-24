@@ -1563,19 +1563,19 @@ class Planet:
             self.Rroche = roche_radius(self.a, self.M, self.Mstar)
 
     def print_params(self):
-        print("Name:", self.name)
-        print("Full name:", self.fullname)
-        print("Planet radius [cm, RJ]:", self.R, self.R / RJ)
-        print("Star radius [cm, Rsun]:", self.Rstar, self.Rstar / Rsun)
-        print("Semi-major axis [cm, AU]:", self.a, self.a / AU)
-        print("Planet mass [g, MJ]:", self.M, self.M / MJ)
-        print("Star mass [g, Msun]:", self.Mstar, self.Mstar / Msun)
-        print("Transit impact parameter:", self.bp)
-        print("Stellar spectrum:", self.SEDname)
+        print(f"Name: {self.name}")
+        print(f"Full name: {self.fullname}")
+        print(f"Planet radius: {self.R} cm, {self.R / RJ} RJ")
+        print(f"Star radius: {self.Rstar} cm, {self.Rstar / Rsun} Rsun")
+        print(f"Semi-major axis: {self.a} cm, {self.a / AU} AU")
+        print(f"Planet mass: {self.M} g, {self.M / MJ} MJ")
+        print(f"Star mass: {self.Mstar} g, {self.Mstar / Msun} Msun")
+        print(f"Transit impact parameter: {self.bp} Rstar")
+        print(f"Stellar spectrum name: {self.SEDname}")
         if hasattr(self, 'Rroche'):
-            print("Roche radius [cm, RJ, Rp]:", self.Rroche, self.Rroche / RJ, self.Rroche / self.R)
+            print(f"Roche radius: {self.Rroche} cm, {self.Rroche / RJ} RJ, {self.Rroche / self.R} Rp")
         if hasattr(self, 'phi'):
-            print("log10(Gravitational potential):", np.log10(self.phi))
+            print(f"log10(Gravitational potential): {np.log10(self.phi)} log10(erg/g)")
 
     def plot_transit_geometry(self, phase=0., altmax=None):
         fig, ax = plt.subplots(1)
