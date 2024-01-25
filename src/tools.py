@@ -1477,50 +1477,56 @@ class Planet:
         of the 'planet.txt' file.
     '''
 
-    def __init__(self, name, R=None, Rstar=None, a=None, M=None, Mstar=None, bp=None, Rroche=None, SEDname=None):
+    def __init__(self, name, fullname=None, R=None, Rstar=None, a=None, M=None, Mstar=None, bp=None, SEDname=None):
         #check if we can fetch planet parameters from planets.txt:
         if name in planets_file['name'].values or name in planets_file['full name'].values:
             this_planet = planets_file[(planets_file['name'] == name) | (planets_file['full name'] == name)]
             assert len(this_planet) == 1, "Multiple entries were found in planets.txt for this planet name."
-
+            
+            self.name = this_planet['name'].values[0]
+            self.fullname = this_planet['full name'].values[0]
             self.R = this_planet['R [RJ]'].values[0] * RJ #in cm
             self.Rstar = this_planet['Rstar [Rsun]'].values[0] *Rsun #in cm
             self.a = this_planet['a [AU]'].values[0] * AU #in cm
             self.M = this_planet['M [MJ]'].values[0] * MJ #in g
             self.Mstar = this_planet['Mstar [Msun]'].values[0] * Msun #in g
             self.bp = this_planet['transit impact parameter'].values[0] #dimensionless
-            self.name = this_planet['name'].values[0]
-            self.fullname = this_planet['full name'].values[0]
             self.SEDname = this_planet['SEDname'].values[0].strip() #strip to remove whitespace from beginning and end
+
+            #if any specified, overwrite values read from planets.txt
+            if fullname != None:
+                self.fullname = fullname
+            if R != None:
+                self.R = R
+            if Rstar != None:
+                self.Rstar = Rstar
+            if a != None:
+                self.a = a
+            if M != None:
+                self.M = M
+            if Mstar != None:
+                self.Mstar = Mstar
+            if bp != None:
+                self.bp = bp
+            if SEDname != None:
+                self.SEDname = SEDname
 
         else:
             print("Creating Planet object that's not in the database.")
             self.name = name
-
-        #if they were specified, overwrite potential standard values stated above
-        if R != None:
+            self.fullname = fullname
             self.R = R
-        if Rstar != None:
             self.Rstar = Rstar
-        if a != None:
             self.a = a
-        if M != None:
             self.M = M
-        if Mstar != None:
             self.Mstar = Mstar
-        if bp != None:
             self.bp = bp
-        if SEDname != None:
             self.SEDname = SEDname
 
         self.__update_Rroche()
-        if Rroche != None: #use manually passed value, if any
-            self.Rroche = Rroche
-
         self.__update_phi()
 
-
-    def set_var(self, name=None, R=None, Rstar=None, a=None, M=None, Mstar=None, bp=None, Rroche=None, SEDname=None):
+    def set_var(self, name=None, fullname=None, R=None, Rstar=None, a=None, M=None, Mstar=None, bp=None, SEDname=None):
         '''
         To edit values after creation of the object.
         '''
@@ -1543,8 +1549,6 @@ class Planet:
             self.__update_Rroche()
         if bp != None:
             self.bp = bp
-        if Rroche != None:
-            self.Rroche = Rroche
         if SEDname != None:
             self.SEDname = SEDname
 
@@ -1554,6 +1558,8 @@ class Planet:
         '''
         if (self.M != None) and (self.R != None):
             self.phi = G * self.M / self.R
+        else:
+            self.phi = None
 
     def __update_Rroche(self):
         '''
@@ -1561,27 +1567,37 @@ class Planet:
         '''
         if (self.a != None) and (self.M != None) and (self.Mstar != None):
             self.Rroche = roche_radius(self.a, self.M, self.Mstar)
+        else:
+            self.Rroche = None
 
     def print_params(self):
         print(f"Name: {self.name}")
-        print(f"Full name: {self.fullname}")
-        print(f"Planet radius: {self.R} cm, {self.R / RJ} RJ")
-        print(f"Star radius: {self.Rstar} cm, {self.Rstar / Rsun} Rsun")
-        print(f"Semi-major axis: {self.a} cm, {self.a / AU} AU")
-        print(f"Planet mass: {self.M} g, {self.M / MJ} MJ")
-        print(f"Star mass: {self.Mstar} g, {self.Mstar / Msun} Msun")
-        print(f"Transit impact parameter: {self.bp} Rstar")
-        print(f"Stellar spectrum name: {self.SEDname}")
-        if hasattr(self, 'Rroche'):
+        if self.fullname is not None:
+            print(f"Full name: {self.fullname}")
+        if self.R is not None:
+            print(f"Planet radius: {self.R} cm, {self.R / RJ} RJ")
+        if self.Rstar is not None:
+            print(f"Star radius: {self.Rstar} cm, {self.Rstar / Rsun} Rsun")
+        if self.a is not None:
+            print(f"Semi-major axis: {self.a} cm, {self.a / AU} AU")
+        if self.M is not None:
+            print(f"Planet mass: {self.M} g, {self.M / MJ} MJ")
+        if self.Mstar is not None:
+            print(f"Star mass: {self.Mstar} g, {self.Mstar / Msun} Msun")
+        if self.bp is not None:
+            print(f"Transit impact parameter: {self.bp} Rstar")
+        if self.SEDname is not None:
+            print(f"Stellar spectrum name: {self.SEDname}")
+        if self.Rroche is not None:
             print(f"Roche radius: {self.Rroche} cm, {self.Rroche / RJ} RJ, {self.Rroche / self.R} Rp")
-        if hasattr(self, 'phi'):
+        if self.phi is not None:
             print(f"log10(Gravitational potential): {np.log10(self.phi)} log10(erg/g)")
 
     def plot_transit_geometry(self, phase=0., altmax=None):
         fig, ax = plt.subplots(1)
         ax.plot(self.Rstar*np.cos(np.linspace(0, 2*np.pi, 100)), self.Rstar*np.sin(np.linspace(0, 2*np.pi, 100)), c='k')
         ax.plot(self.a*np.sin(2*np.pi*phase) + self.R*np.cos(np.linspace(0, 2*np.pi, 100)), self.bp*self.Rstar + self.R*np.sin(np.linspace(0, 2*np.pi, 100)), c='b')
-        if hasattr(self, 'Rroche'):
+        if self.Rroche is not None:
             ax.plot(self.a*np.sin(2*np.pi*phase) + self.Rroche*np.cos(np.linspace(0, 2*np.pi, 100)), self.bp*self.Rstar + self.Rroche*np.sin(np.linspace(0, 2*np.pi, 100)), c='b', linestyle='dotted')
         if altmax is not None:
             ax.plot(self.a*np.sin(2*np.pi*phase) + altmax*self.R*np.cos(np.linspace(0, 2*np.pi, 100)), self.bp*self.Rstar + altmax*self.R*np.sin(np.linspace(0, 2*np.pi, 100)), c='b', linestyle='dashed')
