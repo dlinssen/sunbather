@@ -127,10 +127,17 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
     comments = '# plname='+planet.name+'\n# parker_T='+str(T)+'\n# parker_Mdot='+str(Mdot)+'\n# parker_dir='+pdir+'\n# altmax='+str(altmax)
 
     if constantT: #this will run the profile at the isothermal T value instead of converging a nonisothermal profile
-        tools.write_Cloudy_in(path+'constantT', title=planet.name+' 1D Parker with T='+str(T)+' and log(Mdot)='+str(Mdot),
-                                    flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=hdenprof, double_tau=True,
-                                    overwrite=overwrite, cosmic_rays=True, zdict=zdict, comments=comments, constantT=T)
-        os.system("cd "+path+" && "+tools.cloudyruncommand+" constantT")
+        if save_sp == []:
+            tools.write_Cloudy_in(path+'constantT', title=planet.name+' 1D Parker with T='+str(T)+' and log(Mdot)='+str(Mdot),
+                                        flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=hdenprof, double_tau=True,
+                                        overwrite=overwrite, cosmic_rays=True, zdict=zdict, comments=comments, constantT=T)
+        else:
+            tools.write_Cloudy_in(path+'constantT', title=planet.name+' 1D Parker with T='+str(T)+' and log(Mdot)='+str(Mdot),
+                                        flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=hdenprof, double_tau=True,
+                                        overwrite=overwrite, cosmic_rays=True, zdict=zdict, comments=comments, constantT=T,
+                                        outfiles=['.den', '.en'], denspecies=save_sp, selected_den_levels=True)
+        
+        os.system("cd "+path+" && "+tools.cloudyruncommand+" constantT") #run the Cloudy simulation
         return
 
     #else we converge T:
