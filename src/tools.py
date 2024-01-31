@@ -1512,7 +1512,7 @@ class Planet:
                 self.SEDname = SEDname
 
         else:
-            print("Creating Planet object that's not in the database.")
+            print(f"Creating Planet object with name {name} that's not in the database.")
             self.name = name
             self.fullname = fullname
             self.R = R
