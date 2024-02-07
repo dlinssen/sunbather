@@ -488,3 +488,38 @@ def constantR_wavs(wav_lower, wav_upper, R):
         wav += wav/R
     return np.array(wavs)
 
+
+def convolve_spectrum_R(wavs, flux, R, verbose=False):
+    """
+    Convolves a spectrum with a Gaussian filter to a target spectral resolution of R.
+
+    Parameters:
+    - wavs: numpy array, representing wavelengths
+    - flux: numpy array, representing spectrum values
+    - R: float/int, spectral resolution
+    - verbose: bool, print FWHM of Gaussian filter
+
+    Returns:
+    - convolved_spectrum: numpy array, the convolved spectrum
+
+    This function uses a constant gaussian width that is calculated from the middle wavelength point.
+    This means that it only works properly when the wavs array spans a relatively small bandwidth.
+    Since R = delta-lambda / lambda, if the bandwidth is too large, the assumption that 
+    delta-lambda is the same over the whole array will not be valid.
+    """
+
+    assert wavs[1] > wavs[0], "Wavelengths must be in ascending order"
+    assert np.allclose(np.diff(wavs), np.diff(wavs)[0], atol=0., rtol=1e-5), "Wavelengths must be equidistant"
+    if wavs[-1] / wavs[0] > 1.05:
+        print("WARNING: The wavelengths change by more than 5 percent in your array. Converting R into a constant delta-lambda becomes questionable.")
+
+    delta_lambda = wavs[int(len(wavs)/2)] / R #width of the filter in wavelength - use middle wav point
+    FWHM = delta_lambda / np.diff(wavs)[0] #width of the filter in pixels
+    sigma = FWHM / (2*np.sqrt(2*np.log(2))) #std dev. of the gaussian in pixels
+
+    if verbose:
+        print(f"R={R}, lamb={wavs[0]}, delta-lamb={delta_lambda}, FWHM={FWHM} pix, sigma={sigma} pix")
+
+    convolved_spectrum = gaussian_filter1d(flux, sigma)
+
+    return convolved_spectrum
