@@ -241,7 +241,7 @@ def process_heating(filename, Rp=None, altmax=None):
     return heat
 
 
-def process_cooling(filename, Rp=None, altmax=None):
+def process_cooling(filename, Rp=None, altmax=None, cloudy_version="17"):
     '''
     This function reads a .cool file from the 'save cooling' command.
     If Rp and altmax are given, it adds an altitude/radius scale.
@@ -259,7 +259,12 @@ def process_cooling(filename, Rp=None, altmax=None):
             num_columns = len(line.split('\t'))
             max_columns = max(max_columns, num_columns)
     #set up the column names
-    fixed_column_names = ['depth', 'temp', 'htot', 'ctot']
+    if cloudy_version == "17":
+        fixed_column_names = ['depth', 'temp', 'htot', 'ctot']
+    elif cloudy_version == "23":
+        fixed_column_names = ['depth', 'temp', 'htot', 'ctot', 'adv']
+    else:
+        raise Exception("Only C17.02 and C23.01 are currently supported.")
     num_additional_columns = (max_columns - 4) // 2
     additional_column_names = [f'ctype{i}' for i in range(1, num_additional_columns + 1) for _ in range(2)]
     additional_column_names[1::2] = [f'cfrac{i}' for i in range(1, num_additional_columns + 1)]
@@ -424,7 +429,6 @@ def process_energies(filename, rewrite=True):
     #the & set action takes the intersection of all unique species of the .en file, and those known with NIST levels
     unique_species = list(set(en_df.species.values) & set(species_enlim.keys()))
 
-
     for species in unique_species:
         species_levels = pd.read_table(sunbather_path+'/RT_tables/'+species+'_levels_processed.txt') #get the NIST levels
         species_energies = en_df[en_df.species == species].energy #get Cloudy's energies
@@ -441,22 +445,29 @@ def process_energies(filename, rewrite=True):
         if species in ['Ar+8']:
             atol = 0.2
 
-        if not np.all(np.isclose(species_energies.iloc[:species_enlim[species]], species_levels.energy.iloc[:species_enlim[species]], rtol=0.0, atol=atol)):
-            print("Cloudy, NIST, Match?")
-            for i in range(species_enlim[species]):
-                print(species_energies.iloc[i], species_levels.energy.iloc[i], np.isclose(species_energies.iloc[:species_enlim[species]], species_levels.energy.iloc[:species_enlim[species]], rtol=0.0, atol=atol)[i])
-            raise Exception("In ", filename, "while getting states for species", species,
-                    "I expected to be able to match the first", species_enlim[species],
-                    "energy levels between Cloudy and NIST to a precision of", atol, "but I have an energy mismatch.")
+        n_matching = species_enlim[species] #start by assuming we can match this many energy levels - which we in principle should for C17.02
 
+        for n in range(n_matching):
+            if not np.abs(species_energies.iloc[n] - species_levels.energy.iloc[n]) < atol:
+                n_matching = n
 
-        #if we got here, the exception was not triggered and we can assign the first species_enlim[species]
-        #columns to their expected values as given by the species_levels DataFrame (NIST)
-        first_iloc = np.where(en_df.species == species)[0][0] #iloc at which the species (e.g. He) starts.
-        en_df.iloc[first_iloc:first_iloc+species_enlim[species], en_df.columns.get_loc('configuration')] = species_levels.configuration.iloc[:species_enlim[species]].values
-        en_df.iloc[first_iloc:first_iloc+species_enlim[species], en_df.columns.get_loc('term')] = species_levels.term.iloc[:species_enlim[species]].values
-        en_df.iloc[first_iloc:first_iloc+species_enlim[species], en_df.columns.get_loc('J')] = species_levels.J.iloc[:species_enlim[species]].values
+                print(f"WARNING: In {filename} while getting atomic states for species {species}, I expected to be able to match the first {species_enlim[species]} " + \
+                    f"energy levels between Cloudy and NIST to a precision of {atol} (for C17.02) but I have an energy mismatch at energy level {n_matching+1}. " + \
+                    f"This should not introduce bugs, as I will now only parse the first {n_matching} levels.")
+                
+                #for debugging, you can print the energy levels of Cloudy and NIST:
+                #print("\nCloudy, NIST, Match?")
+                #for i in range(species_enlim[species]):
+                #    print(species_energies.iloc[i], species_levels.energy.iloc[i], np.isclose(species_energies.iloc[:species_enlim[species]], species_levels.energy.iloc[:species_enlim[species]], rtol=0.0, atol=atol)[i])
 
+                break
+
+        #Now assign the first n_matching columns to their expected values as given by the NIST species_levels DataFrame
+        first_iloc = np.where(en_df.species == species)[0][0] #iloc at which the species (e.g. He or Ca+3) starts.
+        en_df.iloc[first_iloc:first_iloc+n_matching, en_df.columns.get_loc('configuration')] = species_levels.configuration.iloc[:n_matching].values
+        en_df.iloc[first_iloc:first_iloc+n_matching, en_df.columns.get_loc('term')] = species_levels.term.iloc[:n_matching].values
+        en_df.iloc[first_iloc:first_iloc+n_matching, en_df.columns.get_loc('J')] = species_levels.J.iloc[:n_matching].values
+    
     return en_df
 
 
@@ -1628,13 +1639,20 @@ class Sim:
             raise TypeError("simname must be set to a string")
         self.simname = simname
 
-        #check if the simulation did not crash.
+        #check the Cloudy version, and if the simulation did not crash.
         _succesful = False
         with open(simname+'.out', 'r') as f:
-            if "Cloudy exited OK" in f.read():
+            _outfile_content = f.read()
+            if "Cloudy exited OK" in _outfile_content:
                 _succesful = True
+            if "Cloudy 17" in _outfile_content:
+                self.cloudy_version = "17"
+            elif "Cloudy 23" in _outfile_content:
+                self.cloudy_version = "23"
+            else:
+                raise TypeError(f"This simulation did not use Cloudy v17 or v23, which are the only supported versions: {simname}")
         if not _succesful and not proceedFail:
-            raise FileNotFoundError("This simulation went wrong:", simname, "Check the .out file!")
+            raise FileNotFoundError(f"This simulation went wrong: {simname} Check the .out file!")
 
         #read the .in file to extract some sim info like changes to the chemical composition and altmax
         self.disabled_elements = []
@@ -1731,7 +1749,7 @@ class Sim:
                 self.heat = process_heating(self.simname+'.heat', Rp=_Rp, altmax=_altmax)
                 self.simfiles.append('heat')
             if filetype=='cool' and ('cool' in files or 'all' in files):
-                self.cool = process_cooling(self.simname+'.cool', Rp=_Rp, altmax=_altmax)
+                self.cool = process_cooling(self.simname+'.cool', Rp=_Rp, altmax=_altmax, cloudy_version=self.cloudy_version)
                 self.simfiles.append('cool')
             if filetype=='coolH2' and ('coolH2' in files or 'all' in files):
                 self.coolH2 = process_coolingH2(self.simname+'.coolH2', Rp=_Rp, altmax=_altmax)
