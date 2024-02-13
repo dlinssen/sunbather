@@ -177,7 +177,7 @@ def process_continuum(filename, nonzero=False):
     return con_df
 
 
-def process_heating(filename, Rp=None, altmax=None):
+def process_heating(filename, Rp=None, altmax=None, cloudy_version="17"):
     '''
     This function reads a .heat file from the 'save heating' command.
     If Rp and altmax are given, it adds an altitude/radius scale.
@@ -195,7 +195,12 @@ def process_heating(filename, Rp=None, altmax=None):
             num_columns = len(line.split('\t'))
             max_columns = max(max_columns, num_columns)
     #set up the column names
-    fixed_column_names = ['depth', 'temp', 'htot', 'ctot']
+    if cloudy_version == "17":
+        fixed_column_names = ['depth', 'temp', 'htot', 'ctot']
+    elif cloudy_version == "23":
+        fixed_column_names = ['depth', 'temp', 'htot', 'ctot', 'adv']
+    else:
+        raise Exception("Only C17.02 and C23.01 are currently supported.")
     num_additional_columns = (max_columns - 4) // 2
     additional_column_names = [f'htype{i}' for i in range(1, num_additional_columns + 1) for _ in range(2)]
     additional_column_names[1::2] = [f'hfrac{i}' for i in range(1, num_additional_columns + 1)]
@@ -1746,7 +1751,7 @@ class Sim:
                 self.con = process_continuum(self.simname+'.con')
                 self.simfiles.append('con')
             if filetype=='heat' and ('heat' in files or 'all' in files):
-                self.heat = process_heating(self.simname+'.heat', Rp=_Rp, altmax=_altmax)
+                self.heat = process_heating(self.simname+'.heat', Rp=_Rp, altmax=_altmax, cloudy_version=self.cloudy_version)
                 self.simfiles.append('heat')
             if filetype=='cool' and ('cool' in files or 'all' in files):
                 self.cool = process_cooling(self.simname+'.cool', Rp=_Rp, altmax=_altmax, cloudy_version=self.cloudy_version)
