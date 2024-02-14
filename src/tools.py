@@ -186,6 +186,7 @@ def process_heating(filename, Rp=None, altmax=None, cloudy_version="17"):
     filename:       filename (including full path to it and the .heat extension)
     Rp:             planet radius in cm
     altmax:         maximum radius of the simulation in units of Rp
+    cloudy_version: major version of Cloudy used, number as string
     '''
 
     #determine max number of columns (otherwise pd.read_table assumes it is the number of the first row)
@@ -255,6 +256,7 @@ def process_cooling(filename, Rp=None, altmax=None, cloudy_version="17"):
     filename:       filename (including full path to it and the .cool extension)
     Rp:             planet radius in cm
     altmax:         maximum radius of the simulation in units of Rp
+    cloudy_version: major version of Cloudy used, version as string
     '''
 
     #determine max number of columns (otherwise pd.read_table assumes it is the number of the first row)
