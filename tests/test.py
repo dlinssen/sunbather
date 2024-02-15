@@ -59,8 +59,8 @@ sim_created = tools.Sim(tools.projectpath+'/sims/1D/WASP52b/test/parker_9000_11.
 #load the expected simulation
 sim_expected = tools.Sim('materials/converged')
 #interpolate them to a common altitude grid as Cloudy's internal depth-grid may vary between simulations
-alt_grid = np.logspace(np.log10(max(sim_created.ovr.alt.iloc[-1], sim_expected.ovr.alt.iloc[-1])), 
-                       np.log10(min(sim_created.ovr.alt.iloc[0], sim_expected.ovr.alt.iloc[0])), num=100)
+alt_grid = np.logspace(np.log10(max(sim_created.ovr.alt.iloc[-1], sim_expected.ovr.alt.iloc[-1])+1e4), 
+                       np.log10(min(sim_created.ovr.alt.iloc[0], sim_expected.ovr.alt.iloc[0])-1e4), num=100)
 T_created = interp1d(sim_created.ovr.alt, sim_created.ovr.Te)(alt_grid)
 T_expected = interp1d(sim_expected.ovr.alt, sim_expected.ovr.Te)(alt_grid)
 #check if they are equal to within 10%
