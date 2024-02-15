@@ -40,7 +40,7 @@ This module contains the iterative scheme described in Linssen et al. (2022) to 
 <br>
 
 - #### The _src/config.ini_ file
-This file specifies two important paths that have to be known to _sunbather_, which must be set by the user as part of the _sunbather_ installation. The first is the full path to the root of the _Cloudy v17.02_ installation, for example _/Users/dion/Programs/c17.02/_. The second is the _projectpath_ - see "The _projectpath_ directory" below in this glossary. **Do not use string quotations (" or ') around your paths.**
+This file specifies two important paths that have to be known to _sunbather_, which must be set by the user as part of the _sunbather_ installation. The first is the full path to the root of the _Cloudy_ installation, for example _/Users/dion/Programs/c17.02/_ or _/Users/dion/Programs/c23.01/_. The second is the _projectpath_ - see "The _projectpath_ directory" below in this glossary. **Do not use string quotations (" or ') around your paths.**
 
 <br>
 

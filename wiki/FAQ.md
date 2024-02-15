@@ -58,7 +58,7 @@ Yes, you can pass the `-constantT` flag to `convergeT_parker.py` to simulate the
 
 ## I forgot to specify for which species I want Cloudy output with the `-save_sp` argument. Do I need to run `convergeT_parker.py` again from scratch?
 
-You can use the `tools.insertden_Cloudy_in()` function to add species to a Cloudy simulation file and run it again, without having to go through the temperature convergence scheme again. If you want to do this for a grid of Parker wind models, you will have to set up a loop over the correct filepaths yourself.
+You can use the `tools.insertden_Cloudy_in()` function to add species to a (converged) Cloudy simulation file and run it again, without having to go through the temperature convergence scheme again. If you want to do this for a grid of Parker wind models, you will have to set up a loop over the correct filepaths yourself.
 
 ## Can I run an atmospheric profile other than an (isothermal) Parker wind?
 
