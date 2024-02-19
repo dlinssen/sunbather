@@ -51,7 +51,15 @@ def cloudy_spec_to_pwinds(SEDfilename, dist_SED, dist_planet):
     return spectrum
 
 
-def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9, dir='fH=0.9', overwrite=False):
+def calc_neutral_mu(zdict):
+    abundances = tools.get_abundances(zdict)
+    neutral_mu = tools.calc_mu(1., 0., abundances=abundances) #set ne=0 so completely neutral
+
+    return neutral_mu
+
+
+def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9, 
+                              dir='fH=0.9', overwrite=False):
     '''
     Uses the p-winds code (dos Santos et al. 2022)
     Runs p_winds and saves a 'pprof' txt file with the r, rho, v, mu structure.
@@ -122,7 +130,8 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9, dir='fH
     print("Parker wind profile done:", save_name)
 
 
-def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=None, mu_struc=None):
+def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, 
+                             mu_bar=None, mu_struc=None):
     '''
     Uses the p-winds code (dos Santos et al. 2022)
     Runs p_winds and saves a 'pprof' txt file with the r, rho, v, mu structure.
@@ -265,7 +274,9 @@ def verbose_print(message, verbose=False):
         print(message)
 
 
-def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, dir, convergence=0.01, maxit=7, cleantemp=False, overwrite=False, verbose=False):
+def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, dir, 
+                               convergence=0.01, maxit=7, cleantemp=False, 
+                               overwrite=False, verbose=False, avoid_pwinds_mubar=False):
     '''
     Calculates a Parker wind profile with any composition by iteratively
     running the p-winds code (dos Santos et al. 2022) and Cloudy (Ferland 1998; 2017).
@@ -300,9 +311,16 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, dir, convergenc
         print("Parker profile already exists and overwrite = False:", planet.name, dir, "%.3f" %Mdot, T)
         return #this quits the function but if we're running a grid, it doesn't quit the whole Python code
 
-    verbose_print("Making initial parker profile with p-winds...", verbose=verbose)
-    filename, previous_mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=None)
-    verbose_print(f"Saved temp parker profile with p-winds's mu_bar: {previous_mu_bar}" , verbose=verbose)
+    if avoid_pwinds_mubar:
+        verbose_print("Making initial parker profile while assuming a completely neutral mu_bar...", verbose=verbose)
+        neutral_mu_bar = calc_neutral_mu(zdict)
+        neutral_mu_struc = np.array([[1., neutral_mu_bar], [20., neutral_mu_bar]]) #set up an array with constant mu(r) at the neutral value
+        filename, previous_mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=neutral_mu_bar, mu_struc=neutral_mu_struc)
+        verbose_print(f"Saved temp parker profile with neutral mu_bar: {previous_mu_bar}" , verbose=verbose)
+    else:
+        verbose_print("Making initial parker profile with p-winds...", verbose=verbose)
+        filename, previous_mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=None)
+        verbose_print(f"Saved temp parker profile with p-winds's mu_bar: {previous_mu_bar}" , verbose=verbose)
 
     for itno in range(maxit):
         verbose_print(f"Iteration number: {itno+1}", verbose=verbose)
@@ -337,7 +355,8 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, dir, convergenc
         verbose_print("Temporary files removed.", verbose=verbose)
 
 
-def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit, overwrite, verbose):
+def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, 
+          mu_maxit, overwrite, verbose, avoid_pwinds_mubar):
     p = tools.Planet(plname)
     if SEDname != 'real':
         p.set_var(SEDname=SEDname)
@@ -346,7 +365,9 @@ def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit, overwrit
     if fH != None: #then run p_winds standalone
         save_plain_parker_profile(p, Mdot, T, spectrum, h_fraction=fH, dir=pdir, overwrite=overwrite)
     else: #then run p_winds/Cloudy iterative scheme
-        save_cloudy_parker_profile(p, Mdot, T, spectrum, zdict, pdir, convergence=mu_conv, maxit=mu_maxit, cleantemp=True, overwrite=overwrite, verbose=verbose)
+        save_cloudy_parker_profile(p, Mdot, T, spectrum, zdict, pdir, 
+                                   convergence=mu_conv, maxit=mu_maxit, cleantemp=True, 
+                                   overwrite=overwrite, verbose=verbose, avoid_pwinds_mubar=avoid_pwinds_mubar)
 
 
 def catch_errors_run_s(*args):
@@ -356,7 +377,9 @@ def catch_errors_run_s(*args):
         traceback.print_exc()
 
 
-def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, SEDname, fH, zdict, mu_conv, mu_maxit, overwrite, verbose):
+def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, 
+          T_l, T_u, T_s, SEDname, fH, zdict, mu_conv, 
+          mu_maxit, overwrite, verbose, avoid_pwinds_mubar):
     '''
     Runs the function run_s in parallel for a given grid of Mdots and T, and
     for given number of cores (=parallel processes).
@@ -367,7 +390,7 @@ def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, SEDname, f
     pars = []
     for Mdot in np.arange(float(Mdot_l), float(Mdot_u)+1e-6, float(Mdot_s)): #1e-6 so that upper bound is inclusive
         for T in np.arange(int(T_l), int(T_u)+1e-6, int(T_s)).astype(int):
-            pars.append((plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit, overwrite, verbose))
+            pars.append((plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit, overwrite, verbose, avoid_pwinds_mubar))
 
     p.starmap(catch_errors_run_s, pars)
     p.close()
@@ -423,6 +446,9 @@ if __name__ == '__main__':
     parser.add_argument("-mu_maxit", type=int, default=7, help="maximum number of iterations the p_winds/Cloudy iterative scheme is ran " \
                                         "if convergence is not reached [default =7]")
     parser.add_argument("-verbose", action='store_true', help="print out mu-bar values of each iteration [default=False]")
+    parser.add_argument("-avoid_pwinds_mubar", action='store_true', help="avoid using the mu-bar value predicted by p-winds for the first iteration. Instead, " \
+                                        "start with a mu_bar of a completely neutral atmosphere. Helps to avoid the p-winds 'solve_ivp' errors. You may need to " \
+                                        "use a -mu_maxit higher than 7 when toggling this on. [default=False]")
     args = parser.parse_args()
 
     if args.z != None:
@@ -430,8 +456,8 @@ if __name__ == '__main__':
     else: #if z==None we should not pass that to the tools.get_zdict function
         zdict = tools.get_zdict(zelem=args.zelem)
 
-    if args.fH != None and (args.zelem != {} or args.mu_conv != 0.01 or args.mu_maxit != 7):
-        print("The -zelem, -mu_conv and -mu_maxit commands only combine with -z, not with -fH, so I will ignore their input.")
+    if args.fH != None and (args.zelem != {} or args.mu_conv != 0.01 or args.mu_maxit != 7 or args.avoid_pwinds_mubar):
+        print("The -zelem, -mu_conv -mu_maxit, and -avoid_pwinds_mubar commands only combine with -z, not with -fH, so I will ignore their input.")
 
     #set up the folder structure if it doesn't exist yet
     if not os.path.isdir(tools.projectpath+'/parker_profiles/'):
@@ -444,12 +470,12 @@ if __name__ == '__main__':
         os.mkdir(tools.projectpath+'/parker_profiles/'+args.plname+'/'+args.pdir+'/temp')
 
     if (len(args.T) == 1 and len(args.Mdot) == 1): #then we run a single model
-        run_s(args.plname, args.pdir, args.Mdot[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose)
+        run_s(args.plname, args.pdir, args.Mdot[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose, args.avoid_pwinds_mubar)
     elif (len(args.T) == 3 and len(args.Mdot) == 3): #then we run a grid over both parameters
-        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose)
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose, args.avoid_pwinds_mubar)
     elif (len(args.T) == 3 and len(args.Mdot) == 1): #then we run a grid over only T
-        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose)
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose, args.avoid_pwinds_mubar)
     elif (len(args.T) == 1 and len(args.Mdot) == 3): #then we run a grid over only Mdot
-        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose)
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose, args.avoid_pwinds_mubar)
 
     print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")
