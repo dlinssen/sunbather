@@ -1543,6 +1543,7 @@ class Planet:
 
         self.__update_Rroche()
         self.__update_phi()
+        self.__update_Kp()
 
     def set_var(self, name=None, fullname=None, R=None, Rstar=None, a=None, M=None, Mstar=None, bp=None, SEDname=None):
         '''
@@ -1558,13 +1559,16 @@ class Planet:
         if a != None:
             self.a = a
             self.__update_Rroche()
+            self.__update_Kp()
         if M != None:
             self.M = M
             self.__update_phi()
             self.__update_Rroche()
+            self.__update_Kp()
         if Mstar != None:
             self.Mstar = Mstar
             self.__update_Rroche()
+            self.__update_Kp()
         if bp != None:
             self.bp = bp
         if SEDname != None:
@@ -1588,6 +1592,15 @@ class Planet:
         else:
             self.Rroche = None
 
+    def __update_Kp(self):
+        '''
+        Tries to update the orbital velocity.
+        '''
+        if (self.a != None) and (self.M != None) and (self.Mstar != None):
+            self.Kp = np.sqrt(G * (self.M + self.Mstar) / self.a)
+        else:
+            self.Kp = None
+
     def print_params(self):
         print(f"Name: {self.name}")
         if self.fullname is not None:
@@ -1610,18 +1623,32 @@ class Planet:
             print(f"Roche radius: {self.Rroche} cm, {self.Rroche / RJ} RJ, {self.Rroche / self.R} Rp")
         if self.phi is not None:
             print(f"log10(Gravitational potential): {np.log10(self.phi)} log10(erg/g)")
+        if self.Kp is not None:
+            print(f"Orbital velocity semi-amplitude: {self.Kp} cm/s, {self.Kp/1e5} km/s")
 
     def plot_transit_geometry(self, phase=0., altmax=None):
+        '''
+        Shows a schematic of the transit geometry. Helpful to understand
+        where the planet and its atmosphere are relative to the stellar disk,
+        for a given planet impact parameter and phase. In dotted, the planet
+        roche radius is shown. If given, another 'altmax' of the atmosphere
+        (8 by default) can be drawn in dashed.
+        '''
         fig, ax = plt.subplots(1)
         ax.plot(self.Rstar*np.cos(np.linspace(0, 2*np.pi, 100)), self.Rstar*np.sin(np.linspace(0, 2*np.pi, 100)), c='k')
+        ax.text(1/np.sqrt(2)*self.Rstar, -1/np.sqrt(2)*self.Rstar, r"$R_s$", color="k", ha="left", va="top")
         ax.plot(self.a*np.sin(2*np.pi*phase) + self.R*np.cos(np.linspace(0, 2*np.pi, 100)), self.bp*self.Rstar + self.R*np.sin(np.linspace(0, 2*np.pi, 100)), c='b')
+        ax.text(self.a*np.sin(2*np.pi*phase) + self.R, self.bp*self.Rstar, r"$\rightarrow$", color="b", ha="left", va="top")
+        ax.text(self.a*np.sin(2*np.pi*phase) + 1/np.sqrt(2)*self.R, self.bp*self.Rstar - 1/np.sqrt(2)*self.R, r"$R_P$", color="b", ha="left", va="top")
         if self.Rroche is not None:
             ax.plot(self.a*np.sin(2*np.pi*phase) + self.Rroche*np.cos(np.linspace(0, 2*np.pi, 100)), self.bp*self.Rstar + self.Rroche*np.sin(np.linspace(0, 2*np.pi, 100)), c='b', linestyle='dotted')
+            ax.text(self.a*np.sin(2*np.pi*phase) + 1/np.sqrt(2)*self.Rroche, self.bp*self.Rstar - 1/np.sqrt(2)*self.Rroche, r"$R_{Roche}$", color="b", ha="left", va="top")
         if altmax is not None:
             ax.plot(self.a*np.sin(2*np.pi*phase) + altmax*self.R*np.cos(np.linspace(0, 2*np.pi, 100)), self.bp*self.Rstar + altmax*self.R*np.sin(np.linspace(0, 2*np.pi, 100)), c='b', linestyle='dashed')
+            ax.text(self.a*np.sin(2*np.pi*phase) + altmax/np.sqrt(2)*self.R, self.bp*self.Rstar - altmax/np.sqrt(2)*self.R, "altmax", color="b", ha="left", va="top")
         plt.axis('equal')
-        ax.set_xlabel('x [cm]')
-        ax.set_ylabel('y [cm]')
+        ax.set_xlabel('y [cm]')
+        ax.set_ylabel('z [cm]')
         ax.set_title(f"Phase: {phase}")
         plt.show()
 
