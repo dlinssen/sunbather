@@ -1635,21 +1635,45 @@ class Planet:
         (8 by default) can be drawn in dashed.
         '''
         fig, ax = plt.subplots(1)
-        ax.plot(self.Rstar*np.cos(np.linspace(0, 2*np.pi, 100)), self.Rstar*np.sin(np.linspace(0, 2*np.pi, 100)), c='k')
-        ax.text(1/np.sqrt(2)*self.Rstar, -1/np.sqrt(2)*self.Rstar, r"$R_s$", color="k", ha="left", va="top")
-        ax.plot(self.a*np.sin(2*np.pi*phase) + self.R*np.cos(np.linspace(0, 2*np.pi, 100)), self.bp*self.Rstar + self.R*np.sin(np.linspace(0, 2*np.pi, 100)), c='b')
-        ax.text(self.a*np.sin(2*np.pi*phase) + self.R, self.bp*self.Rstar, r"$\rightarrow$", color="b", ha="left", va="top")
-        ax.text(self.a*np.sin(2*np.pi*phase) + 1/np.sqrt(2)*self.R, self.bp*self.Rstar - 1/np.sqrt(2)*self.R, r"$R_P$", color="b", ha="left", va="top")
+        #draw star
+        ax.plot(self.Rstar*np.cos(np.linspace(0, 2*np.pi, 100)), self.Rstar*np.sin(np.linspace(0, 2*np.pi, 100)), c='k', zorder=0)
+        ax.text(1/np.sqrt(2)*self.Rstar, -1/np.sqrt(2)*self.Rstar, r"$R_s$", color="k", ha="left", va="top", zorder=0)
+
+        #draw planet
+        pl_zorder = -1 if (phase%1 > 0.25 and phase%1 < 0.75) else 1
+        ax.plot(self.a*np.sin(2*np.pi*phase) + self.R*np.cos(np.linspace(0, 2*np.pi, 100)), 
+                self.bp*self.Rstar + self.R*np.sin(np.linspace(0, 2*np.pi, 100)), c='b', zorder=pl_zorder)
+        ax.text(self.a*np.sin(2*np.pi*phase) + 1/np.sqrt(2)*self.R, self.bp*self.Rstar - 1/np.sqrt(2)*self.R, 
+                    r"$R_P$", color="b", ha="left", va="top", zorder=pl_zorder)
+        
+        #draw planet vy direction
+        if phase%1 > 0.75 or phase%1 < 0.25:
+            ax.text(self.a*np.sin(2*np.pi*phase) + self.R, self.bp*self.Rstar, r"$\rightarrow$", color="b", ha="left", va="top", zorder=pl_zorder)
+            title = f"Phase: {phase} mod 1 = {phase%1}"
+        elif phase%1 > 0.25 and phase%1 < 0.75:
+            ax.text(self.a*np.sin(2*np.pi*phase) - self.R, self.bp*self.Rstar, r"$\leftarrow$", color="b", ha="right", va="top", zorder=pl_zorder)
+            title = f"Phase: {phase} mod 1 = {phase%1} (planet behind star)"
+        else: #at 0.25 or 0.75, only vx velocity
+            pass
+    
+        #draw Roche indication
         if self.Rroche is not None:
-            ax.plot(self.a*np.sin(2*np.pi*phase) + self.Rroche*np.cos(np.linspace(0, 2*np.pi, 100)), self.bp*self.Rstar + self.Rroche*np.sin(np.linspace(0, 2*np.pi, 100)), c='b', linestyle='dotted')
-            ax.text(self.a*np.sin(2*np.pi*phase) + 1/np.sqrt(2)*self.Rroche, self.bp*self.Rstar - 1/np.sqrt(2)*self.Rroche, r"$R_{Roche}$", color="b", ha="left", va="top")
+            ax.plot(self.a*np.sin(2*np.pi*phase) + self.Rroche*np.cos(np.linspace(0, 2*np.pi, 100)), 
+                    self.bp*self.Rstar + self.Rroche*np.sin(np.linspace(0, 2*np.pi, 100)), c='b', linestyle='dotted')
+            ax.text(self.a*np.sin(2*np.pi*phase) + 1/np.sqrt(2)*self.Rroche, self.bp*self.Rstar - 1/np.sqrt(2)*self.Rroche, 
+                    r"$R_{Roche}$", color="b", ha="left", va="top", zorder=pl_zorder)
+        
+        #draw altmax indication
         if altmax is not None:
-            ax.plot(self.a*np.sin(2*np.pi*phase) + altmax*self.R*np.cos(np.linspace(0, 2*np.pi, 100)), self.bp*self.Rstar + altmax*self.R*np.sin(np.linspace(0, 2*np.pi, 100)), c='b', linestyle='dashed')
-            ax.text(self.a*np.sin(2*np.pi*phase) + altmax/np.sqrt(2)*self.R, self.bp*self.Rstar - altmax/np.sqrt(2)*self.R, "altmax", color="b", ha="left", va="top")
+            ax.plot(self.a*np.sin(2*np.pi*phase) + altmax*self.R*np.cos(np.linspace(0, 2*np.pi, 100)), 
+                    self.bp*self.Rstar + altmax*self.R*np.sin(np.linspace(0, 2*np.pi, 100)), c='b', linestyle='dashed')
+            ax.text(self.a*np.sin(2*np.pi*phase) + altmax/np.sqrt(2)*self.R, self.bp*self.Rstar - altmax/np.sqrt(2)*self.R, 
+                    "altmax", color="b", ha="left", va="top", zorder=pl_zorder)
+        
         plt.axis('equal')
         ax.set_xlabel('y [cm]')
         ax.set_ylabel('z [cm]')
-        ax.set_title(f"Phase: {phase}")
+        ax.set_title(title)
         plt.show()
 
 
