@@ -87,6 +87,7 @@ def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma):
         gamma = np.array([gamma])
 
     gaus_sigma = np.sqrt(tools.k * Te[None,None,:] / m) * nu0[None,:,None,None] / tools.c
+    #the following has a minus sign like in Eq. 21 of Oklopcic&Hirata (2018) because their formula is only correct if you take v_LOS from star->planet i.e. vx   
     Delnu = (nu[:,None,None,None] - nu0[None,:,None,None]) - nu0[None,:,None,None] / tools.c * vx[None,None,:]
     tau_cube = trapezoid(ndens[None,None,:] * sig0[None,:,None,None] * voigt_profile(Delnu, gaus_sigma, gamma[None,:,None,None]), x=x)
     tau = np.sum(tau_cube, axis=1) #sum up the contributions of the different lines -> now tau has axis 0:freq, axis 1:rayno
@@ -125,6 +126,7 @@ def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma):
         gamma = np.array([gamma])
 
     gaus_sigma = np.sqrt(tools.k * Te[None,:] / m) * nu0[:,None,None] / tools.c
+    #the following has a minus sign like in Eq. 21 of Oklopcic&Hirata (2018) because their formula is only correct if you take v_LOS from star->planet i.e. vx   
     Delnu = (nu - nu0[:,None,None]) - nu0[:,None,None] / tools.c * vx[None,:]
     integrand = ndens[None,:] * sig0[:,None,None] * voigt_profile(Delnu, gaus_sigma, gamma[:,None,None])
     bin_tau = np.zeros_like(integrand)
@@ -208,7 +210,7 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
     return spNIST
 
 
-def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), phase=0., **kwargs):
+def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), phase=0., phase_bulkshift=False, **kwargs):
     '''
     Calculates Fin/Fout transit spectrum for a given wavelength range, and a given
     (list of) species. Includes limb darkening.
@@ -222,12 +224,12 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
     width_fac:  a multiplication factor for the 'max_voigt_width'
                 parameter, which sets how far to either side of the line core
                 we still calculate optical depths for every line.
-                Standard value is 5 Gaussian standard deviations + 10 Lorentzian gammas.
+                Standard value is 5 Gaussian standard deviations + 5 Lorentzian gammas.
                 For e.g. Lyman alpha, you probably need a >1 factor here,
                 since the far Lorentzian wings are probed.
-    ab:     quadratic limb darkening parameters. Either a list/array of two values if the
-            limb-darkening is wavelength-independent, or an array with shape (len(wavs),2)
-            if the limb-darkening is wavelength-dependent.
+    ab:         quadratic limb darkening parameters. Either a list/array of two values if the
+                limb-darkening is wavelength-independent, or an array with shape (len(wavs),2)
+                if the limb-darkening is wavelength-dependent.
     phase:      planetary orbital phase 0<phase<1 where 0 is mid-transit.
                 my implementation of phase does not (yet) take into account the
                 tidally-locked rotation of the planet. so you'll always see the
@@ -236,7 +238,7 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
     '''
 
     assert hasattr(sim, 'p'), "The sim must have an attributed Planet object"
-    assert 'v' in sim.ovr.columns, "We need a velocity structure, such as that from adding a Parker object to the sim."
+    assert 'v' in sim.ovr.columns, "We need a velocity structure, such as that from adding a Parker object to the sim"
     
     ab = np.array(ab) #turn possible list into array
     if ab.ndim == 1:
@@ -251,7 +253,11 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
     v1 = sim.ovr.v.values[::-1]
 
     b, x, Te = tools.project_1D_to_2D(r1, Te1, Rp, numb=numrays)
-    b, x, vx = tools.project_1D_to_2D(r1, v1, Rp, numb=numrays, directional=True)
+    b, x, vx = tools.project_1D_to_2D(r1, v1, Rp, numb=numrays, x_projection=True)
+
+    if phase_bulkshift:
+        assert hasattr(sim.p, 'Kp'), "The Planet object does not have a Kp attribute, likely because either a, Mp or Mstar is unknown"
+        vx = vx - sim.p.Kp * np.sin(phase * 2*np.pi) #negative sign because x is defined as positive towards the observer.
 
     state_ndens = {}
     tau = np.zeros((len(wavsAA), numrays))
@@ -274,10 +280,10 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
         spNIST = read_NIST_lines(spec, wavlower=wavsAA[0], wavupper=wavsAA[-1])
 
         for lineno in spNIST.index.values: #loop over all lines in the spNIST table.
-            gaus_sigma_max = 0.5*np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec)) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
+            gaus_sigma_max = np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec)) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
             max_voigt_width = 5*(gaus_sigma_max+spNIST['lorgamma'].loc[lineno]) * width_fac #the max offset of Voigt components (=natural+thermal broad.)
-            linenu_low = (1-np.max(vx)/tools.c) * spNIST.nu0.loc[lineno] - max_voigt_width
-            linenu_hi = (1-np.min(vx)/tools.c) * spNIST.nu0.loc[lineno] + max_voigt_width
+            linenu_low = (1 + np.min(vx)/tools.c) * spNIST.nu0.loc[lineno] - max_voigt_width
+            linenu_hi = (1 + np.max(vx)/tools.c) * spNIST.nu0.loc[lineno] + max_voigt_width
 
             nus_line = nus[(nus > linenu_low) & (nus < linenu_hi)] #the frequency values that make sense to calculate for this line
             if nus_line.size == 0: #then this line is not in our wav range and we skip it
@@ -320,18 +326,18 @@ def tau_1D(sim, wavAA, species, width_fac=1., **kwargs):
 
     sim:        'Sim' class object of a Cloudy simulation. Needs to have
                 Planet and Parker objects as attributes.
-    wavsAA:     wavelengths to calculate spectrum on, in Angstroms (1D)
+    wavAA:      wavelength to calculate optical depth at, in Angstroms
     species:    string or list of species name(s) to calculate, e.g. H, Fe+, C, Mg2+
                 this species must be present in Cloudy's .en and .den files
-    numrays:    number of rays with different impact parameters we project the 1D structure to (int)
     width_fac:  a multiplication factor for the 'max_voigt_width'
                         parameter, which sets how far to either side of the line core
                         we still calculate optical depths for every line.
-                        Standard value is 5 Gaussian standard deviations + 10 Lorentzian gammas.
+                        Standard value is 5 Gaussian standard deviations + 5 Lorentzian gammas.
                         For e.g. Lyman alpha, you probably need a >1 factor here,
                         since the far Lorentzian wings are probed.
     '''
 
+    assert isinstance(wavAA, float) or isinstance(wavAA, int), "Pass one wavelength in Å as a float or int"
     assert hasattr(sim, 'p'), "The sim must have an attributed Planet object"
     assert 'v' in sim.ovr.columns, "We need a velocity structure, such as that from adding a Parker object to the sim."
 
@@ -340,7 +346,8 @@ def tau_1D(sim, wavAA, species, width_fac=1., **kwargs):
 
     d = sim.ovr.depth.values
     Te = sim.ovr.Te.values
-    v = sim.ovr.v.values[::-1]
+    v = sim.ovr.v.values #radial velocity
+    vx = -v #because we do the substellar ray which is towards the -x direction
 
     tot_cum_tau, tot_bin_tau = np.zeros_like(d), np.zeros_like(d)
 
@@ -354,10 +361,10 @@ def tau_1D(sim, wavAA, species, width_fac=1., **kwargs):
         spNIST = read_NIST_lines(spec)
 
         for lineno in spNIST.index.values: #loop over all lines in the spNIST table.
-            gaus_sigma_max = 0.5*np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec)) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
+            gaus_sigma_max = np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec)) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
             max_voigt_width = 5*(gaus_sigma_max+spNIST['lorgamma'].loc[lineno]) * width_fac #the max offset of Voigt components (=natural+thermal broad.)
-            linenu_low = (1-np.max(v)/tools.c) * spNIST.nu0.loc[lineno] - max_voigt_width
-            linenu_hi = (1-np.min(v)/tools.c) * spNIST.nu0.loc[lineno] + max_voigt_width
+            linenu_low = (1 + np.min(vx)/tools.c) * spNIST.nu0.loc[lineno] - max_voigt_width
+            linenu_hi = (1 + np.max(vx)/tools.c) * spNIST.nu0.loc[lineno] + max_voigt_width
 
             if (nu < linenu_low) | (nu > linenu_hi): #then this line does not probe our requested wav and we skip it
                 continue #to next spectral line
@@ -372,7 +379,7 @@ def tau_1D(sim, wavAA, species, width_fac=1., **kwargs):
 
             ndens = sim.den[colname].values * lineweight #see explanation in FinFout_2D function
 
-            cum_tau, bin_tau = calc_cum_tau(d, ndens, Te, v, nu, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno])
+            cum_tau, bin_tau = calc_cum_tau(d, ndens, Te, vx, nu, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno])
             tot_cum_tau += cum_tau[0] #add the tau values to the total (of all species & lines together)
             tot_bin_tau += bin_tau[0]
 
@@ -382,15 +389,17 @@ def tau_1D(sim, wavAA, species, width_fac=1., **kwargs):
 def tau_12D(sim, wavAA, species, width_fac=1., **kwargs):
     '''
     For a 1D simulation, still maps out the optical depth in 2D.
+    See tau_1D() for explanation of the arguments.
     '''
 
+    assert isinstance(wavAA, float) or isinstance(wavAA, int), "Pass one wavelength in Å as a float or int"
     assert hasattr(sim, 'p')
     assert 'v' in sim.ovr.columns, "We need a velocity structure, such as that from adding a Parker object to the sim."
 
     nu = tools.c*1e8 / wavAA #Hz, converted c to AA/s
 
     b, x, Te = tools.project_1D_to_2D(sim.ovr.alt.values[::-1], sim.ovr.Te.values[::-1], sim.p.R)
-    b, x, vx = tools.project_1D_to_2D(sim.ovr.alt.values[::-1], sim.ovr.v.values[::-1], sim.p.R, directional=True)
+    b, x, vx = tools.project_1D_to_2D(sim.ovr.alt.values[::-1], sim.ovr.v.values[::-1], sim.p.R, x_projection=True)
 
     tot_cum_tau, tot_bin_tau = np.zeros_like(vx), np.zeros_like(vx)
 
@@ -404,10 +413,10 @@ def tau_12D(sim, wavAA, species, width_fac=1., **kwargs):
         spNIST = read_NIST_lines(spec)
 
         for lineno in spNIST.index.values: #loop over all lines in the spNIST table.
-            gaus_sigma_max = 0.5*np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec)) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
+            gaus_sigma_max = np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec)) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
             max_voigt_width = 5*(gaus_sigma_max+spNIST['lorgamma'].loc[lineno]) * width_fac #the max offset of Voigt components (=natural+thermal broad.)
-            linenu_low = (1-np.max(vx)/tools.c) * spNIST.nu0.loc[lineno] - max_voigt_width
-            linenu_hi = (1-np.min(vx)/tools.c) * spNIST.nu0.loc[lineno] + max_voigt_width
+            linenu_low = (1 + np.min(vx)/tools.c) * spNIST.nu0.loc[lineno] - max_voigt_width
+            linenu_hi = (1 + np.max(vx)/tools.c) * spNIST.nu0.loc[lineno] + max_voigt_width
 
             if (nu < linenu_low) | (nu > linenu_hi): #then this line does not probe our requested wav and we skip it
                 continue #to next spectral line

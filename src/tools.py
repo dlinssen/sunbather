@@ -983,7 +983,7 @@ def alt_array_to_Cloudy(alt, quantity, altmax, Rp, nmax, log=True):
     return law
 
 
-def project_1D_to_2D(r1, q1, Rp, numb=101, directional=False, cut_at=None, **kwargs):
+def project_1D_to_2D(r1, q1, Rp, numb=101, x_projection=False, cut_at=None, **kwargs):
     '''
     Projects a 1D sub-stellar solution to a 2D symmetric structure,
     e.g. so that we can do RT with it. This function preserves the maximum altitude
@@ -998,16 +998,16 @@ def project_1D_to_2D(r1, q1, Rp, numb=101, directional=False, cut_at=None, **kwa
                     necessarily at the lowest r-value (which may be slightly r[0] != Rp)
     numb:           the number of bins in the y-directtion (impact parameters)
                     twice this number is used in the x-direction (l.o.s.)
-    directional:    True or False. Whether the quantity q is directional, so
-                    that we need to multiply with a projection factor, and
-                    add a minus sign in some bins.
-                    + = in direction away from observer (negative x), so e.g. for x-velocity,
-                    + values will be redshifted.
+    x_projection:   True or False. Whether to return the projection of q1(r1) in the x direction.
+                    For example for radial outflow velocities, to convert it to a velocity in the x-direction,
+                    set this to True so that you get v_x, where positive v_x are in the
+                    x-direction, i.e. from the star towards the observer.
     cut_at:          radius at which we 'cut' the 2D structure and set values to 0.
                     e.g. to set density 0 outside roche radius.
     '''
 
     assert r1[1] > r1[0], "arrays must be in order of ascending altitude"
+    assert "directional" not in kwargs, "'directional' is deprecated. Use 'x_projection' instead and beware of the +/- signs"
 
     b = np.logspace(np.log10(0.1*Rp), np.log10(r1[-1] - 0.9*Rp), num=numb) + 0.9*Rp #impact parameters for 2D rays
     #x = np.linspace(-r1[-1], r1[-1], num=2*numb) #x values for the 2D grid #decrepated linear grid, not 100% if other functions relied on x being spaced equally.
@@ -1017,8 +1017,8 @@ def project_1D_to_2D(r1, q1, Rp, numb=101, directional=False, cut_at=None, **kwa
     rr = np.sqrt(bb**2 + xx**2) #radii from planet core in 2D
 
     q2 = interp1d(r1, q1, fill_value=0., bounds_error=False)(rr)
-    if directional:
-        q2 = -q2 * xx / np.sqrt(xx**2 + bb**2) #need to add the minus because q is defined positive at negative x.
+    if x_projection:
+        q2 = q2 * xx / rr #now q2 is the projection in the x-direction
 
     if cut_at != None:
         q2[rr > cut_at] = 0.
