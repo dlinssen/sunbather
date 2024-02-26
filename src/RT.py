@@ -52,7 +52,7 @@ def avg_limbdark_quad(ab):
     return I_avg
 
 
-def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma):
+def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
     '''
     Calculates optical depth using Eq. 19 from Oklopcic&Hirata 2018.
     Does this at once for all rays, lines and frequencies. When doing
@@ -71,6 +71,7 @@ def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma):
     m:      mass of species in g
     sig0:   cross-section of the lines 1D, Eq. 20 from Oklopcic&Hirata 2018.
     gamma:  HWHM of Lorentzian line part, 1D
+    turbulence: whether to add line broadening due to turbulence, Eq. 16 from Lampon et al. 2020
 
     The quantities are all treated as 4D here internally, where:
     axis 0: the frequency axis
@@ -86,7 +87,10 @@ def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma):
     if not isinstance(gamma, np.ndarray):
         gamma = np.array([gamma])
 
-    gaus_sigma = np.sqrt(tools.k * Te[None,None,:] / m) * nu0[None,:,None,None] / tools.c
+    if turbulence:
+        gaus_sigma = np.sqrt(tools.k * Te[None,None,:] / m + 5/6*tools.k * Te[None,None,:] / m) * nu0[None,:,None,None] / tools.c
+    else:
+        gaus_sigma = np.sqrt(tools.k * Te[None,None,:] / m) * nu0[None,:,None,None] / tools.c
     #the following has a minus sign like in Eq. 21 of Oklopcic&Hirata (2018) because their formula is only correct if you take v_LOS from star->planet i.e. vx   
     Delnu = (nu[:,None,None,None] - nu0[None,:,None,None]) - nu0[None,:,None,None] / tools.c * vx[None,None,:]
     tau_cube = trapezoid(ndens[None,None,:] * sig0[None,:,None,None] * voigt_profile(Delnu, gaus_sigma, gamma[None,:,None,None]), x=x)
@@ -95,7 +99,7 @@ def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma):
     return tau
 
 
-def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma):
+def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
     '''
     Similar to the function 'calc_tau', except that this does not just give the
     total optical depth for each ray, but gives the cumulative optical depth at
@@ -111,6 +115,7 @@ def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma):
     m:      mass of species in g
     sig0:   cross-section of the lines 1D, Eq. 20 from Oklopcic&Hirata 2018.
     gamma:  HWHM of Lorentzian line part, 1D
+    turbulence: whether to add line broadening due to turbulence, Eq. 16 from Lampon et al. 2020
 
     The quantities are all treated as 3D here internally, where:
     axis 0: the different spectral lines
@@ -125,7 +130,10 @@ def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma):
     if not isinstance(gamma, np.ndarray):
         gamma = np.array([gamma])
 
-    gaus_sigma = np.sqrt(tools.k * Te[None,:] / m) * nu0[:,None,None] / tools.c
+    if turbulence:
+        gaus_sigma = np.sqrt(tools.k * Te[None,None,:] / m + 5/6*tools.k * Te[None,None,:] / m) * nu0[None,:,None,None] / tools.c
+    else:
+        gaus_sigma = np.sqrt(tools.k * Te[None,None,:] / m) * nu0[None,:,None,None] / tools.c
     #the following has a minus sign like in Eq. 21 of Oklopcic&Hirata (2018) because their formula is only correct if you take v_LOS from star->planet i.e. vx   
     Delnu = (nu - nu0[:,None,None]) - nu0[:,None,None] / tools.c * vx[None,:]
     integrand = ndens[None,:] * sig0[:,None,None] * voigt_profile(Delnu, gaus_sigma, gamma[:,None,None])
@@ -210,7 +218,7 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
     return spNIST
 
 
-def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), phase=0., phase_bulkshift=False, **kwargs):
+def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), phase=0., phase_bulkshift=False, turbulence=False, **kwargs):
     '''
     Calculates Fin/Fout transit spectrum for a given wavelength range, and a given
     (list of) species. Includes limb darkening.
@@ -306,7 +314,7 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
 
             ndens_lw = ndens*lineweight #important that we make this a new variable as otherwise state_ndens would change as well!
 
-            tau_line = calc_tau(x, ndens_lw, Te, vx, nus_line, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno])
+            tau_line = calc_tau(x, ndens_lw, Te, vx, nus_line, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], turbulence=turbulence)
             tau[(nus > linenu_low) & (nus < linenu_hi), :] += tau_line #add the tau values to the correct nu bins
 
     FinFout = tau_to_FinFout(b, tau, Rs, bp=sim.p.bp, ab=ab, phase=phase, a=sim.p.a)
@@ -314,7 +322,7 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
     return FinFout, found_lines, notfound_lines
 
 
-def tau_1D(sim, wavAA, species, width_fac=1., **kwargs):
+def tau_1D(sim, wavAA, species, width_fac=1., turbulence=False, **kwargs):
     '''
     This function maps out the optical depth at one specific wavelength.
     The running integral of the optical deph is calculated at each depth of the ray.
@@ -379,14 +387,14 @@ def tau_1D(sim, wavAA, species, width_fac=1., **kwargs):
 
             ndens = sim.den[colname].values * lineweight #see explanation in FinFout_2D function
 
-            cum_tau, bin_tau = calc_cum_tau(d, ndens, Te, vx, nu, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno])
+            cum_tau, bin_tau = calc_cum_tau(d, ndens, Te, vx, nu, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], turbulence=turbulence)
             tot_cum_tau += cum_tau[0] #add the tau values to the total (of all species & lines together)
             tot_bin_tau += bin_tau[0]
 
     return tot_cum_tau, tot_bin_tau, found_lines, notfound_lines
 
 
-def tau_12D(sim, wavAA, species, width_fac=1., **kwargs):
+def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, **kwargs):
     '''
     For a 1D simulation, still maps out the optical depth in 2D.
     See tau_1D() for explanation of the arguments.
@@ -433,7 +441,7 @@ def tau_12D(sim, wavAA, species, width_fac=1., **kwargs):
             _, _, ndens = tools.project_1D_to_2D(sim.ovr.alt.values[::-1], sim.den[colname].values[::-1], sim.p.R, **kwargs)
             ndens *= lineweight
 
-            cum_tau, bin_tau = calc_cum_tau(x, ndens, Te, vx, nu, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno])
+            cum_tau, bin_tau = calc_cum_tau(x, ndens, Te, vx, nu, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], turbulence=turbulence)
             tot_cum_tau += cum_tau #add the tau values to the total (of all species & lines together)
             tot_bin_tau += bin_tau
 
