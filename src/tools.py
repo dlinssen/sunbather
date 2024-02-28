@@ -50,39 +50,8 @@ element_names = {'H':'hydrogen', 'He':'helium', 'Li':'lithium', 'Be':'beryllium'
                 'Fe':'iron', 'Co':'cobalt', 'Ni':'nickel', 'Cu':'copper', 'Zn':'zinc'}
 element_symbols = dict((reversed(item) for item in element_names.items())) #reverse dictionary mapping e.g. 'hydrogen'->'H'
 
-#The index no. until which the Cloudy .en and NIST energies agree. After that they will start to diverge (manually confirmed).
-#Some species are missing as they have no lines (with necessary coefficients) in the NIST database and so there's no use saving their densities
-species_enlim = {'H':21,
-                'He':43, 'He+':55,
-                'Li':15, 'Li+':9, 'Li+2':15,
-                'Be':15, 'Be+':15, 'Be+2':9, 'Be+3':15,
-                'B':15, 'B+':15, 'B+2':15, 'B+3':13, 'B+4':15,
-                'C':15, 'C+':15, 'C+2':15, 'C+3':15, 'C+4':31, 'C+5':15,
-                'N':50, 'N+':15, 'N+2':15, 'N+3':15, 'N+4':15, 'N+5':8, 'N+6':15,
-                'O':29, 'O+':15, 'O+2':15, 'O+3':15, 'O+4':15, 'O+5':15, 'O+6':8, 'O+7':15,
-                'F+':7, 'F+2':15, 'F+3':15, 'F+4':5, 'F+5':15, 'F+6':15, 'F+7':8, 'F+8':15,
-                'Ne':15, 'Ne+':2, 'Ne+2':14, 'Ne+3':15, 'Ne+4':15, 'Ne+5':15, 'Ne+6':15, 'Ne+7':15, 'Ne+8':8, 'Ne+9':15,
-                'Na':15, 'Na+':15, 'Na+2':3, 'Na+3':9, 'Na+4':13, 'Na+5':9, 'Na+6':15, 'Na+7':10, 'Na+8':15, 'Na+9':8, 'Na+10':15,
-                'Mg':15, 'Mg+':15, 'Mg+2':15, 'Mg+3':3, 'Mg+4':15, 'Mg+5':15, 'Mg+6':15, 'Mg+7':15, 'Mg+8':13, 'Mg+9':9, 'Mg+10':8, 'Mg+11':15,
-                'Al':15, 'Al+':15, 'Al+2':15, 'Al+3':15, 'Al+4':3, 'Al+5':15, 'Al+6':15, 'Al+7':9, 'Al+8':5, 'Al+9':10, 'Al+10':15, 'Al+11':8, 'Al+12':15,
-                'Si':15, 'Si+':15, 'Si+2':15, 'Si+3':15, 'Si+4':15, 'Si+5':8, 'Si+6':15, 'Si+7':15, 'Si+8':15, 'Si+9':15, 'Si+10':12, 'Si+11':15, 'Si+12':8,
-                'P':15, 'P+':15, 'P+2':8, 'P+3':15, 'P+4':15, 'P+5':15, 'P+6':3, 'P+7':10, 'P+8':15, 'P+9':15, 'P+10':15, 'P+11':10, 'P+12':15,
-                'S':15, 'S+':15, 'S+2':15, 'S+3':15, 'S+4':15, 'S+5':15, 'S+6':15, 'S+7':3, 'S+8':10, 'S+9':15, 'S+10':15, 'S+11':15, 'S+12':13,
-                'Cl':15, 'Cl+':5, 'Cl+2':5, 'Cl+3':5, 'Cl+4':15, 'Cl+5':15, 'Cl+6':5, 'Cl+7':1, 'Cl+8':15, 'Cl+9':8,
-                'Ar':15, 'Ar+':15, 'Ar+2':15, 'Ar+3':15, 'Ar+4':15, 'Ar+5':15, 'Ar+6':14, 'Ar+7':15, 'Ar+8':15,
-                'K':15, 'K+':15, 'K+2':15, 'K+3':15, 'K+4':5, 'K+5':5, 'K+6':2, 'K+7':15, 'K+8':15, 'K+9':15, 'K+10':3, 'K+11':10, 'K+12':15,
-                'Ca':15, 'Ca+':15, 'Ca+2':15, 'Ca+3':15, 'Ca+4':5, 'Ca+5':15, 'Ca+6':15, 'Ca+7':12, 'Ca+8':15, 'Ca+9':15, 'Ca+10':2,
-                'Sc':15, 'Sc+':15, 'Sc+2':15, 'Sc+3':15, 'Sc+4':15, 'Sc+6':15, 'Sc+7':15, 'Sc+8':2, 'Sc+9':15, 'Sc+10':15, 'Sc+11':12, 'Sc+12':12,
-                'Ti':1, 'Ti+':1, 'Ti+2':15, 'Ti+3':15, 'Ti+5':2, 'Ti+7':15, 'Ti+8':15, 'Ti+9':2, 'Ti+10':14, 'Ti+11':15, 'Ti+12':15,
-                'V':1, 'V+':1, 'V+2':1, 'V+7':15, 'V+8':15, 'V+9':15, 'V+10':2, 'V+11':15, 'V+12':15,
-                'Cr':1, 'Cr+':15, 'Cr+9':15, 'Cr+10':15, 'Cr+11':15, 'Cr+12':14,
-                'Mn':15, 'Mn+':1, 'Mn+10':15, 'Mn+11':15, 'Mn+12':15,
-                'Fe':15, 'Fe+':80, 'Fe+2':25, 'Fe+4':25, 'Fe+6':9, 'Fe+10':9, 'Fe+11':12, 'Fe+12':9,
-                'Co':1, 'Co+':15, 'Co+2':15, 'Co+12':15,
-                'Ni':15, 'Ni+':15, 'Ni+2':15, 'Ni+4':15, 'Ni+12':15,
-                'Cu':15, 'Cu+':1,
-                'Zn':1}
-
+#number of corresponding energy levels between Cloudy and NIST - read txt file header for more info
+species_enlim = pd.read_csv(sunbather_path+"/species_enlim.txt", index_col=0, header=1)
 
 def get_specieslist(max_ion=6, exclude_elements=[]):
     '''
@@ -103,7 +72,7 @@ def get_specieslist(max_ion=6, exclude_elements=[]):
     if isinstance(exclude_elements, str): #turn into list with one element
         exclude_elements = [exclude_elements]
 
-    specieslist = list(species_enlim.keys()) #all species up to 12+
+    specieslist = species_enlim.index.tolist() #all species up to 12+
 
     for element in exclude_elements:
         specieslist = [sp for sp in specieslist if sp.split('+')[0] != element]
@@ -155,7 +124,7 @@ Functions that deal with processing Cloudy's output files
 
 def process_continuum(filename, nonzero=False):
     '''
-    This function reads a .con file from the 'save continuum' command.
+    This function reads a .con file from the 'save continuum units Hz' command.
     It renames the columns and adds a wav column. The flux units of the continuum
     can be tricky to understand, but they are found as follows:
     Take the SED in spectral flux density, so F(nu) instead of nu*F(nu), and
@@ -387,7 +356,7 @@ def process_densities(filename, Rp=None, altmax=None):
     return den
 
 
-def process_energies(filename, rewrite=True):
+def process_energies(filename, rewrite=True, cloudy_version="17"):
     '''
     This function reads a '.en' file from the 'save species energies' command.
     ALWAYS use that command alongside the 'save species densities' .den files,
@@ -434,38 +403,29 @@ def process_energies(filename, rewrite=True):
 
 
     #the & set action takes the intersection of all unique species of the .en file, and those known with NIST levels
-    unique_species = list(set(en_df.species.values) & set(species_enlim.keys()))
+    unique_species = list(set(en_df.species.values) & set(species_enlim.index.tolist()))
 
     for species in unique_species:
         species_levels = pd.read_table(sunbather_path+'/RT_tables/'+species+'_levels_processed.txt') #get the NIST levels
         species_energies = en_df[en_df.species == species].energy #get Cloudy's energies
 
-        atol = 0.001
         #tolerance of difference between Cloudy's and NISTs energy levels. They usually differ at the decimal level so we need some tolerance.
-        #For some species, the differences are a bit bigger. Probably a NIST update or something? I have manually verfied that these energy levels
-        #still probably represent the same atomic configuration. So we relax the threshold here:
-        if species in ['B+4', 'N+6', 'C+4', 'B+3', 'Cl+6', 'Be+3', 'Si+2', 'C+5', 'Li+2', 'Ti+8', 
-                      'Si+11', 'O+7', 'Fe+11', 'Ca+7', 'Ni+12', 'K+11', 'Ca+10', 'Ti+10', 'Cr+12']:
-            atol = 0.01
-        if species in ['Ne+6', 'Ar+7', 'Ne+9', 'F+8', 'S+12', 'Si+10', 'Si+7', 'Al+12', 'Na+10', 'Mg+11']:
-            atol = 0.05
-        if species in ['Ar+8']:
-            atol = 0.2
-
-        n_matching = species_enlim[species] #start by assuming we can match this many energy levels - which we in principle should for C17.02
+        atol = species_enlim.loc[species, f"atol_C{cloudy_version}"]
+        #start by assuming we can match this many energy levels
+        n_matching = species_enlim.loc[species, f"idx_C{cloudy_version}"] 
 
         for n in range(n_matching):
             if not np.abs(species_energies.iloc[n] - species_levels.energy.iloc[n]) < atol:
-                n_matching = n
-
-                print(f"WARNING: In {filename} while getting atomic states for species {species}, I expected to be able to match the first {species_enlim[species]} " + \
-                    f"energy levels between Cloudy and NIST to a precision of {atol} (for C17.02) but I have an energy mismatch at energy level {n_matching+1}. " + \
-                    f"This should not introduce bugs, as I will now only parse the first {n_matching} levels.")
+                print(f"WARNING: In {filename} while getting atomic states for species {species}, I expected to be able to match the first {n_matching} " + \
+                    f"energy levels between Cloudy and NIST to a precision of {atol} but I have an energy mismatch at energy level {n+1}. " + \
+                    f"This should not introduce bugs, as I will now only parse the first {n} levels.")
                 
                 #for debugging, you can print the energy levels of Cloudy and NIST:
                 #print("\nCloudy, NIST, Match?")
-                #for i in range(species_enlim[species]):
-                #    print(species_energies.iloc[i], species_levels.energy.iloc[i], np.isclose(species_energies.iloc[:species_enlim[species]], species_levels.energy.iloc[:species_enlim[species]], rtol=0.0, atol=atol)[i])
+                #for i in range(n_matching):
+                #    print(species_energies.iloc[i], species_levels.energy.iloc[i], np.isclose(species_energies.iloc[:n_matching], species_levels.energy.iloc[:n_matching], rtol=0.0, atol=atol)[i])
+
+                n_matching = n #reset n_matching to how many actually match
 
                 break
 
@@ -591,7 +551,7 @@ def get_SED_norm_1AU(SEDname):
     return nuFnu, Ryd
 
 
-def speciesstring(specieslist, selected_levels=False):
+def speciesstring(specieslist, selected_levels=False, cloudy_version="17"):
     '''
     Takes a list of species names and returns a long string with those species
     between quotes and [:] added (or [maxlevel] if selected_levels=True),
@@ -611,11 +571,11 @@ def speciesstring(specieslist, selected_levels=False):
             for species in specieslist[1:]:
                 speciesstr += '\n"'+species+'[:]"'
 
-    elif selected_levels: #then we read out the max level from the species_enlim dictionary
-        speciesstr = '"'+specieslist[0]+'[:'+str(species_enlim[specieslist[0]])+']"'
+    elif selected_levels: #then we read out the max level that we expect to match the energy of
+        speciesstr = '"'+specieslist[0]+'[:'+str(species_enlim.loc[specieslist[0], f"idx_C{cloudy_version}"])+']"'
         if len(specieslist) > 1:
             for species in specieslist[1:]:
-                speciesstr += '\n"'+species+'[:'+str(species_enlim[species])+']"'
+                speciesstr += '\n"'+species+'[:'+str(species_enlim.loc[species, f"idx_C{cloudy_version}"])+']"'
 
     return speciesstr
 
@@ -1102,7 +1062,7 @@ def remove_duplicates(law, fmt):
 def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
                         dlaw=None, tlaw=None, alaw=None, pTmulaw=None, cextra=None, hextra=None,
                         coolextra=None, othercommands=None, outfiles=[], denspecies=[], selected_den_levels=False,
-                        constantT=None, double_tau=False, hcfrac=None):
+                        constantT=None, double_tau=False, hcfrac=None, cloudy_version="17"):
     '''
     This function makes a copy of a Cloudy in file, and it will append
     the given commands to this .in file.
@@ -1135,8 +1095,8 @@ def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
         if ".con" in outfiles:
             f.write('\nsave continuum ".con" last units Hz')
         if ".den" in outfiles: #then ".en" is always there as well.
-            f.write('\nsave species densities last ".den"\n'+speciesstring(denspecies, selected_levels=selected_den_levels)+"\nend")
-            f.write('\nsave species energies last ".en"\n'+speciesstring(denspecies, selected_levels=selected_den_levels)+"\nend")
+            f.write('\nsave species densities last ".den"\n'+speciesstring(denspecies, selected_levels=selected_den_levels, cloudy_version=cloudy_version)+"\nend")
+            f.write('\nsave species energies last ".en"\n'+speciesstring(denspecies, selected_levels=selected_den_levels, cloudy_version=cloudy_version)+"\nend")
         if constantT != None:
             f.write('\nconstant temperature t= '+str(constantT)+' linear')
         if double_tau:
@@ -1216,7 +1176,7 @@ def write_Cloudy_in(simname, title=None, flux_scaling=None,
                     coolextra=None, othercommands=None, overwrite=False, iterate='convergence',
                     nend=3000, outfiles=['.ovr', '.cool'], denspecies=[], selected_den_levels=False,
                     constantT=None, double_tau=False, cosmic_rays=False, zdict=None, hcfrac=None,
-                    comments=None):
+                    comments=None, cloudy_version="17"):
     '''
     This function writes a Cloudy .in file for simulating an exoplanet atmosphere.
     Arguments:
@@ -1318,8 +1278,8 @@ def write_Cloudy_in(simname, title=None, flux_scaling=None,
         if ".con" in outfiles:
             f.write('\nsave continuum ".con" last units Hz')
         if ".den" in outfiles: #then ".en" is always there as well.
-            f.write('\nsave species densities last ".den"\n'+speciesstring(denspecies, selected_levels=selected_den_levels)+"\nend")
-            f.write('\nsave species energies last ".en"\n'+speciesstring(denspecies, selected_levels=selected_den_levels)+"\nend")
+            f.write('\nsave species densities last ".den"\n'+speciesstring(denspecies, selected_levels=selected_den_levels, cloudy_version=cloudy_version)+"\nend")
+            f.write('\nsave species energies last ".en"\n'+speciesstring(denspecies, selected_levels=selected_den_levels, cloudy_version=cloudy_version)+"\nend")
         if dlaw is not None:
             dlaw = remove_duplicates(dlaw, "1.7f")
             f.write("\n# ========= density law    ================")
@@ -1385,7 +1345,7 @@ def write_Cloudy_in(simname, title=None, flux_scaling=None,
             f.write("\nend of coolextra #last point added to prevent roundoff")
 
 
-def insertden_Cloudy_in(simname, denspecies, selected_den_levels=True, rerun=False):
+def insertden_Cloudy_in(simname, denspecies, selected_den_levels=True, rerun=False, cloudy_version="17"):
     '''
     This function takes a Cloudy .in input file and adds species to the
     'save species densities' command. This is useful if you e.g. first went
@@ -1404,8 +1364,8 @@ def insertden_Cloudy_in(simname, denspecies, selected_den_levels=True, rerun=Fal
     newcontent = oldcontent
     indices = [i for i, s in enumerate(oldcontent) if 'save species densities' in s]
     if len(indices) == 0: #then there is no 'save species densities' command yet
-        newcontent.append('\nsave species densities last ".den"\n'+speciesstring(denspecies, selected_levels=selected_den_levels)+"\nend")
-        newcontent.append('\nsave species energies last ".en"\n'+speciesstring(denspecies, selected_levels=selected_den_levels)+"\nend")
+        newcontent.append('\nsave species densities last ".den"\n'+speciesstring(denspecies, selected_levels=selected_den_levels, cloudy_version=cloudy_version)+"\nend")
+        newcontent.append('\nsave species energies last ".en"\n'+speciesstring(denspecies, selected_levels=selected_den_levels, cloudy_version=cloudy_version)+"\nend")
 
     elif len(indices) == 1: #then there already is a 'save species densities' command with some species
         for sp in denspecies.copy():
@@ -1413,10 +1373,10 @@ def insertden_Cloudy_in(simname, denspecies, selected_den_levels=True, rerun=Fal
                 denspecies.remove(sp)
                 print(sp, "was already in the .in file so I did not add it again.")
         if len(denspecies) >= 1:
-            newcontent.insert(indices[0]+1, speciesstring(denspecies, selected_levels=selected_den_levels)+"\n")
+            newcontent.insert(indices[0]+1, speciesstring(denspecies, selected_levels=selected_den_levels, cloudy_version=cloudy_version)+"\n")
             #also add them to the 'save species energies' list
             indices2 = [i for i, s in enumerate(oldcontent) if 'save species energies' in s]
-            newcontent.insert(indices2[0]+1, speciesstring(denspecies, selected_levels=selected_den_levels)+"\n")
+            newcontent.insert(indices2[0]+1, speciesstring(denspecies, selected_levels=selected_den_levels, cloudy_version=cloudy_version)+"\n")
         else:
             return
 
@@ -1816,7 +1776,7 @@ class Sim:
                 self.den = process_densities(self.simname+'.den', Rp=_Rp, altmax=_altmax)
                 self.simfiles.append('den')
             if filetype=='en' and ('en' in files or 'all' in files):
-                self.en = process_energies(self.simname+'.en')
+                self.en = process_energies(self.simname+'.en', cloudy_version=self.cloudy_version)
                 self.simfiles.append('en')
 
         #set the velocity structure in .ovr if we have an associated Parker profile - needed for radiative transfer
