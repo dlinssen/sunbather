@@ -10,18 +10,28 @@ from scipy.signal import savgol_filter
 import scipy.stats as sps
 from scipy.ndimage import gaussian_filter1d
 from fractions import Fraction
-import configparser
 
 
-config = configparser.ConfigParser()
 sunbather_path = os.path.dirname(os.path.abspath(__file__)) #the absolute path where this code lives
-config.read(os.path.join(sunbather_path, 'config.ini'))
-cloudypath = config.get('General', 'cloudypath') #the path where the Cloudy installation is
-projectpath = config.get('General', 'projectpath') #the path where you save your simulations and do analysis
+try:
+    cloudypath = os.environ['CLOUDY_PATH'] #the path where the Cloudy installation is
+except KeyError:
+    raise KeyError("The environment variable 'CLOUDY_PATH' is not set. " \
+                    "Please set this variable in your .bashrc/.zshrc file " \
+                    "to the path where the Cloudy installation is located. " \
+                    "Do not point it to the /source/ subfolder, but to the main folder.")
 cloudyruncommand = cloudypath+'/source/cloudy.exe -p' #the -p flag is important!
 
+try:
+    projectpath = os.environ['SUNBATHER_PROJECT_PATH'] #the path where you save your simulations and do analysis
+except KeyError:
+    raise KeyError("The environment variable 'SUNBATHER_PROJECT_PATH' is not set. " \
+                    "Please set this variable in your .bashrc/.zshrc file " \
+                    "to the path where you want the sunbather models to be saved. " \
+                    "Make sure that the 'planets.txt' file is present in that folder.")
+
 #read planet parameters globally instead of in the Planets class (so we do it only once)
-planets_file = pd.read_csv(sunbather_path+'/planets.txt', dtype={'name':str, 'full name':str, 'R [RJ]':np.float64,
+planets_file = pd.read_csv(projectpath+'/planets.txt', dtype={'name':str, 'full name':str, 'R [RJ]':np.float64,
                             'Rstar [Rsun]':np.float64, 'a [AU]':np.float64, 'M [MJ]':np.float64, 'Mstar [Msun]':np.float64,
                             'transit impact parameter':np.float64, 'SEDname':str}, comment='#')
 
