@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from scipy.special import voigt_profile
 from scipy.integrate import trapezoid
 from scipy.ndimage import gaussian_filter1d
+import warnings
 
 
 sigt0 = 2.654e-2 #cm2 s-1 = cm2 Hz, from Axner et al. 2004
@@ -278,10 +279,10 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
 
     for spec in species:
         if spec in sim.den.columns:
-            print("WARNING: Your requested species", spec, "is not resolved into multiple energy levels by Cloudy. " + \
+            warnings.warn("Your requested species", spec, "is not resolved into multiple energy levels by Cloudy. " + \
                     "I will make the spectrum assuming all", spec, "is in the ground-state.")
         elif not any(spec+"[" in col for col in sim.den.columns):
-            print("WARNING: Your requested species", spec, "is not present in Cloudy's output, so the spectrum will be flat. " + \
+            warnings.warn("Your requested species", spec, "is not present in Cloudy's output, so the spectrum will be flat. " + \
                     "Please re-do your Cloudy simulation while saving this species. Either use the tools.insertden_Cloudy_in() " + \
                     "function, or run convergeT_parker.py again with the correct -save_sp arguments.")
 
@@ -528,7 +529,7 @@ def convolve_spectrum_R(wavs, flux, R, verbose=False):
     assert wavs[1] > wavs[0], "Wavelengths must be in ascending order"
     assert np.allclose(np.diff(wavs), np.diff(wavs)[0], atol=0., rtol=1e-5), "Wavelengths must be equidistant"
     if wavs[-1] / wavs[0] > 1.05:
-        print("WARNING: The wavelengths change by more than 5 percent in your array. Converting R into a constant delta-lambda becomes questionable.")
+        warnings.warn("The wavelengths change by more than 5 percent in your array. Converting R into a constant delta-lambda becomes questionable.")
 
     delta_lambda = wavs[int(len(wavs)/2)] / R #width of the filter in wavelength - use middle wav point
     FWHM = delta_lambda / np.diff(wavs)[0] #width of the filter in pixels

@@ -10,6 +10,7 @@ from scipy.signal import savgol_filter
 import scipy.stats as sps
 from scipy.ndimage import gaussian_filter1d
 from fractions import Fraction
+import warnings
 
 
 sunbather_path = os.path.dirname(os.path.abspath(__file__)) #the absolute path where this code lives
@@ -188,7 +189,7 @@ def process_heating(filename, Rp=None, altmax=None, cloudy_version="17"):
     heat = pd.read_table(filename, delimiter='\t', skiprows=1, header=None, names=all_column_names)
 
     if heat['depth'].eq("#>>>>  Ionization not converged.").any():
-        print(f"WARNING: the simulation you are reading in exited OK but does contain ionization convergence failures: {filename[:-5]}")
+        warnings.warn(f"The simulation you are reading in exited OK but does contain ionization convergence failures: {filename[:-5]}")
         heat = heat[heat['depth'] != "#>>>>  Ionization not converged."] #remove those extra lines from the heat DataFrame
 
     #remove the "second rows", which sometimes are in the .heat file and do not give the heating at a given depth
@@ -258,7 +259,7 @@ def process_cooling(filename, Rp=None, altmax=None, cloudy_version="17"):
     cool = pd.read_table(filename, delimiter='\t', skiprows=1, header=None, names=all_column_names)
     
     if cool['depth'].eq("#>>>>  Ionization not converged.").any():
-        print(f"WARNING: the simulation you are reading in exited OK but does contain ionization convergence failures: {filename[:-5]}")
+        warnings.warn(f"The simulation you are reading in exited OK but does contain ionization convergence failures: {filename[:-5]}")
         #remove those extra lines from the cool DataFrame
         cool = cool[cool['depth'] != "#>>>>  Ionization not converged."]
         cool['depth'] = cool['depth'].astype(float)
@@ -426,7 +427,7 @@ def process_energies(filename, rewrite=True, cloudy_version="17"):
 
         for n in range(n_matching):
             if not np.abs(species_energies.iloc[n] - species_levels.energy.iloc[n]) < atol:
-                print(f"WARNING: In {filename} while getting atomic states for species {species}, I expected to be able to match the first {n_matching} " + \
+                warnings.warn(f"In {filename} while getting atomic states for species {species}, I expected to be able to match the first {n_matching} " + \
                     f"energy levels between Cloudy and NIST to a precision of {atol} but I have an energy mismatch at energy level {n+1}. " + \
                     f"This should not introduce bugs, as I will now only parse the first {n} levels.")
                 
