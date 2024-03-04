@@ -16,6 +16,7 @@ from scipy.interpolate import interp1d
 import argparse
 import multiprocessing
 import traceback
+import warnings
 
 
 def cloudy_spec_to_pwinds(SEDfilename, dist_SED, dist_planet):
@@ -457,7 +458,7 @@ if __name__ == '__main__':
         zdict = tools.get_zdict(zelem=args.zelem)
 
     if args.fH != None and (args.zelem != {} or args.mu_conv != 0.01 or args.mu_maxit != 7 or args.avoid_pwinds_mubar):
-        print("The -zelem, -mu_conv -mu_maxit, and -avoid_pwinds_mubar commands only combine with -z, not with -fH, so I will ignore their input.")
+        warnings.warn("The -zelem, -mu_conv -mu_maxit, and -avoid_pwinds_mubar commands only combine with -z, not with -fH, so I will ignore their input.")
 
     #set up the folder structure if it doesn't exist yet
     if not os.path.isdir(tools.projectpath+'/parker_profiles/'):

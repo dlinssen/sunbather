@@ -11,6 +11,7 @@ from scipy.interpolate import interp1d
 import scipy.stats as sps
 import os
 import re
+import warnings
 
 
 def simtogrid(sim, grid):
@@ -433,16 +434,15 @@ def clean_converged_folder(folder):
     '''
 
     if not os.path.isdir(folder):
-        print("[solveT.clean_converged_folder()]: This folder does not exist: "+folder)
+        warnings.warn(f"This folder does not exist: {folder}")
 
     elif not os.path.isfile(folder+'/converged.in'):
-        print("[solveT.clean_converged_folder()]: This folder wasn't converged, I will not clean it: "+folder)
+        warnings.warn(f"This folder wasn't converged, I will not clean it: {folder}")
 
     else:
         for filename in os.listdir(folder):
             if filename[:9] != 'converged' and os.path.isfile(os.path.join(folder, filename)):
                 os.remove(os.path.join(folder, filename))
-                #print("[solveT.clean_converged_folder()]: Cleaned: "+folder)
 
 
 def run_loop(path, itno, fc, altmax, Rp, PdVprof, advecprof, save_sp=[], maxit=16):
@@ -456,7 +456,7 @@ def run_loop(path, itno, fc, altmax, Rp, PdVprof, advecprof, save_sp=[], maxit=1
                     if iteration_number > max_iteration:
                         max_iteration = iteration_number
         if max_iteration == -1:
-            print("\nThis folder does not have any 'iteration' files, I cannot resume from the highest one: "+path+'\n')
+            warnings.warn(f"This folder does not have any 'iteration' files, I cannot resume from the highest one: {path}")
             return
         else:
             print("\nFound the highest iteration "+path+"iteration"+str(max_iteration)+", will resume there.\n")

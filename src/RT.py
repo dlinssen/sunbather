@@ -203,7 +203,7 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
     spNIST = spNIST[spNIST.fik.notna()]
     spNIST = spNIST[spNIST['Aki(s^-1)'].notna()]
     if spNIST.empty:
-        print("No lines with necessary coefficients found for", species)
+        warnings.warn(f"No lines with necessary coefficients found for {species}")
         return spNIST
     if type(spNIST['Ei(Ry)'].iloc[0]) == str: #if there are no [](), the datatype will be float already
         spNIST['Ei(Ry)'] = spNIST['Ei(Ry)'].str.extract('(\d+)', expand=False).astype(float) #remove non-numeric characters such as [] and ()

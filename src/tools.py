@@ -76,7 +76,7 @@ def get_specieslist(max_ion=6, exclude_elements=[]):
     '''
 
     if max_ion > 12:
-        print("tools.get_specieslist(): You have set max_ion > 12, but " \
+        warnings.warn("tools.get_specieslist(): You have set max_ion > 12, but " \
               "sunbather is currently only able to process species up to 12+ ionzed. " \
               "This should however be enough even when using a strong XUV flux.")
 
@@ -839,7 +839,7 @@ def cl_table(r, rho, v, altmax, Rp, nmax, negtozero=False, zdict=None):
 
     if len(PdVT[PdVT < 0] > 0): #if there are negative values (heating)
         if negtozero: #if we're aware of those, pass True and we continue
-            print("I found negative cooling rates, which probably indicates "
+            warnings.warn("I found negative cooling rates, which probably indicates "
                     +"negative velocities. Are you sure you're not making "
                     +"mistakes?\nI'll set those cooling rates to zero.")
             PdVT[PdVT < 0] = 0
@@ -930,8 +930,7 @@ def alt_array_to_Cloudy(alt, quantity, altmax, Rp, nmax, log=True):
     assert alt[-1] - altmax*Rp > -1. #For extrapolation: the alt scale should extend at least to within 1 cm of altmax*Rp
 
     if not np.isclose(alt[0], Rp, rtol=1e-2, atol=0.0):
-        print("\n(tools.alt_array_to_cloudy): Are you sure the altitude array starts at Rp? alt[0]/Rp =",
-                    alt[0]/Rp, "\n")
+        warnings.warn(f"Are you sure the altitude array starts at Rp? alt[0]/Rp = {alt[0]/Rp}")
 
     depth = altmax*Rp - alt
     ifunc = interp1d(depth, quantity, fill_value='extrapolate')
@@ -1392,8 +1391,7 @@ def insertden_Cloudy_in(simname, denspecies, selected_den_levels=True, rerun=Fal
             return
 
     else:
-        print("There are multiple 'save species densities' commands in the .in file. This shouldn't be the case, please check.")
-        return
+        raise ValueError("There are multiple 'save species densities' commands in the .in file. This shouldn't be the case, please check.")
 
     newcontent = "".join(newcontent) #turn list into string
     with open(simname+".in", "w") as f: #overwrite the old file
@@ -1725,13 +1723,13 @@ class Sim:
         if planet != None:
             assert isinstance(planet, Planet)
             if hasattr(self, 'p'):
-                print("I had already read out the Planet object from the .in file, but I will overwrite that with the object you have given.")
+                warnings.warn("I had already read out the Planet object from the .in file, but I will overwrite that with the object you have given.")
             self.p = planet
 
         #check if the SED of the Planet object matches the SED of the Cloudy simulation
         if hasattr(self, 'p') and hasattr(self, 'SEDname'):
             if self.p.SEDname != self.SEDname:
-                print("I read in the .in file that the SED used is", self.SEDname, "which is different from the one of your Planet object. " \
+                warnings.warn("I read in the .in file that the SED used is", self.SEDname, "which is different from the one of your Planet object. " \
                         "I will change the .SEDname attribute of the Planet object to match the one actually used in the simulation. Are you " \
                         "sure that also the associated Parker wind profile is correct?")
                 self.p.set_var(SEDname = self.SEDname)
@@ -1744,7 +1742,7 @@ class Sim:
         if parker != None:
             assert isinstance(parker, Parker)
             if hasattr(self, 'par'):
-                print("I had already read out the Parker object from the .in file, but I will overwrite that with the object you have given.")
+                warnings.warn("I had already read out the Parker object from the .in file, but I will overwrite that with the object you have given.")
             self.par = parker
 
         #overwrite/set manually given altmax
@@ -1753,7 +1751,7 @@ class Sim:
                 raise TypeError("altmax must be set to a float or int") #can it actually be a float? I'm not sure if my code can handle it - check and try.
             if hasattr(self, 'altmax'):
                 if self.altmax != altmax:
-                    print("I read the altmax from the .in file, but the value you have explicitly passed is different. " \
+                    warnings.warn("I read the altmax from the .in file, but the value you have explicitly passed is different. " \
                             "I will use your value, but please make sure it is correct.")
             self.altmax = altmax
 
