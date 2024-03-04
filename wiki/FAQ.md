@@ -1,6 +1,6 @@
 ## How do I create Parker wind profiles?
 
-Add the parameters of the planet/star system to the _sunbather/src/planets.txt_ file. Make sure the SED you specify in _planets.txt_ is present in the _c17.02/data/SED/_ folder in the right format. Then run the `construct_parker.py` module in your terminal (use `-help` to see the arguments). 
+Add the parameters of the planet/star system to the *$SUNBATHER_PROJECT_PATH/planets.txt* file. Make sure the SED you specify in _planets.txt_ is present in the _c17.02/data/SED/_ folder in the right format. Then run the `construct_parker.py` module in your terminal (use `-help` to see the arguments). 
 
 ## How do I choose the composition of the atmosphere?
 
@@ -16,13 +16,13 @@ Create the Parker wind profile with `construct_parker.py` and simulate it with _
 
 ## How do I simulate one planet with different stellar SEDs?
 
-The safest way is to add another entry in the _sunbather/src/planets.txt_ file, with the same parameter values, but a different "name" and "SEDname" (the "full name" can be the same). 
+The safest way is to add another entry in the *$SUNBATHER_PROJECT_PATH/planets.txt* file, with the same parameter values, but a different "name" and "SEDname" (the "full name" can be the same). 
 
 Alternatively and more prone to mistakes, the `construct_parker.py` and `convergeT_parker.py` modules also has the `-SEDname` argument which allows you to specify a different name of the SED file without making a new entry in the _planets.txt_ file. In this case, it is **strongly advised** to use a different `-pdir` and `-dir` (that references the SED type) as well. 
 
 ## Why do I have to specify a `-pdir` and a `-dir`?
 
-Generally, for one planet you may want to create Parker wind profiles with different temperatures, mass-loss rates, but also different atmospheric compositions. The `-pdir` and `-dir` correspond to actual folders on your machine. Each folder groups together profiles with different $T$ and $\dot{M}$, so the `-pdir` and `-dir` effectively allow you to separate the profiles by composition. `-pdir` corresponds to the folder where the Parker wind **structure** (i.e. density and velocity as a function of radius) is stored: */projectpath/parker_profiles/planetname/pdir/*, and `-dir` corresponds to the folder where the _Cloudy_ simulations of the profiles are stored: */projectpath/sims/1D/planetname/dir/*.
+Generally, for one planet you may want to create Parker wind profiles with different temperatures, mass-loss rates, but also different atmospheric compositions. The `-pdir` and `-dir` correspond to actual folders on your machine. Each folder groups together profiles with different $T$ and $\dot{M}$, so the `-pdir` and `-dir` effectively allow you to separate the profiles by composition. `-pdir` corresponds to the folder where the Parker wind **structure** (i.e. density and velocity as a function of radius) is stored: *$SUNBATHER_PROJECT_PATH/parker_profiles/planetname/pdir/*, and `-dir` corresponds to the folder where the _Cloudy_ simulations of the profiles are stored: *$SUNBATHER_PROJECT_PATH/sims/1D/planetname/dir/*.
 
 For example, you can make one `-pdir` which stores a grid of $T-\dot{M}$ profiles at a H/He ratio of 90/10, and another which stores a grid of profiles at a ratio of 99/01. The reason that the  `-dir` argument is not the exact same as the `-pdir` argument, is that you may want to create your Parker wind structure profile only once (in one `-pdir` folder) but then run it multiple times with _Cloudy_ while changing the abundance of one particular trace element (in multiple `-dir` folders). The latter would usually not really change the atmospheric structure, but could produce a very different spectral feature.
 
@@ -35,7 +35,7 @@ import sys
 sys.path.append("/path/to/sunbather/src/")
 import tools
 
-mysimulation = tools.Sim("/projectpath/sims/1D/planetname/dir/parker_T_Mdot/converged")
+mysimulation = tools.Sim(tools.projectpath+"/sims/1D/planetname/dir/parker_T_Mdot/converged")
 
 #to get the planet parameters of this simulation:
 mysimulation.p.R #radius
@@ -62,7 +62,7 @@ You can use the `tools.insertden_Cloudy_in()` function to add species to a (conv
 
 ## Can I run an atmospheric profile other than an (isothermal) Parker wind?
 
-You can "trick" the code into running an arbitrary outflow profile by saving your density and velocity profile in the expected file format in the */projectpath/parker_profiles/* folder. For example, you can create a simple density and velocity profile in Python:
+You can "trick" the code into running an arbitrary outflow profile by saving your density and velocity profile in the expected file format in the *$SUNBATHER_PROJECT_PATH/parker_profiles/* folder. For example, you can create a simple density and velocity profile in Python:
 
 ``` python
 p = tools.Planet('generic_planet') #make sure you add the parameters in planets.txt
