@@ -312,11 +312,33 @@ def constructTstruc(sim, grid, snewTe, cloc, PdVprof, advecprof, altmax, Rp, itn
         hcratio = max(totheat, totcool) / min(totheat, totcool) #both entities are positive
 
         return hcratio - 1 #find root of this value to get hcratio close to 1
+    
+
+    def calchcratiohi2(T, depth, mu, htot, ctot, currentT, T2, depth2, mu2):
+        '''
+        Same as calchcratiohi() but this one also guesses a change in
+        the radiative heating and cooling rates based on T.
+        currentT is the temperature that corresponds to the htot and ctot values.
+        '''
+
+        PdV = ifuncPdVT(depth) * T / mu
+        advec = ifuncadvec(depth) * ((T/mu) - (T2/mu2))/(depth - depth2)
+
+        guess_htot = htot * (currentT / T) #so that if T > currentT, htot becomes lower. Trying some random functional form
+        guess_ctot = ctot * (T / currentT) #vice versa (no sqrt because it seems to have a stronger T dependence)
+
+        totheat = guess_htot + max(advec, 0) #if advec is negative we don't add it here
+        totcool = guess_ctot + PdV - min(advec, 0) #if advec is positive we don't add it here
+
+        hcratio = max(totheat, totcool) / min(totheat, totcool) #both entities are positive
+
+        return hcratio - 1 #find root of this value to get hcratio close to 1
 
 
     cnewTe = np.copy(snewTe) #start with the temp struc from other function
     for l in range(cloc-1, -1, -1): #walk 'backwards' to higher altitudes
-        result = minimize_scalar(calchcratiohi, method='bounded', bounds=[1e1,1e6], args=(grid[l], mu[l], htot[l], ctot[l], cnewTe[l+1], grid[l+1], mu[l+1]))
+        #result = minimize_scalar(calchcratiohi, method='bounded', bounds=[1e1,1e6], args=(grid[l], mu[l], htot[l], ctot[l], cnewTe[l+1], grid[l+1], mu[l+1]))
+        result = minimize_scalar(calchcratiohi2, method='bounded', bounds=[1e1,1e6], args=(grid[l], mu[l], htot[l], ctot[l], Te[l], cnewTe[l+1], grid[l+1], mu[l+1]))
         cnewTe[l] = result.x
 
 
