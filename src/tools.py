@@ -1729,7 +1729,7 @@ class Sim:
         #check if the SED of the Planet object matches the SED of the Cloudy simulation
         if hasattr(self, 'p') and hasattr(self, 'SEDname'):
             if self.p.SEDname != self.SEDname:
-                warnings.warn("I read in the .in file that the SED used is", self.SEDname, "which is different from the one of your Planet object. " \
+                warnings.warn(f"I read in the .in file that the SED used is {self.SEDname} which is different from the one of your Planet object. " \
                         "I will change the .SEDname attribute of the Planet object to match the one actually used in the simulation. Are you " \
                         "sure that also the associated Parker wind profile is correct?")
                 self.p.set_var(SEDname = self.SEDname)
@@ -1789,8 +1789,8 @@ class Sim:
                 self.simfiles.append('en')
 
         #set the velocity structure in .ovr if we have an associated Parker profile - needed for radiative transfer
-        if hasattr(self, 'par'): 
-            if hasattr(self.par, 'prof'):
+        if hasattr(self, 'par') and hasattr(self, 'ovr'): 
+            if hasattr(self.par, 'prof') and hasattr(self.ovr, 'alt'):
                 Sim.addv(self, self.par.prof.alt, self.par.prof.v)
 
 
@@ -1841,7 +1841,8 @@ class Sim:
         Called automatically when adding a Parker object to the sim.
         '''
 
-        assert 'ovr' in self.simfiles
+        assert 'ovr' in self.simfiles, "Simulation must have a 'save overview .ovr file" 
+        assert 'alt' in self.ovr.columns, "The .ovr file must have an altitude column (which in turn requires a known Rp and altmax)"
 
         if delete_negative:
             v[v < 0.] = 0.
