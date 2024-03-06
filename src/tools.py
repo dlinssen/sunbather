@@ -1645,6 +1645,16 @@ class Planet:
         ax.set_title(title)
         plt.show()
 
+    def max_T0(self, mu_bar=1.):
+        '''
+        Returns the maximum temperature T0 that the Parker wind can have,
+        for it to still be transonic. If T0 is higher than this value,
+        Rp > Rs which breaks the assumption of the Parker wind. 
+        See Vissapragada et al. (2024) on TOI-1420 b.
+        '''
+
+        return G * self.M * mH * mu_bar / (2 * self.R * k)
+
 
 class Sim:
     '''
