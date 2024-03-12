@@ -279,10 +279,10 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
 
     for spec in species:
         if spec in sim.den.columns:
-            warnings.warn("Your requested species", spec, "is not resolved into multiple energy levels by Cloudy. " + \
-                    "I will make the spectrum assuming all", spec, "is in the ground-state.")
+            warnings.warn(f"Your requested species {spec} is not resolved into multiple energy levels by Cloudy. " + \
+                    f"I will make the spectrum assuming all {spec} is in the ground-state.")
         elif not any(spec+"[" in col for col in sim.den.columns):
-            warnings.warn("Your requested species", spec, "is not present in Cloudy's output, so the spectrum will be flat. " + \
+            warnings.warn(f"Your requested species {spec} is not present in Cloudy's output, so the spectrum will be flat. " + \
                     "Please re-do your Cloudy simulation while saving this species. Either use the tools.insertden_Cloudy_in() " + \
                     "function, or run convergeT_parker.py again with the correct -save_sp arguments.")
 
