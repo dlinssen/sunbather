@@ -33,8 +33,8 @@ def project_1D_to_2D(r1, q1, Rp, numb=101, x_projection=False, cut_at=None,
                     For example for radial outflow velocities, to convert it to a velocity in the x-direction,
                     set this to True so that you get v_x, where positive v_x are in the
                     x-direction, i.e. from the star towards the observer.
-    cut_at:          radius at which we 'cut' the 2D structure and set values to 0.
-                    e.g. to set density 0 outside roche radius.
+    cut_at:         radius at which we 'cut' the 2D structure and set values to 0.
+                    e.g. cut_at=sim.p.Rroche to set density 0 outside roche radius.
     '''
 
     assert r1[1] > r1[0], "arrays must be in order of ascending altitude"
@@ -51,6 +51,8 @@ def project_1D_to_2D(r1, q1, Rp, numb=101, x_projection=False, cut_at=None,
 
     if cut_at != None:
         q2[rr > cut_at] = 0.
+
+    #some options that were used in Linssen&Oklopcic (2023) to find where the line contribution comes from:
     if skip_alt_range is not None:
         assert skip_alt_range[0] < skip_alt_range[1]
         q2[(rr > skip_alt_range[0]) & (rr < skip_alt_range[1])] = 0.
