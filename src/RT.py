@@ -219,7 +219,7 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
     return spNIST
 
 
-def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), phase=0., phase_bulkshift=False, turbulence=False, **kwargs):
+def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), phase=0., phase_bulkshift=False, turbulence=False, cut_at=None):
     '''
     Calculates Fin/Fout transit spectrum for a given wavelength range, and a given
     (list of) species. Includes limb darkening.
@@ -310,7 +310,7 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
                 ndens = state_ndens[colname]
             else:
                 ndens1 = sim.den[colname].values[::-1]
-                b, x, ndens = tools.project_1D_to_2D(r1, ndens1, Rp, numb=numrays, **kwargs) #in kwargs, there can be keywords to exlude regions (see tools.project_1D_to_2D)
+                b, x, ndens = tools.project_1D_to_2D(r1, ndens1, Rp, numb=numrays, cut_at=cut_at)
                 state_ndens[colname] = ndens #add to dictionary for future reference
 
             ndens_lw = ndens*lineweight #important that we make this a new variable as otherwise state_ndens would change as well!
@@ -323,7 +323,7 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
     return FinFout, found_lines, notfound_lines
 
 
-def tau_1D(sim, wavAA, species, width_fac=1., turbulence=False, **kwargs):
+def tau_1D(sim, wavAA, species, width_fac=1., turbulence=False):
     '''
     This function maps out the optical depth at one specific wavelength.
     The running integral of the optical deph is calculated at each depth of the ray.
@@ -395,7 +395,7 @@ def tau_1D(sim, wavAA, species, width_fac=1., turbulence=False, **kwargs):
     return tot_cum_tau, tot_bin_tau, found_lines, notfound_lines
 
 
-def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, **kwargs):
+def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, cut_at=None):
     '''
     For a 1D simulation, still maps out the optical depth in 2D.
     See tau_1D() for explanation of the arguments.
@@ -439,7 +439,7 @@ def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, **kwargs):
             found_lines.append((spNIST['ritz_wl_vac(A)'].loc[lineno], colname)) #if we got to here, we did find the spectral line
 
             #multiply with the lineweight! Such that for unresolved J, a line originating from J=1/2 does not also get density of J=3/2 state
-            _, _, ndens = tools.project_1D_to_2D(sim.ovr.alt.values[::-1], sim.den[colname].values[::-1], sim.p.R, **kwargs)
+            _, _, ndens = tools.project_1D_to_2D(sim.ovr.alt.values[::-1], sim.den[colname].values[::-1], sim.p.R, cut_at=cut_at)
             ndens *= lineweight
 
             cum_tau, bin_tau = calc_cum_tau(x, ndens, Te, vx, nu, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], turbulence=turbulence)

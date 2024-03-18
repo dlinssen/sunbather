@@ -953,7 +953,8 @@ def alt_array_to_Cloudy(alt, quantity, altmax, Rp, nmax, log=True):
     return law
 
 
-def project_1D_to_2D(r1, q1, Rp, numb=101, x_projection=False, cut_at=None, **kwargs):
+def project_1D_to_2D(r1, q1, Rp, numb=101, x_projection=False, cut_at=None, 
+                     skip_alt_range=None, skip_alt_range_dayside=None, skip_alt_range_nightside=None):
     '''
     Projects a 1D sub-stellar solution to a 2D symmetric structure,
     e.g. so that we can do RT with it. This function preserves the maximum altitude
@@ -977,12 +978,10 @@ def project_1D_to_2D(r1, q1, Rp, numb=101, x_projection=False, cut_at=None, **kw
     '''
 
     assert r1[1] > r1[0], "arrays must be in order of ascending altitude"
-    assert "directional" not in kwargs, "'directional' is deprecated. Use 'x_projection' instead and beware of the +/- signs"
 
     b = np.logspace(np.log10(0.1*Rp), np.log10(r1[-1] - 0.9*Rp), num=numb) + 0.9*Rp #impact parameters for 2D rays
-    #x = np.linspace(-r1[-1], r1[-1], num=2*numb) #x values for the 2D grid #decrepated linear grid, not 100% if other functions relied on x being spaced equally.
-    xos = np.logspace(np.log10(0.101*Rp), np.log10(r1[-1]+0.1*Rp), num=numb) - 0.1*Rp
-    x = np.concatenate((-xos[::-1], xos)) #log-spaced grid, innermost point is at 1.001 Rp
+    xos = np.logspace(np.log10(0.101*Rp), np.log10(r1[-1]+0.1*Rp), num=numb) - 0.1*Rp #x one-sided
+    x = np.concatenate((-xos[::-1], xos)) #x two-sided, innermost point is at 0.001 Rp
     xx, bb = np.meshgrid(x, b)
     rr = np.sqrt(bb**2 + xx**2) #radii from planet core in 2D
 
@@ -992,15 +991,15 @@ def project_1D_to_2D(r1, q1, Rp, numb=101, x_projection=False, cut_at=None, **kw
 
     if cut_at != None:
         q2[rr > cut_at] = 0.
-    if 'skip_alt_range' in kwargs:
-        assert kwargs['skip_alt_range'][0] < kwargs['skip_alt_range'][1]
-        q2[(rr > kwargs['skip_alt_range'][0]) & (rr < kwargs['skip_alt_range'][1])] = 0.
-    if 'skip_alt_range_dayside' in kwargs:
-        assert kwargs['skip_alt_range_dayside'][0] < kwargs['skip_alt_range_dayside'][1]
-        q2[(rr > kwargs['skip_alt_range_dayside'][0]) & (rr < kwargs['skip_alt_range_dayside'][1]) & (xx < 0.)] = 0.
-    if 'skip_alt_range_nightside' in kwargs:
-        assert kwargs['skip_alt_range_nightside'][0] < kwargs['skip_alt_range_nightside'][1]
-        q2[(rr > kwargs['skip_alt_range_nightside'][0]) & (rr < kwargs['skip_alt_range_nightside'][1]) & (xx > 0.)] = 0.
+    if skip_alt_range is not None:
+        assert skip_alt_range[0] < skip_alt_range[1]
+        q2[(rr > skip_alt_range[0]) & (rr < skip_alt_range[1])] = 0.
+    if skip_alt_range_dayside is not None:
+        assert skip_alt_range_dayside[0] < skip_alt_range_dayside[1]
+        q2[(rr > skip_alt_range_dayside[0]) & (rr < skip_alt_range_dayside[1]) & (xx < 0.)] = 0.
+    if skip_alt_range_nightside is not None:
+        assert skip_alt_range_nightside[0] < skip_alt_range_nightside[1]
+        q2[(rr > skip_alt_range_nightside[0]) & (rr < skip_alt_range_nightside[1]) & (xx > 0.)] = 0.
 
     return b, x, q2
 
