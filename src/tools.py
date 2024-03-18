@@ -953,56 +953,6 @@ def alt_array_to_Cloudy(alt, quantity, altmax, Rp, nmax, log=True):
     return law
 
 
-def project_1D_to_2D(r1, q1, Rp, numb=101, x_projection=False, cut_at=None, 
-                     skip_alt_range=None, skip_alt_range_dayside=None, skip_alt_range_nightside=None):
-    '''
-    Projects a 1D sub-stellar solution to a 2D symmetric structure,
-    e.g. so that we can do RT with it. This function preserves the maximum altitude
-    of the 1D ray, so that the 2D output looks like a half circle. However,
-    the 2D quantity it outputs is a numpy arrays which must be 'rectangular'
-    so it sets values in the rectangle outside of the circle to 0. That will
-    ensure 0 density and no optical depth.
-
-    r1:             altitude values from planet core in cm (ascending!)
-    q1:             1D quantity to project.
-    Rp:             planet core radius in cm. needed because we start there, and not
-                    necessarily at the lowest r-value (which may be slightly r[0] != Rp)
-    numb:           the number of bins in the y-directtion (impact parameters)
-                    twice this number is used in the x-direction (l.o.s.)
-    x_projection:   True or False. Whether to return the projection of q1(r1) in the x direction.
-                    For example for radial outflow velocities, to convert it to a velocity in the x-direction,
-                    set this to True so that you get v_x, where positive v_x are in the
-                    x-direction, i.e. from the star towards the observer.
-    cut_at:          radius at which we 'cut' the 2D structure and set values to 0.
-                    e.g. to set density 0 outside roche radius.
-    '''
-
-    assert r1[1] > r1[0], "arrays must be in order of ascending altitude"
-
-    b = np.logspace(np.log10(0.1*Rp), np.log10(r1[-1] - 0.9*Rp), num=numb) + 0.9*Rp #impact parameters for 2D rays
-    xos = np.logspace(np.log10(0.101*Rp), np.log10(r1[-1]+0.1*Rp), num=numb) - 0.1*Rp #x one-sided
-    x = np.concatenate((-xos[::-1], xos)) #x two-sided, innermost point is at 0.001 Rp
-    xx, bb = np.meshgrid(x, b)
-    rr = np.sqrt(bb**2 + xx**2) #radii from planet core in 2D
-
-    q2 = interp1d(r1, q1, fill_value=0., bounds_error=False)(rr)
-    if x_projection:
-        q2 = q2 * xx / rr #now q2 is the projection in the x-direction
-
-    if cut_at != None:
-        q2[rr > cut_at] = 0.
-    if skip_alt_range is not None:
-        assert skip_alt_range[0] < skip_alt_range[1]
-        q2[(rr > skip_alt_range[0]) & (rr < skip_alt_range[1])] = 0.
-    if skip_alt_range_dayside is not None:
-        assert skip_alt_range_dayside[0] < skip_alt_range_dayside[1]
-        q2[(rr > skip_alt_range_dayside[0]) & (rr < skip_alt_range_dayside[1]) & (xx < 0.)] = 0.
-    if skip_alt_range_nightside is not None:
-        assert skip_alt_range_nightside[0] < skip_alt_range_nightside[1]
-        q2[(rr > skip_alt_range_nightside[0]) & (rr < skip_alt_range_nightside[1]) & (xx > 0.)] = 0.
-
-    return b, x, q2
-
 
 def smooth_gaus_savgol(y, size=None, fraction=None):
     '''

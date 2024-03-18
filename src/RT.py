@@ -5,7 +5,7 @@ import tools
 import pandas as pd
 import numpy as np
 import numpy.ma as ma
-import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d
 from scipy.special import voigt_profile
 from scipy.integrate import trapezoid
 from scipy.ndimage import gaussian_filter1d
@@ -13,6 +13,55 @@ import warnings
 
 
 sigt0 = 2.654e-2 #cm2 s-1 = cm2 Hz, from Axner et al. 2004
+
+
+def project_1D_to_2D(r1, q1, Rp, numb=101, x_projection=False, cut_at=None, 
+                     skip_alt_range=None, skip_alt_range_dayside=None, skip_alt_range_nightside=None):
+    '''
+    Projects a 1D sub-stellar solution onto a 2D grid. This function preserves
+    the maximum altitude of the 1D ray, so that the 2D output looks like a half circle.
+    Values in the numpy 2D array outside of the circle radius are to 0. This will
+    also ensure 0 density and no optical depth.
+
+    r1:             altitude values from planet core in cm (ascending!)
+    q1:             1D quantity to project.
+    Rp:             planet core radius in cm. needed because we start there, and not
+                    necessarily at the lowest r-value (which may be slightly r[0] != Rp)
+    numb:           the number of bins in the y-directtion (impact parameters)
+                    twice this number is used in the x-direction (l.o.s.)
+    x_projection:   True or False. Whether to return the projection of q1(r1) in the x direction.
+                    For example for radial outflow velocities, to convert it to a velocity in the x-direction,
+                    set this to True so that you get v_x, where positive v_x are in the
+                    x-direction, i.e. from the star towards the observer.
+    cut_at:          radius at which we 'cut' the 2D structure and set values to 0.
+                    e.g. to set density 0 outside roche radius.
+    '''
+
+    assert r1[1] > r1[0], "arrays must be in order of ascending altitude"
+
+    b = np.logspace(np.log10(0.1*Rp), np.log10(r1[-1] - 0.9*Rp), num=numb) + 0.9*Rp #impact parameters for 2D rays
+    xos = np.logspace(np.log10(0.101*Rp), np.log10(r1[-1]+0.1*Rp), num=numb) - 0.1*Rp #x one-sided
+    x = np.concatenate((-xos[::-1], xos)) #x two-sided, innermost point is at 0.001 Rp
+    xx, bb = np.meshgrid(x, b)
+    rr = np.sqrt(bb**2 + xx**2) #radii from planet core in 2D
+
+    q2 = interp1d(r1, q1, fill_value=0., bounds_error=False)(rr)
+    if x_projection:
+        q2 = q2 * xx / rr #now q2 is the projection in the x-direction
+
+    if cut_at != None:
+        q2[rr > cut_at] = 0.
+    if skip_alt_range is not None:
+        assert skip_alt_range[0] < skip_alt_range[1]
+        q2[(rr > skip_alt_range[0]) & (rr < skip_alt_range[1])] = 0.
+    if skip_alt_range_dayside is not None:
+        assert skip_alt_range_dayside[0] < skip_alt_range_dayside[1]
+        q2[(rr > skip_alt_range_dayside[0]) & (rr < skip_alt_range_dayside[1]) & (xx < 0.)] = 0.
+    if skip_alt_range_nightside is not None:
+        assert skip_alt_range_nightside[0] < skip_alt_range_nightside[1]
+        q2[(rr > skip_alt_range_nightside[0]) & (rr < skip_alt_range_nightside[1]) & (xx > 0.)] = 0.
+
+    return b, x, q2
 
 
 def limbdark_quad(mu, ab):
@@ -261,8 +310,8 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
     Te1 = sim.ovr.Te.values[::-1]
     v1 = sim.ovr.v.values[::-1]
 
-    b, x, Te = tools.project_1D_to_2D(r1, Te1, Rp, numb=numrays)
-    b, x, vx = tools.project_1D_to_2D(r1, v1, Rp, numb=numrays, x_projection=True)
+    b, x, Te = project_1D_to_2D(r1, Te1, Rp, numb=numrays)
+    b, x, vx = project_1D_to_2D(r1, v1, Rp, numb=numrays, x_projection=True)
 
     if phase_bulkshift:
         assert hasattr(sim.p, 'Kp'), "The Planet object does not have a Kp attribute, likely because either a, Mp or Mstar is unknown"
@@ -310,7 +359,7 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
                 ndens = state_ndens[colname]
             else:
                 ndens1 = sim.den[colname].values[::-1]
-                b, x, ndens = tools.project_1D_to_2D(r1, ndens1, Rp, numb=numrays, cut_at=cut_at)
+                b, x, ndens = project_1D_to_2D(r1, ndens1, Rp, numb=numrays, cut_at=cut_at)
                 state_ndens[colname] = ndens #add to dictionary for future reference
 
             ndens_lw = ndens*lineweight #important that we make this a new variable as otherwise state_ndens would change as well!
@@ -407,8 +456,8 @@ def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, cut_at=None):
 
     nu = tools.c*1e8 / wavAA #Hz, converted c to AA/s
 
-    b, x, Te = tools.project_1D_to_2D(sim.ovr.alt.values[::-1], sim.ovr.Te.values[::-1], sim.p.R)
-    b, x, vx = tools.project_1D_to_2D(sim.ovr.alt.values[::-1], sim.ovr.v.values[::-1], sim.p.R, x_projection=True)
+    b, x, Te = project_1D_to_2D(sim.ovr.alt.values[::-1], sim.ovr.Te.values[::-1], sim.p.R)
+    b, x, vx = project_1D_to_2D(sim.ovr.alt.values[::-1], sim.ovr.v.values[::-1], sim.p.R, x_projection=True)
 
     tot_cum_tau, tot_bin_tau = np.zeros_like(vx), np.zeros_like(vx)
 
@@ -439,7 +488,7 @@ def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, cut_at=None):
             found_lines.append((spNIST['ritz_wl_vac(A)'].loc[lineno], colname)) #if we got to here, we did find the spectral line
 
             #multiply with the lineweight! Such that for unresolved J, a line originating from J=1/2 does not also get density of J=3/2 state
-            _, _, ndens = tools.project_1D_to_2D(sim.ovr.alt.values[::-1], sim.den[colname].values[::-1], sim.p.R, cut_at=cut_at)
+            _, _, ndens = project_1D_to_2D(sim.ovr.alt.values[::-1], sim.den[colname].values[::-1], sim.p.R, cut_at=cut_at)
             ndens *= lineweight
 
             cum_tau, bin_tau = calc_cum_tau(x, ndens, Te, vx, nu, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], turbulence=turbulence)
