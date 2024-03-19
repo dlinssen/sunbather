@@ -39,17 +39,18 @@ def project_1D_to_2D(r1, q1, Rp, numb=101, x_projection=False, cut_at=None,
 
     assert r1[1] > r1[0], "arrays must be in order of ascending altitude"
 
-    b = np.logspace(np.log10(0.1*Rp), np.log10(r1[-1] - 0.9*Rp), num=numb) + 0.9*Rp #impact parameters for 2D rays
-    xos = np.logspace(np.log10(0.101*Rp), np.log10(r1[-1]+0.1*Rp), num=numb) - 0.1*Rp #x one-sided
-    x = np.concatenate((-xos[::-1], xos)) #x two-sided, innermost point is at 0.001 Rp
-    xx, bb = np.meshgrid(x, b)
+    b_edges = np.logspace(np.log10(0.1*Rp), np.log10(r1[-1] - 0.9*Rp), num=numb) + 0.9*Rp #impact parameters for 2D rays - these are the boundaries of the 'rays'
+    b_centers = (b_edges[1:] + b_edges[:-1]) / 2. #these are the actual positions of the rays and this is where the quantity is calculated at
+    xhalf = np.logspace(np.log10(0.101*Rp), np.log10(r1[-1]+0.1*Rp), num=numb) - 0.1*Rp #positive x grid
+    x = np.concatenate((-xhalf[::-1], xhalf)) #total x grid with both negative and positive values (for day- and nightside)
+    xx, bb = np.meshgrid(x, b_centers)
     rr = np.sqrt(bb**2 + xx**2) #radii from planet core in 2D
 
     q2 = interp1d(r1, q1, fill_value=0., bounds_error=False)(rr)
     if x_projection:
         q2 = q2 * xx / rr #now q2 is the projection in the x-direction
 
-    if cut_at != None:
+    if cut_at != None: #set values to zero outside the cut_at boundary
         q2[rr > cut_at] = 0.
 
     #some options that were used in Linssen&Oklopcic (2023) to find where the line contribution comes from:
@@ -63,7 +64,7 @@ def project_1D_to_2D(r1, q1, Rp, numb=101, x_projection=False, cut_at=None,
         assert skip_alt_range_nightside[0] < skip_alt_range_nightside[1]
         q2[(rr > skip_alt_range_nightside[0]) & (rr < skip_alt_range_nightside[1]) & (xx > 0.)] = 0.
 
-    return b, x, q2
+    return b_edges, b_centers, x, q2
 
 
 def limbdark_quad(mu, ab):
@@ -197,7 +198,7 @@ def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
     return cum_tau, bin_tau
 
 
-def tau_to_FinFout(b, tau, Rs, bp=0., ab=np.zeros(2), a=0., phase=0.):
+def tau_to_FinFout(b_edges, tau, Rs, bp=0., ab=np.zeros(2), a=0., phase=0.):
     '''
     Takes in tau values and calculates the Fin/Fout transit spectrum,
     using the stellar radius and optional limb darkening and transit phase
@@ -225,13 +226,14 @@ def tau_to_FinFout(b, tau, Rs, bp=0., ab=np.zeros(2), a=0., phase=0.):
         ab = ab[None,:]
     
     #add some impact parameters and tau=inf bins that make up the planet core:
-    b = np.concatenate((np.linspace(0, b[0], num=50, endpoint=False), b))
+    b_edges = np.concatenate((np.linspace(0, b_edges[0], num=50, endpoint=False), b_edges))
+    b_centers = (b_edges[1:] + b_edges[:-1]) / 2 #calculate bin centers with the added planet core rays included
     tau = np.concatenate((np.ones((np.shape(tau)[0], 50))*np.inf, tau), axis=1)
 
-    projsurf = np.pi*(b[1:]**2 - b[:-1]**2) #ring surface of each ray
+    projsurf = np.pi*(b_edges[1:]**2 - b_edges[:-1]**2) #ring surface of each ray (now has same length as b_centers)
     phis = np.linspace(0, 2*np.pi, num=500, endpoint=False) #divide rings into different angles phi
-    #rc = distance to stellar center. Axis 0: radial rings, axis 1: phi
-    rc = np.sqrt((bp*Rs + b[:-1,None]*np.cos(phis[None,:]))**2 + (b[:-1,None]*np.sin(phis[None,:]) + a*np.sin(2*np.pi*phase))**2) #don't use last b value
+    #rc is the distance to stellar center. Axis 0: radial rings, axis 1: phi
+    rc = np.sqrt((bp*Rs + b_centers[:,None]*np.cos(phis[None,:]))**2 + (b_centers[:,None]*np.sin(phis[None,:]) + a*np.sin(2*np.pi*phase))**2)
     rc = ma.masked_where(rc > Rs, rc) #will ensure I is masked (and later set to 0) outside stellar projected disk
     mu = np.sqrt(1 - (rc/Rs)**2) #angle, see 'limbdark_quad' function
     I = limbdark_quad(mu, ab)
@@ -239,7 +241,7 @@ def tau_to_FinFout(b, tau, Rs, bp=0., ab=np.zeros(2), a=0., phase=0.):
     Ir_avg = Ir_avg.filled(fill_value=0.) #convert back to regular numpy array
     Is_avg = avg_limbdark_quad(ab) #average I of the full stellar disk
 
-    FinFout = np.ones_like(tau[:,0]) - np.sum(((1 - np.exp(-tau[:,:-1])) * Ir_avg*projsurf[None,:]/(Is_avg[:,None]*np.pi*Rs**2)), axis=1)
+    FinFout = np.ones_like(tau[:,0]) - np.sum(((1 - np.exp(-tau)) * Ir_avg*projsurf[None,:]/(Is_avg[:,None]*np.pi*Rs**2)), axis=1)
 
     return FinFout
 
@@ -312,15 +314,15 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
     Te1 = sim.ovr.Te.values[::-1]
     v1 = sim.ovr.v.values[::-1]
 
-    b, x, Te = project_1D_to_2D(r1, Te1, Rp, numb=numrays)
-    b, x, vx = project_1D_to_2D(r1, v1, Rp, numb=numrays, x_projection=True)
+    be, _, x, Te = project_1D_to_2D(r1, Te1, Rp, numb=numrays)
+    be, _, x, vx = project_1D_to_2D(r1, v1, Rp, numb=numrays, x_projection=True)
 
     if phase_bulkshift:
         assert hasattr(sim.p, 'Kp'), "The Planet object does not have a Kp attribute, likely because either a, Mp or Mstar is unknown"
         vx = vx - sim.p.Kp * np.sin(phase * 2*np.pi) #negative sign because x is defined as positive towards the observer.
 
     state_ndens = {}
-    tau = np.zeros((len(wavsAA), numrays))
+    tau = np.zeros((len(wavsAA), len(be)-1))
 
     if isinstance(species, str):
         species = [species]
@@ -361,7 +363,7 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
                 ndens = state_ndens[colname]
             else:
                 ndens1 = sim.den[colname].values[::-1]
-                b, x, ndens = project_1D_to_2D(r1, ndens1, Rp, numb=numrays, cut_at=cut_at)
+                be, _, x, ndens = project_1D_to_2D(r1, ndens1, Rp, numb=numrays, cut_at=cut_at)
                 state_ndens[colname] = ndens #add to dictionary for future reference
 
             ndens_lw = ndens*lineweight #important that we make this a new variable as otherwise state_ndens would change as well!
@@ -369,7 +371,7 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
             tau_line = calc_tau(x, ndens_lw, Te, vx, nus_line, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], turbulence=turbulence)
             tau[(nus > linenu_low) & (nus < linenu_hi), :] += tau_line #add the tau values to the correct nu bins
 
-    FinFout = tau_to_FinFout(b, tau, Rs, bp=sim.p.bp, ab=ab, phase=phase, a=sim.p.a)
+    FinFout = tau_to_FinFout(be, tau, Rs, bp=sim.p.bp, ab=ab, phase=phase, a=sim.p.a)
 
     return FinFout, found_lines, notfound_lines
 
@@ -458,8 +460,8 @@ def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, cut_at=None):
 
     nu = tools.c*1e8 / wavAA #Hz, converted c to AA/s
 
-    b, x, Te = project_1D_to_2D(sim.ovr.alt.values[::-1], sim.ovr.Te.values[::-1], sim.p.R)
-    b, x, vx = project_1D_to_2D(sim.ovr.alt.values[::-1], sim.ovr.v.values[::-1], sim.p.R, x_projection=True)
+    be, bc, x, Te = project_1D_to_2D(sim.ovr.alt.values[::-1], sim.ovr.Te.values[::-1], sim.p.R)
+    be, bc, x, vx = project_1D_to_2D(sim.ovr.alt.values[::-1], sim.ovr.v.values[::-1], sim.p.R, x_projection=True)
 
     tot_cum_tau, tot_bin_tau = np.zeros_like(vx), np.zeros_like(vx)
 
@@ -490,7 +492,7 @@ def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, cut_at=None):
             found_lines.append((spNIST['ritz_wl_vac(A)'].loc[lineno], colname)) #if we got to here, we did find the spectral line
 
             #multiply with the lineweight! Such that for unresolved J, a line originating from J=1/2 does not also get density of J=3/2 state
-            _, _, ndens = project_1D_to_2D(sim.ovr.alt.values[::-1], sim.den[colname].values[::-1], sim.p.R, cut_at=cut_at)
+            _, _, _, ndens = project_1D_to_2D(sim.ovr.alt.values[::-1], sim.den[colname].values[::-1], sim.p.R, cut_at=cut_at)
             ndens *= lineweight
 
             cum_tau, bin_tau = calc_cum_tau(x, ndens, Te, vx, nu, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], turbulence=turbulence)
