@@ -23,9 +23,9 @@ print("\nWill perform installation check by running the three main sunbather mod
 #make sure projectpath exists
 assert os.path.isdir(tools.projectpath), "Please create the projectpath folder on your machine"
 #make sure the planets.txt file exists
-assert os.path.isfile(tools.projectpath+'/planets.txt'), "Please make sure the 'planets.txt' file is present in SUNBATHER_PROJECT_PATH"
+assert os.path.isfile(tools.projectpath+'/planets.txt'), "Please make sure the 'planets.txt' file is present in $SUNBATHER_PROJECT_PATH"
 #make sure the SED we need for this test has been copied to Cloudy
-assert os.path.isfile(tools.cloudypath+'/data/SED/eps_Eri_binned.spec'), "Please copy /sunbather/stellar_SEDs/eps_Eri_binned.spec into /c17.02/data/SED/"
+assert os.path.isfile(tools.cloudypath+'/data/SED/eps_Eri_binned.spec'), "Please copy /sunbather/stellar_SEDs/eps_Eri_binned.spec into $CLOUDY_PATH/data/SED/"
 
 
 

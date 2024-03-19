@@ -2,9 +2,9 @@
 
 _sunbather_ was developed using _Cloudy v17.02_. Recently, _Cloudy v23.01_ was released. We have also made _sunbather_ compatible with this new version, but it has not been tested as thoroughly as for _v17_. Still, for state-of-the-art _Cloudy_ simulations, we recommend using _v23_. Complete download and installation instructions can be found [here](https://gitlab.nublado.org/cloudy/cloudy/-/wikis/home). In short, for most Unix systems, the steps are as follows:
 
-1. Go to the [v23 download page](https://data.nublado.org/cloudy_releases/c23/) and download the "c23.01.tar.gz" file, or go to the [v17 download page](https://data.nublado.org/cloudy_releases/c17/old/) and  download the "c17.02.tar.gz" file.
+1. Go to the [v23 download page](https://data.nublado.org/cloudy_releases/c23/) and download the "c23.01.tar.gz" file, **or** go to the [v17 download page](https://data.nublado.org/cloudy_releases/c17/old/) and  download the "c17.02.tar.gz" file.
 2. Extract it in a location where you want to install _Cloudy_.
-3. `cd` into the _/c23.01/source/_ folder and compile the code by running `make`.
+3. `cd` into the _/c23.01/source/_ or _/c17.02/source/_ folder and compile the code by running `make`.
 4. Quickly test the _Cloudy_ installation: in the source folder, run `./cloudy.exe`, type "test" and hit return twice. It should print "Cloudy exited OK" at the end.
 
 If you have trouble installing _Cloudy_, we refer to the download instructions linked above, as well as the _Cloudy_ [help forum](https://cloudyastrophysics.groups.io/g/Main/topics).
@@ -19,7 +19,7 @@ If you have trouble installing _Cloudy_, we refer to the download instructions l
 	export SUNBATHER_PROJECT_PATH="/full/path/to/project/folder/"
 	```
 4. Copy the */sunbather/planets.txt* file to your project folder.
-5. Test your _sunbather_ installation: copy _/sunbather/stellar_SEDs/eps_Eri_binned.spec_ to _/c17.02/data/SED/_ and then run _/sunbather/tests/test.py_, which should print "Success". If the test fails, feel free to contact d.c.linssen@uva.nl with your error.
+5. Test your _sunbather_ installation: copy _/sunbather/stellar_SEDs/eps_Eri_binned.spec_ to _$CLOUDY_PATH/data/SED/_ and then run _/sunbather/tests/test.py_, which should print "Success". If the test fails, feel free to contact d.c.linssen@uva.nl with your error.
 
 # Getting started
 

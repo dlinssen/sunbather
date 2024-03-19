@@ -545,7 +545,7 @@ def get_SED_norm_1AU(SEDname):
     Assumes (and checks) that the SED is in wav (Å) and nuFnu/lambFlamb (erg/s/cm-2) units.
 
     SEDname:    name of the SED including extension but excluding the path.
-                The SED is expected to be present in the /c17.02/data/SED/ folder.
+                The SED is expected to be present in the $CLOUDY_PATH/data/SED/ folder.
     '''
 
     with open(cloudypath+'/data/SED/'+SEDname, 'r') as f:

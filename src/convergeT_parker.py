@@ -61,7 +61,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
                             overwrite = True needs to be set.)
         fc: [float]         convergence factor, default should be 1.1. Sets the difference
                             in temperature structures between successive iterations
-        dir: [str]          direction as projectpath/sims/1D/planetname/dir/
+        dir: [str]          directory as $SUNBATHER_PROJECT_PATH/sims/1D/planetname/dir/
                             where the profile will be solved. A folder as
                             parker_T_Mdot/ will be made there and Cloudy is ran within.
         SEDname: [str]      name of SED file to use. if SEDname='real', we use the name as
@@ -76,7 +76,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
                             'nearby' looks in the dir folder for previously solved
                             parker wind profiles and starts from a converged one.
                             If no converged ones are available, uses 'free' instead.
-        pdir: [str]         direction as projectpath/parker_profiles/planetname/pdir/
+        pdir: [str]         directory as $SUNBATHER_PROJECT_PATH/parker_profiles/planetname/pdir/
                             where we take the parker wind profiles from. Different folders
                             may exist there for a given planet for parker wind profiles
                             with different assumptions such as SED/a/z/fH, etc.

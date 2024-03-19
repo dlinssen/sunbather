@@ -429,7 +429,7 @@ if __name__ == '__main__':
 
     parser.add_argument("-plname", required=True, help="planet name (must be in planets.txt)")
     parser.add_argument("-pdir", required=True, help="directory where the profiles are saved. It is adviced to choose a name that " \
-                                        "somehow represents the chosen parameters, e.g. 'fH_0.9' or 'z=10'. The path will be tools.projectpath/parker_profiles/pdir/")
+                                        "somehow represents the chosen parameters, e.g. 'fH_0.9' or 'z=10'. The path will be $SUNBATHER_PROJECT_PATH/parker_profiles/pdir/")
     parser.add_argument("-Mdot", required=True, type=float, nargs='+', action=OneOrThreeAction, help="log10(mass-loss rate), or three values specifying a grid of " \
                                         "mass-loss rates: lowest, highest, stepsize. -Mdot will be rounded to three decimal places.")
     parser.add_argument("-T", required=True, type=int, nargs='+', action=OneOrThreeAction, help="temperature, or three values specifying a grid of temperatures: lowest, highest, stepsize.")
