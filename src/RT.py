@@ -251,7 +251,7 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
     This function reads a table of lines from the NIST atomic database.
     '''
 
-    spNIST = pd.read_table(tools.sunbather_path+'/RT_tables/'+species+'_lines_NIST.txt') #line info
+    spNIST = pd.read_table(tools.sunbatherpath+'/RT_tables/'+species+'_lines_NIST.txt') #line info
     #remove lines with nan fik or Aik values. Note that lineno doesn't change (uses index instead of rowno.)
     spNIST = spNIST[spNIST.fik.notna()]
     spNIST = spNIST[spNIST['Aki(s^-1)'].notna()]

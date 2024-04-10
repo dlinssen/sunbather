@@ -13,7 +13,7 @@ from fractions import Fraction
 import warnings
 
 
-sunbather_path = os.path.dirname(os.path.abspath(__file__)) #the absolute path where this code lives
+sunbatherpath = os.path.dirname(os.path.abspath(__file__)) #the absolute path where this code lives
 try:
     cloudypath = os.environ['CLOUDY_PATH'] #the path where the Cloudy installation is
 except KeyError:
@@ -66,7 +66,7 @@ element_names = {'H':'hydrogen', 'He':'helium', 'Li':'lithium', 'Be':'beryllium'
 element_symbols = dict((reversed(item) for item in element_names.items())) #reverse dictionary mapping e.g. 'hydrogen'->'H'
 
 #number of corresponding energy levels between Cloudy and NIST - read txt file header for more info
-species_enlim = pd.read_csv(sunbather_path+"/species_enlim.txt", index_col=0, header=1)
+species_enlim = pd.read_csv(sunbatherpath+"/species_enlim.txt", index_col=0, header=1)
 
 def get_specieslist(max_ion=6, exclude_elements=[]):
     '''
@@ -421,7 +421,7 @@ def process_energies(filename, rewrite=True, cloudy_version="17"):
     unique_species = list(set(en_df.species.values) & set(species_enlim.index.tolist()))
 
     for species in unique_species:
-        species_levels = pd.read_table(sunbather_path+'/RT_tables/'+species+'_levels_processed.txt') #get the NIST levels
+        species_levels = pd.read_table(sunbatherpath+'/RT_tables/'+species+'_levels_processed.txt') #get the NIST levels
         species_energies = en_df[en_df.species == species].energy #get Cloudy's energies
 
         #tolerance of difference between Cloudy's and NISTs energy levels. They usually differ at the decimal level so we need some tolerance.
