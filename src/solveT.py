@@ -385,20 +385,22 @@ def check_T_changing(fc, grid, newTe, prevgrid, prevTe, fac=0.5, linthresh=50.):
     return Tchanging
 
 
-def run_once(path, itno, fc, altmax, Rp, PdVprof, advecprof):
-    prev_iteration = tools.Sim(path+'iteration'+str(itno-1))
-    #make logspaced grid to use throughout the code, interpolate all useful quantities to this grid. 5000 steps is usually enough (>> Cloudy internal grid)
-    loggrid = altmax*Rp - np.logspace(np.log10(prev_iteration.ovr.alt.iloc[-1]), np.log10(prev_iteration.ovr.alt.iloc[0]), num=2500)[::-1]
+def run_once(path, itno, fc, PdVprof, advecprof):
+    prev_sim = tools.Sim(path+f'iteration{itno-1}')
+    altmax = prev_sim.altmax
+    Rp = prev_sim.p.R
 
+    #make logspaced grid to use throughout the code, interpolate all useful quantities to this grid.
+    loggrid = altmax*Rp - np.logspace(np.log10(prev_sim.ovr.alt.iloc[-1]), np.log10(prev_sim.ovr.alt.iloc[0]), num=2500)[::-1]
 
-    #now the procedure starts
-    snewTe, cloc, converged = relaxTstruc(prev_iteration, loggrid, altmax, prev_iteration.p.R, PdVprof, advecprof, fc, path, itno)
+    #now the procedure starts - check conversion and at the same time produce new relaxed Te profile
+    snewTe, cloc, converged = relaxTstruc(prev_sim, loggrid, altmax, Rp, PdVprof, advecprof, fc, path, itno)
 
     if converged:
         print("\nTemperature profile converged: "+path+"\nRun one more time with level output files and then stop.\n")
-        make_converged_plot(prev_iteration, loggrid, PdVprof, advecprof, altmax, Rp, path)
+        make_converged_plot(prev_sim, loggrid, PdVprof, advecprof, altmax, Rp, path)
         #calculate these terms for the output .txt file
-        conv_Te, conv_mu, conv_htot, conv_ctot, conv_rho = simtogrid(prev_iteration, loggrid)
+        conv_Te, conv_mu, conv_htot, conv_ctot, conv_rho = simtogrid(prev_sim, loggrid)
         conv_PdV, conv_advecheat, conv_adveccool = getexpadvrates(loggrid, conv_Te, conv_mu, PdVprof, advecprof)
         np.savetxt(path+'converged.txt', np.column_stack(((altmax-loggrid/Rp)[::-1], conv_rho[::-1], conv_Te[::-1],
             conv_mu[::-1], conv_htot[::-1], conv_ctot[::-1], conv_PdV[::-1], conv_advecheat[::-1], conv_adveccool[::-1])), fmt='%1.5e',
@@ -406,7 +408,7 @@ def run_once(path, itno, fc, altmax, Rp, PdVprof, advecprof):
         return converged
 
     if cloc != None:
-        snewTe = constructTstruc(prev_iteration, loggrid, snewTe, cloc, PdVprof, advecprof, altmax, Rp, itno, path, fc)
+        snewTe = constructTstruc(prev_sim, loggrid, snewTe, cloc, PdVprof, advecprof, altmax, Rp, itno, path, fc)
 
     iterations_file = pd.read_csv(path+'iterations.txt', header=0, sep=' ')
     iterations_file['Te'+str(itno)] = snewTe
@@ -419,9 +421,9 @@ def run_once(path, itno, fc, altmax, Rp, PdVprof, advecprof):
         if not Tchanging:
             print("\nTemperature profile not converged to H/C < fc, but it does not change substantially anymore between iterations. "
                     +"Smoothing can cause this. The temperature profile should be accurate enough, I'll call it converged now: "+path+"\n")
-            make_converged_plot(prev_iteration, loggrid, PdVprof, advecprof, altmax, Rp, path)
+            make_converged_plot(prev_sim, loggrid, PdVprof, advecprof, altmax, Rp, path)
             #calculate these terms for the output .txt file
-            conv_Te, conv_mu, conv_htot, conv_ctot, conv_rho = simtogrid(prev_iteration, loggrid)
+            conv_Te, conv_mu, conv_htot, conv_ctot, conv_rho = simtogrid(prev_sim, loggrid)
             conv_PdV, conv_advecheat, conv_adveccool = getexpadvrates(loggrid, conv_Te, conv_mu, PdVprof, advecprof)
             np.savetxt(path+'converged.txt', np.column_stack(((altmax-loggrid/Rp)[::-1], conv_rho[::-1], conv_Te[::-1],
                 conv_mu[::-1], conv_htot[::-1], conv_ctot[::-1], conv_PdV[::-1], conv_advecheat[::-1], conv_adveccool[::-1])), fmt='%1.5e',
@@ -467,7 +469,7 @@ def clean_converged_folder(folder):
                 os.remove(os.path.join(folder, filename))
 
 
-def run_loop(path, itno, fc, altmax, Rp, PdVprof, advecprof, save_sp=[], maxit=16):
+def run_loop(path, itno, fc, PdVprof, advecprof, save_sp=[], maxit=16):
     if itno == 0: #this means we resume from the highest found previously ran iteration
         pattern = r'iteration(\d+)\.out' #search pattern: iteration followed by an integer
         max_iteration = -1 #set an impossible number
@@ -490,7 +492,7 @@ def run_loop(path, itno, fc, altmax, Rp, PdVprof, advecprof, save_sp=[], maxit=1
         itno += 1
 
     while itno <= maxit:
-        converged = run_once(path, itno, fc, altmax, Rp, PdVprof, advecprof)
+        converged = run_once(path, itno, fc, PdVprof, advecprof)
         
         if converged:
             #we run the last simulation one more time but with all the output files
