@@ -1055,7 +1055,7 @@ def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
     if denspecies != []:
         assert ".den" in outfiles and ".en" in outfiles
     if ".den" in outfiles or ".en" in outfiles:
-        assert ".den" in outfiles and ".en" in outfiles and denspecies != []
+        assert ".den" in outfiles and ".en" in outfiles
     if constantT != None:
         assert not np.any(tlaw != None)
 
@@ -1074,9 +1074,10 @@ def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
             f.write('\nsave heating ".heat" last')
         if ".con" in outfiles:
             f.write('\nsave continuum ".con" last units Hz')
-        if ".den" in outfiles: #then ".en" is always there as well.
-            f.write('\nsave species densities last ".den"\n'+speciesstring(denspecies, selected_levels=selected_den_levels, cloudy_version=cloudy_version)+"\nend")
-            f.write('\nsave species energies last ".en"\n'+speciesstring(denspecies, selected_levels=selected_den_levels, cloudy_version=cloudy_version)+"\nend")
+        if ".den" in outfiles: #then ".en" is always there as well due to the assertion above
+            if denspecies != []:
+                f.write('\nsave species densities last ".den"\n'+speciesstring(denspecies, selected_levels=selected_den_levels, cloudy_version=cloudy_version)+"\nend")
+                f.write('\nsave species energies last ".en"\n'+speciesstring(denspecies, selected_levels=selected_den_levels, cloudy_version=cloudy_version)+"\nend")
         if constantT != None:
             f.write('\nconstant temperature t= '+str(constantT)+' linear')
         if double_tau:
@@ -1651,11 +1652,14 @@ class Sim:
             _outfile_content = f.read()
             if "Cloudy exited OK" in _outfile_content:
                 _succesful = True
+            else:
+                _succesful = False
+            
             if "Cloudy 17" in _outfile_content:
                 self.cloudy_version = "17"
             elif "Cloudy 23" in _outfile_content:
                 self.cloudy_version = "23"
-            else:
+            elif _succesful:
                 raise TypeError(f"This simulation did not use Cloudy v17 or v23, which are the only supported versions: {simname}")
         if not _succesful and not proceedFail:
             raise FileNotFoundError(f"This simulation went wrong: {simname} Check the .out file!")

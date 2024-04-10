@@ -157,16 +157,6 @@ def relaxTstruc(sim, grid, altmax, Rp, PdVprof, advecprof, fc, path, itno):
 
     cloc = calc_cloc(path, itno, advecheat, adveccool, htot, ctot, totheat, PdV, hcratio)
 
-    #Check convergence.
-    #Inner region really suffers from Cloudy roundoff errors and log interpolation and thus we are twice as lax there.
-    #Also, when we start from nearby models, sometimes we converge immediately on the first iteration and we get the exact
-    #same temperature profile. To prevent that, I force here that we do two iterations before calling converged.
-    if max(np.abs(hcratio[:int(0.95*len(grid))])) < fc and max(np.abs(hcratio[int(0.95*len(grid)):])) < 1+(fc-1)*2 and itno > 2:
-        converged = True
-    else:
-        converged = False
-
-
     if itno == 2: #save for first time
         np.savetxt(path+'iterations.txt', np.column_stack((grid, np.repeat(0.3, len(grid)), Te, ctot, htot)),
                     header='grid fac1 Te1 ctot1 htot1', comments='', delimiter=' ', fmt='%.7e')
@@ -193,15 +183,14 @@ def relaxTstruc(sim, grid, altmax, Rp, PdVprof, advecprof, fc, path, itno):
         snewTe = np.clip(snewTe, 1e1, 1e6)
 
     #set up the figure with plotted quantities (if converged, we will make a plot later)
-    if not converged:
-        make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool,
-                        rho, hcratiopos, hcrationeg, altmax, fc, title='iteration '+str(itno)+' - relaxation',
-                        savename=path+'iteration'+str(itno)+'_relax.png')
+    make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool,
+                    rho, hcratiopos, hcrationeg, altmax, fc, title='iteration '+str(itno)+' - relaxation',
+                    savename=path+'iteration'+str(itno)+'_relax.png')
 
     iterations_file['fac'+str(itno)] = fac
     iterations_file.to_csv(path+'iterations.txt', sep=' ', float_format='%.7e', index=False)
 
-    return snewTe, cloc, converged
+    return snewTe, cloc
 
 
 def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, rho, hcratiopos, hcrationeg, altmax, fc, title=None, savename=None, **kwargs):
@@ -385,68 +374,23 @@ def check_T_changing(fc, grid, newTe, prevgrid, prevTe, fac=0.5, linthresh=50.):
     return Tchanging
 
 
-def run_once(path, itno, fc, PdVprof, advecprof):
-    prev_sim = tools.Sim(path+f'iteration{itno-1}')
-    altmax = prev_sim.altmax
-    Rp = prev_sim.p.R
+def check_fc_converged(sim, PdVprof, advecprof, fc, depthgrid):
+    '''
+    Checks whether the temperature profile is converged to a H/C ratio < fc.
+    '''
 
-    #make logspaced grid to use throughout the code, interpolate all useful quantities to this grid.
-    loggrid = altmax*Rp - np.logspace(np.log10(prev_sim.ovr.alt.iloc[-1]), np.log10(prev_sim.ovr.alt.iloc[0]), num=2500)[::-1]
+    Te, mu, htot, ctot, rho = simtogrid(sim, depthgrid) #get all needed Cloudy quantities on this grid
+    PdV, advecheat, adveccool = getexpadvrates(depthgrid, Te, mu, PdVprof, advecprof) #calculate PdV and advection rates
+    totheat, totcool, nettotal, hcratio, hcratiopos, hcrationeg = getbulkrates(htot, ctot, PdV, advecheat, adveccool)
 
-    #now the procedure starts - check conversion and at the same time produce new relaxed Te profile
-    snewTe, cloc, converged = relaxTstruc(prev_sim, loggrid, altmax, Rp, PdVprof, advecprof, fc, path, itno)
-
-    if converged:
-        print("\nTemperature profile converged: "+path+"\nRun one more time with level output files and then stop.\n")
-        make_converged_plot(prev_sim, loggrid, PdVprof, advecprof, altmax, Rp, path)
-        #calculate these terms for the output .txt file
-        conv_Te, conv_mu, conv_htot, conv_ctot, conv_rho = simtogrid(prev_sim, loggrid)
-        conv_PdV, conv_advecheat, conv_adveccool = getexpadvrates(loggrid, conv_Te, conv_mu, PdVprof, advecprof)
-        np.savetxt(path+'converged.txt', np.column_stack(((altmax-loggrid/Rp)[::-1], conv_rho[::-1], conv_Te[::-1],
-            conv_mu[::-1], conv_htot[::-1], conv_ctot[::-1], conv_PdV[::-1], conv_advecheat[::-1], conv_adveccool[::-1])), fmt='%1.5e',
-            header='R rho Te mu radheat radcool PdV advheat advcool', comments='')
-        return converged
-
-    if cloc != None:
-        snewTe = constructTstruc(prev_sim, loggrid, snewTe, cloc, PdVprof, advecprof, altmax, Rp, itno, path, fc)
-
-    iterations_file = pd.read_csv(path+'iterations.txt', header=0, sep=' ')
-    iterations_file['Te'+str(itno)] = snewTe
-    iterations_file.to_csv(path+'iterations.txt', sep=' ', float_format='%.7e', index=False)
-
-    #if we get to here, it means that we were not converged to <fc. Then still check if Te structure is changing. If not, we call it converged.
-    if itno >= 3:
-        p_Te = iterations_file['Te'+str(itno-1)].values #previous-previous Te
-        Tchanging = check_T_changing(fc, loggrid, snewTe, loggrid, p_Te, linthresh=50.)
-        if not Tchanging:
-            print("\nTemperature profile not converged to H/C < fc, but it does not change substantially anymore between iterations. "
-                    +"Smoothing can cause this. The temperature profile should be accurate enough, I'll call it converged now: "+path+"\n")
-            make_converged_plot(prev_sim, loggrid, PdVprof, advecprof, altmax, Rp, path)
-            #calculate these terms for the output .txt file
-            conv_Te, conv_mu, conv_htot, conv_ctot, conv_rho = simtogrid(prev_sim, loggrid)
-            conv_PdV, conv_advecheat, conv_adveccool = getexpadvrates(loggrid, conv_Te, conv_mu, PdVprof, advecprof)
-            np.savetxt(path+'converged.txt', np.column_stack(((altmax-loggrid/Rp)[::-1], conv_rho[::-1], conv_Te[::-1],
-                conv_mu[::-1], conv_htot[::-1], conv_ctot[::-1], conv_PdV[::-1], conv_advecheat[::-1], conv_adveccool[::-1])), fmt='%1.5e',
-                header='R rho Te mu radheat radcool PdV advheat advcool', comments='')
-            converged = True
-            return converged
-
-
-
-    #we cannot use the tools.cl_table function because that expects the arrays to be ordered from low to high altitude
-    #also, that one uses the grid you give it, instead of extrapolating from Rp to altmax*Rp
-    Clgridr1 = np.logspace(np.log10(Rp), np.log10(altmax*Rp), num=1000)
-    Clgridr1 = (Clgridr1 - Clgridr1[0])
-    #sample the first 10 points better since Cloudy messes up with log-space interpolation there
-    Clgridr2 = np.logspace(-2, np.log10(Clgridr1[9]), num=300)
-    Clgridr = np.concatenate((Clgridr2, Clgridr1[10:]))
-    Clgridr[0] = 1e-35
-
-    ifunc_snewTe = interp1d(loggrid, snewTe, fill_value='extrapolate') #to put on coarse grid for cloudy
-    ClgridT = ifunc_snewTe(Clgridr)
-    Cltlaw = np.log10(np.column_stack((Clgridr, ClgridT)))
-
-    tools.copyadd_Cloudy_in(path+'template', path+'iteration'+str(itno), tlaw=Cltlaw)
+    #Check convergence.
+    #Inner region really suffers from Cloudy roundoff errors and log interpolation and thus we are twice as lax there.
+    #Also, when we start from nearby models, sometimes we converge immediately on the first iteration and we get the exact
+    #same temperature profile. To prevent that, I force here that we do two iterations before calling converged.
+    if max(np.abs(hcratio[:int(0.95*len(depthgrid))])) < fc and max(np.abs(hcratio[int(0.95*len(depthgrid)):])) < 1+(fc-1)*2:
+        converged = True
+    else:
+        converged = False
 
     return converged
 
@@ -470,42 +414,78 @@ def clean_converged_folder(folder):
 
 
 def run_loop(path, itno, fc, PdVprof, advecprof, save_sp=[], maxit=16):
-    if itno == 0: #this means we resume from the highest found previously ran iteration
-        pattern = r'iteration(\d+)\.out' #search pattern: iteration followed by an integer
-        max_iteration = -1 #set an impossible number
-        for filename in os.listdir(path): #loop through all files/folder in the path
-            if os.path.isfile(os.path.join(path, filename)): #if it is a file (not a folder)
-                if re.search(pattern, filename): #if it matches the pattern
-                    iteration_number = int(re.search(pattern, filename).group(1)) #extract the iteration number
-                    if iteration_number > max_iteration: #update highest found iteration number
-                        max_iteration = iteration_number
-        if max_iteration == -1: #this means no files were found
-            warnings.warn(f"This folder does not have any 'iteration' files: {path} "\
-                          "so I cannot resume from the highest one. Will start at itno = 1.")
-            itno = 1
-        else:
-            print("\nFound the highest iteration "+path+"iteration"+str(max_iteration)+", will resume there.\n")
-            itno = max_iteration+1
+    '''
+    Iteratively solves the temperature profile
+    '''
 
     if itno == 1: #iteration1 is just running Cloudy. Then, we move on to iteration2
         tools.run_Cloudy('iteration1', folder=path)
         itno += 1
 
+    #now, we have ran our iteration1 and can start the iterative scheme to find a new profile:
     while itno <= maxit:
-        converged = run_once(path, itno, fc, PdVprof, advecprof)
-        
-        if converged:
+        prev_sim = tools.Sim(path+f'iteration{itno-1}')
+        altmax = prev_sim.altmax
+        Rp = prev_sim.p.R
+
+        #make logspaced grid to use throughout the code, interpolate all useful quantities to this grid.
+        loggrid = altmax*Rp - np.logspace(np.log10(prev_sim.ovr.alt.iloc[-1]), np.log10(prev_sim.ovr.alt.iloc[0]), num=2500)[::-1]
+
+        #now the procedure starts - we first produce a new temperature profile
+        snewTe, cloc = relaxTstruc(prev_sim, loggrid, altmax, Rp, PdVprof, advecprof, fc, path, itno)
+        if cloc != None:
+            snewTe = constructTstruc(prev_sim, loggrid, snewTe, cloc, PdVprof, advecprof, altmax, Rp, itno, path, fc)
+
+        #add this temperature profile to the iterations file
+        iterations_file = pd.read_csv(path+'iterations.txt', header=0, sep=' ')
+        iterations_file['Te'+str(itno)] = snewTe
+        iterations_file.to_csv(path+'iterations.txt', sep=' ', float_format='%.7e', index=False)
+
+        #now we check if the profile is converged. Either to H/C<fc, or if the Te profile does not change anymore (indicating smoothing prevents H/C<fc)
+        converged = False #first assume not converged
+        if itno > 2: #always update the Te profile at least once - in case we start from a 'close' Parker wind profile that immediately satisfies fc
+            converged = check_fc_converged(prev_sim, PdVprof, advecprof, fc, loggrid)
+            p_Te = iterations_file['Te'+str(itno-1)].values #previous-previous Te
+            Tchanging = check_T_changing(fc, loggrid, snewTe, loggrid, p_Te, linthresh=50.)
+            if not Tchanging: #then say this indicates convergence that is simply limited by smoothing.
+                converged = True
+
+        if converged: #run once more with all output
+            print(f"Temperature profile converged: {path}")
+            make_converged_plot(prev_sim, loggrid, PdVprof, advecprof, altmax, Rp, path)
+            #calculate these terms for the output .txt file
+            conv_Te, conv_mu, conv_htot, conv_ctot, conv_rho = simtogrid(prev_sim, loggrid)
+            conv_PdV, conv_advecheat, conv_adveccool = getexpadvrates(loggrid, conv_Te, conv_mu, PdVprof, advecprof)
+            np.savetxt(path+'converged.txt', np.column_stack(((altmax-loggrid/Rp)[::-1], conv_rho[::-1], conv_Te[::-1],
+                conv_mu[::-1], conv_htot[::-1], conv_ctot[::-1], conv_PdV[::-1], conv_advecheat[::-1], conv_adveccool[::-1])), fmt='%1.5e',
+                header='R rho Te mu radheat radcool PdV advheat advcool', comments='')
+            
             #we run the last simulation one more time but with all the output files
             tools.copyadd_Cloudy_in(path+'iteration'+str(itno-1), path+'converged', 
                                     outfiles=['.heat', '.den', '.en'], denspecies=save_sp, 
                                     selected_den_levels=True, hcfrac=0.01)
             tools.run_Cloudy('converged', folder=path)
             tools.Sim(path+'converged') #read in the simulation, so we open the .en file (if it exists) and hence compress its size (see tools.process_energies())
-            clean_converged_folder(path) #remove all non-converged files
+            clean_converged_folder(path) #remove all non-converged files            
+            
             break
-        
-        #if not converged:
-        if itno != maxit:
-            tools.run_Cloudy(f'iteration{itno}', folder=path)
 
-        itno += 1
+        else: #set up the next iteration
+            #we cannot use the tools.cl_table function because that expects the arrays to be ordered from low to high altitude
+            #also, that one uses the grid you give it, instead of extrapolating from Rp to altmax*Rp
+            Clgridr1 = np.logspace(np.log10(Rp), np.log10(altmax*Rp), num=1000)
+            Clgridr1 = (Clgridr1 - Clgridr1[0])
+            #sample the first 10 points better since Cloudy messes up with log-space interpolation there
+            Clgridr2 = np.logspace(-2, np.log10(Clgridr1[9]), num=300)
+            Clgridr = np.concatenate((Clgridr2, Clgridr1[10:]))
+            Clgridr[0] = 1e-35
+
+            ifunc_snewTe = interp1d(loggrid, snewTe, fill_value='extrapolate') #to put on coarse grid for cloudy
+            ClgridT = ifunc_snewTe(Clgridr)
+            Cltlaw = np.log10(np.column_stack((Clgridr, ClgridT)))
+
+            tools.copyadd_Cloudy_in(path+'template', path+'iteration'+str(itno), tlaw=Cltlaw)
+            if itno != maxit:
+                tools.run_Cloudy(f'iteration{itno}', folder=path)
+
+            itno += 1

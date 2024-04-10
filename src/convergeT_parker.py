@@ -146,6 +146,22 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
                                 flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=hdenprof, double_tau=True,
                                 overwrite=overwrite, cosmic_rays=True, zdict=zdict, comments=comments)
 
+    if itno == 0: #this means we resume from the highest found previously ran iteration
+        pattern = r'iteration(\d+)\.out' #search pattern: iteration followed by an integer
+        max_iteration = -1 #set an impossible number
+        for filename in os.listdir(path): #loop through all files/folder in the path
+            if os.path.isfile(os.path.join(path, filename)): #if it is a file (not a folder)
+                if re.search(pattern, filename): #if it matches the pattern
+                    iteration_number = int(re.search(pattern, filename).group(1)) #extract the iteration number
+                    if iteration_number > max_iteration: #update highest found iteration number
+                        max_iteration = iteration_number
+        if max_iteration == -1: #this means no files were found
+            print(f"This folder does not contain any iteration files {path}, so I cannot resume from the highest one. Will instead start at itno = 1.")
+            itno = 1
+        else:
+            print(f"Found the highest iteration {path}iteration{max_iteration}, will resume at that same itno.")
+            itno = max_iteration
+
     #write clocs file that keeps track of from where we construct - see solveT.py
     if itno == 1:
         with open(path+"clocs.txt", "w") as f:
