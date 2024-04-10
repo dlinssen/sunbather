@@ -860,9 +860,9 @@ def cl_table(r, rho, v, altmax, Rp, nmax, negtozero=False, zdict=None):
     ifunc_advec = interp1d(r, advec, kind='linear', bounds_error=False, fill_value=0.)
 
     #altitude log-spaced grid
-    ialt = np.logspace(np.log10(Rp), np.log10(altmax*Rp), num=int(0.7*nmax))
-    #sample the illuminated side better to prevent Cloudy log-interpolation errors
+    ialt = np.logspace(np.log10(Rp), np.log10(altmax*Rp), num=int(0.8*nmax))
     r_ill1 = (ialt[-1] - ialt)[::-1]
+    #sample the illuminated side better to prevent Cloudy log-interpolation errors
     r_ill2 = np.logspace(-2, np.log10(r_ill1[9]), num=(nmax-len(ialt)))
     r_ill = np.concatenate((r_ill2, r_ill1[10:]))
     ialt = ialt[-1] - r_ill[::-1]
@@ -893,7 +893,7 @@ def cl_table(r, rho, v, altmax, Rp, nmax, negtozero=False, zdict=None):
 
 def calc_expansionTmu(r, rho, v):
     '''
-    Calcules the expansion cooling term / (T/mu), so afterwards you can
+    Calcules the expansion cooling term divided by (T/mu), so afterwards you can
     multiply with the T/mu as given by Cloudy to obtain back the full
     expansion cooling rate.
     Requires that r is in the direction of v (i.e. usually in altitude scale).
@@ -903,8 +903,22 @@ def calc_expansionTmu(r, rho, v):
     v:      velocity in cm s-1
     '''
 
-    expTmu = -1 * np.gradient(rho, r) * v*k/mH #erg / s / cm3
-    return expTmu #expTmu as positive values
+    exp_Tmu = -1 * np.gradient(rho, r) * v*k/mH #erg / s / cm3
+    return exp_Tmu #exp_Tmu as positive values
+
+
+def calc_advectiondTmu(rho, v):
+    '''
+    Calcules the advection term divided by ( d(T/mu)/dr ), so afterwards you can
+    multiply with the d(T/mu)/dr as given by Cloudy to obtain back the full
+    advection rate.
+
+    rho:    density in g cm-3
+    v:      velocity in cm s-1
+    '''
+
+    advec_dTmu = v*rho*(3/2)*k/mH #erg / s / cm2 / K
+    return advec_dTmu
 
 
 def alt_array_to_Cloudy(alt, quantity, altmax, Rp, nmax, log=True):
@@ -942,7 +956,7 @@ def alt_array_to_Cloudy(alt, quantity, altmax, Rp, nmax, log=True):
 
     Clgridr1 = np.logspace(np.log10(alt[0]), np.log10(altmax*Rp), num=int(0.8*nmax))
     Clgridr1[0], Clgridr1[-1] = alt[0], altmax*Rp #reset these for potential log-numerical errors
-    Clgridr1 = (Clgridr1 - Clgridr1[0])
+    Clgridr1 = (Clgridr1[-1] - Clgridr1)[::-1]
     #sample the first 10 points better since Cloudy messes up with log-space interpolation there
     Clgridr2 = np.logspace(-2, np.log10(Clgridr1[9]), num=(nmax-len(Clgridr1)))
     Clgridr = np.concatenate((Clgridr2, Clgridr1[10:]))

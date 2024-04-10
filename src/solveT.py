@@ -393,7 +393,7 @@ def clean_converged_folder(folder):
                 os.remove(os.path.join(folder, filename))
 
 
-def run_loop(path, itno, fc, PdVprof, advecprof, save_sp=[], maxit=16):
+def run_loop(path, itno, fc, pprof, save_sp=[], maxit=16):
     '''
     Iteratively solves the temperature profile
     '''
@@ -410,6 +410,11 @@ def run_loop(path, itno, fc, PdVprof, advecprof, save_sp=[], maxit=16):
 
         #make logspaced grid to use throughout the code, interpolate all useful quantities to this grid.
         loggrid = altmax*Rp - np.logspace(np.log10(prev_sim.ovr.alt.iloc[-1]), np.log10(prev_sim.ovr.alt.iloc[0]), num=2500)[::-1]
+
+        PdVT = tools.calc_expansionTmu(pprof.alt.values, pprof.rho.values, pprof.v.values)
+        PdVprof = tools.alt_array_to_Cloudy(pprof.alt.values, PdVT, altmax, Rp, 1000, log=True)
+        advec = tools.calc_advectiondTmu(pprof.rho.values, pprof.v.values)
+        advecprof = tools.alt_array_to_Cloudy(pprof.alt.values, advec, altmax, Rp, 1000, log=True)
 
         #now the procedure starts - we first produce a new temperature profile
         snewTe, cloc = relaxTstruc(prev_sim, loggrid, altmax, Rp, PdVprof, advecprof, fc, path, itno)

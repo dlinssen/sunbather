@@ -118,8 +118,12 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
         os.mkdir(path[:-1]) #make the folder
 
     #get profiles and parameters we need for the input file
-    hdenprof, PdVprof, advecprof = tools.cl_table(pprof.alt.values, pprof.rho.values, pprof.v.values,
-                                            altmax, planet.R, 1000, zdict=zdict)
+    #hdenprof, PdVprof, advecprof = tools.cl_table(pprof.alt.values, pprof.rho.values, pprof.v.values,
+    #                                        altmax, planet.R, 1000, zdict=zdict)
+    
+    alt = pprof.alt.values
+    hden = tools.rho_to_hden(pprof.rho.values, abundances=tools.get_abundances(zdict))
+    dlaw = tools.alt_array_to_Cloudy(alt, hden, altmax, planet.R, 1000, log=True)
 
     nuFnu_1AU_linear, Ryd = tools.get_SED_norm_1AU(planet.SEDname)
     nuFnu_a_log = np.log10(nuFnu_1AU_linear / ((planet.a - altmax*planet.R)/tools.AU)**2)
@@ -129,21 +133,21 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
     if constantT: #this will run the profile at the isothermal T value instead of converging a nonisothermal profile
         if save_sp == []:
             tools.write_Cloudy_in(path+'constantT', title=planet.name+' 1D Parker with T='+str(T)+' and log(Mdot)='+str(Mdot),
-                                        flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=hdenprof, double_tau=True,
+                                        flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=dlaw, double_tau=True,
                                         overwrite=overwrite, cosmic_rays=True, zdict=zdict, comments=comments, constantT=T)
         else:
             tools.write_Cloudy_in(path+'constantT', title=planet.name+' 1D Parker with T='+str(T)+' and log(Mdot)='+str(Mdot),
-                                        flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=hdenprof, double_tau=True,
+                                        flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=dlaw, double_tau=True,
                                         overwrite=overwrite, cosmic_rays=True, zdict=zdict, comments=comments, constantT=T,
                                         outfiles=['.den', '.en'], denspecies=save_sp, selected_den_levels=True)
         
         tools.run_Cloudy('constantT', folder=path) #run the Cloudy simulation
         return
 
-    #else we converge T:
+    #if we got to here, we are not doing a constantT simulation, so we set up the convergence scheme files
     #write Cloudy template input file - each iteration will add their current temperature structure to this template
     tools.write_Cloudy_in(path+'template', title=planet.name+' 1D Parker with T='+str(T)+' and log(Mdot)='+str(Mdot),
-                                flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=hdenprof, double_tau=True,
+                                flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=dlaw, double_tau=True,
                                 overwrite=overwrite, cosmic_rays=True, zdict=zdict, comments=comments)
 
     if itno == 0: #this means we resume from the highest found previously ran iteration
@@ -183,7 +187,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
 
 
     #with everything in order, run the actual temperature convergence scheme
-    solveT.run_loop(path, itno, fc, PdVprof, advecprof, save_sp, maxit)
+    solveT.run_loop(path, itno, fc, pprof, save_sp, maxit)
 
 
 def catch_errors_run_s(*args):

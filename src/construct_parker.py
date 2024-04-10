@@ -100,7 +100,7 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9,
     M_pl = planet.M / tools.MJ #convert from g to Mjup
 
     m_dot = 10 ** Mdot  # Total atmospheric escape rate in g / s
-    r = np.logspace(0, np.log10(20), 200)  # Radial distance profile in unit of planetary radii
+    r = np.logspace(0, np.log10(20), 1000)  # Radial distance profile in unit of planetary radii
 
     # A few assumptions about the planet's atmosphere
     he_fraction = 1 - h_fraction  # He number fraction
@@ -165,7 +165,7 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir,
     M_pl = planet.M / tools.MJ #convert from g to Mjup
 
     m_dot = 10 ** Mdot  # Total atmospheric escape rate in g / s
-    r = np.logspace(0, np.log10(20), 200)  # Radial distance profile in unit of planetary radii
+    r = np.logspace(0, np.log10(20), 1000)  # Radial distance profile in unit of planetary radii
 
 
     if mu_bar == None: #if not given by a Cloudy run, let p-winds calculate it (used the first iteration)
