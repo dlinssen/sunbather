@@ -137,7 +137,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
                                         overwrite=overwrite, cosmic_rays=True, zdict=zdict, comments=comments, constantT=T,
                                         outfiles=['.den', '.en'], denspecies=save_sp, selected_den_levels=True)
         
-        os.system("cd "+path+" && "+tools.cloudyruncommand+" constantT") #run the Cloudy simulation
+        tools.run_Cloudy('constantT', folder=path) #run the Cloudy simulation
         return
 
     #else we converge T:

@@ -230,7 +230,7 @@ def run_parker_with_cloudy(filename, T, planet, zdict):
                                 flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname,
                                 dlaw=hdenprof, double_tau=True, cosmic_rays=True, zdict=zdict, constantT=T, outfiles=['.ovr'])
 
-    os.system("cd "+filename.rpartition('/')[0]+" && "+tools.cloudyruncommand+" "+simname.split('/')[-1]+" && cd "+tools.projectpath)
+    tools.run_Cloudy(simname)
 
     return simname, pprof
 

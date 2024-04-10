@@ -324,8 +324,8 @@ def constructTstruc(sim, grid, snewTe, cloc, PdVprof, advecprof, altmax, Rp, itn
         PdV = ifuncPdVT(depth) * T / mu
         advec = ifuncadvec(depth) * ((T/mu) - (T2/mu2))/(depth - depth2)
 
-        guess_htot = htot * (currentT / T) #so that if T > currentT, htot becomes lower. Trying some random functional form
-        guess_ctot = ctot * (T / currentT) #vice versa (no sqrt because it seems to have a stronger T dependence)
+        guess_htot = htot * (currentT / T) #so that if T > currentT, htot becomes lower. Trying some random (linear) functional form
+        guess_ctot = ctot * (T / currentT) #vice versa
 
         totheat = guess_htot + max(advec, 0) #if advec is negative we don't add it here
         totcool = guess_ctot + PdV - min(advec, 0) #if advec is positive we don't add it here
@@ -484,8 +484,8 @@ def run_loop(path, itno, fc, altmax, Rp, PdVprof, advecprof, save_sp=[], maxit=1
             print("\nFound the highest iteration "+path+"iteration"+str(max_iteration)+", will resume there.\n")
             itno = max_iteration+1
 
-    if itno == 1: #then first Cloudy (for itno>1, first solve script)
-        os.system("cd "+path+" && "+tools.cloudyruncommand+" iteration1 && cd "+tools.projectpath+"/sims/1D")
+    if itno == 1: #then we start by running Cloudy
+        tools.run_Cloudy('iteration1', folder=path)
         itno += 1
 
     converged = False
@@ -496,11 +496,11 @@ def run_loop(path, itno, fc, altmax, Rp, PdVprof, advecprof, save_sp=[], maxit=1
                 tools.copyadd_Cloudy_in(path+'iteration'+str(itno-1), path+'converged', outfiles=['.heat'], hcfrac=0.01)
             else:
                 tools.copyadd_Cloudy_in(path+'iteration'+str(itno-1), path+'converged', outfiles=['.heat', '.den', '.en'], denspecies=save_sp, selected_den_levels=True, hcfrac=0.01)
-            os.system("cd "+path+" && "+tools.cloudyruncommand+" converged && cd "+tools.projectpath+"/sims/1D")
+            tools.run_Cloudy('converged', folder=path)
             tools.Sim(path+'converged') #by reading in the simulation, we open the .en file (if it exists) and hence compress its size.
             clean_converged_folder(path) #remove all non-converged files
             break
         if itno != maxit:
-            os.system("cd "+path+" && "+tools.cloudyruncommand+" iteration"+str(itno)+" && cd "+tools.projectpath+"/sims/1D")
+            tools.run_Cloudy(f'iteration{itno}', folder=path)
 
         itno += 1

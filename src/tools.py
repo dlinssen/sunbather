@@ -21,7 +21,6 @@ except KeyError:
                     "Please set this variable in your .bashrc/.zshrc file " \
                     "to the path where the Cloudy installation is located. " \
                     "Do not point it to the /source/ subfolder, but to the main folder.")
-cloudyruncommand = cloudypath+'/source/cloudy.exe -p' #the -p flag is important!
 
 try:
     projectpath = os.environ['SUNBATHER_PROJECT_PATH'] #the path where you save your simulations and do analysis
@@ -996,6 +995,23 @@ def smooth_gaus_savgol(y, size=None, fraction=None):
 Cloudy I/O
 '''
 
+def run_Cloudy(filename, folder=None):
+    '''
+    Runs a Cloudy simulation. If folder is not specified,
+    filename should contain the /full/path/to/the/simulation.
+    If instead, a folder is given, the filename should only
+    contain the name of the simulation.
+    '''
+
+    if folder is None: #then the folder should be in the simname
+        folder, filename = os.path.split(filename)
+
+    if filename.endswith(".in"):
+        filename = filename[:-3] #filename should not contain the extension
+
+    os.system('cd '+folder+' && '+cloudypath+'/source/cloudy.exe -p '+filename)
+
+
 def remove_duplicates(law, fmt):
     '''
     Takes a Cloudy law (e.g. dlaw or tlaw) and a formatter, and removes
@@ -1352,8 +1368,7 @@ def insertden_Cloudy_in(simname, denspecies, selected_den_levels=True, rerun=Fal
         f.write(newcontent)
 
     if rerun:
-        path, name = os.path.split(simname)
-        os.system("cd "+path+" && "+cloudyruncommand+' "'+name+'"')
+        run_Cloudy(simname)
 
 
 '''
