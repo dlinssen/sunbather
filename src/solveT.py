@@ -284,29 +284,9 @@ def constructTstruc(sim, grid, snewTe, cloc, PdVprof, advecprof, altmax, Rp, itn
 
     ifuncPdVT = interp1d(10**PdVprof[:,0], 10**PdVprof[:,1], fill_value='extrapolate') #this is -1*k*v*drhodr/mH, so multiply with T and divide by mu still
     ifuncadvec = interp1d(10**advecprof[:,0], 10**advecprof[:,1], fill_value='extrapolate') #this is v*rho*(5/2)*k/mH, so multiply with d(T/mu)/dr still
-
-
-    def calchcratiohi(T, depth, mu, htot, ctot, T2, depth2, mu2):
-        '''
-        This function will be optimized to zero (=> h/c = 1) by the constructTstruc
-        function. Goes up in altitude.
-        '''
-
-        PdV = ifuncPdVT(depth) * T / mu
-        advec = ifuncadvec(depth) * ((T/mu) - (T2/mu2))/(depth - depth2)
-
-        totheat = htot + max(advec, 0) #if advec is negative we don't add it here
-        totcool = ctot + PdV - min(advec, 0) #if advec is positive we don't add it here
-
-        hcratio = max(totheat, totcool) / min(totheat, totcool) #both entities are positive
-
-        return hcratio - 1 #find root of this value to get hcratio close to 1
     
-
-    def calchcratiohi2(T, depth, mu, htot, ctot, currentT, T2, depth2, mu2):
+    def calcHCratio(T, depth, mu, htot, ctot, currentT, T2, depth2, mu2):
         '''
-        Same as calchcratiohi() but this one also guesses a change in
-        the radiative heating and cooling rates based on T.
         currentT is the temperature that corresponds to the htot and ctot values.
         '''
 
@@ -327,7 +307,7 @@ def constructTstruc(sim, grid, snewTe, cloc, PdVprof, advecprof, altmax, Rp, itn
     cnewTe = np.copy(snewTe) #start with the temp struc from other function
     for l in range(cloc-1, -1, -1): #walk 'backwards' to higher altitudes
         #result = minimize_scalar(calchcratiohi, method='bounded', bounds=[1e1,1e6], args=(grid[l], mu[l], htot[l], ctot[l], cnewTe[l+1], grid[l+1], mu[l+1]))
-        result = minimize_scalar(calchcratiohi2, method='bounded', bounds=[1e1,1e6], args=(grid[l], mu[l], htot[l], ctot[l], Te[l], cnewTe[l+1], grid[l+1], mu[l+1]))
+        result = minimize_scalar(calcHCratio, method='bounded', bounds=[1e1,1e6], args=(grid[l], mu[l], htot[l], ctot[l], Te[l], cnewTe[l+1], grid[l+1], mu[l+1]))
         cnewTe[l] = result.x
 
 
