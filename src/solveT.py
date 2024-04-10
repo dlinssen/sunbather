@@ -469,37 +469,40 @@ def clean_converged_folder(folder):
 
 def run_loop(path, itno, fc, altmax, Rp, PdVprof, advecprof, save_sp=[], maxit=16):
     if itno == 0: #this means we resume from the highest found previously ran iteration
-        pattern = r'iteration(\d+)\.out'
-        max_iteration = -1
-        for filename in os.listdir(path):
-            if os.path.isfile(os.path.join(path, filename)):
-                if re.search(pattern, filename):
-                    iteration_number = int(re.search(pattern, filename).group(1))
-                    if iteration_number > max_iteration:
+        pattern = r'iteration(\d+)\.out' #search pattern: iteration followed by an integer
+        max_iteration = -1 #set an impossible number
+        for filename in os.listdir(path): #loop through all files/folder in the path
+            if os.path.isfile(os.path.join(path, filename)): #if it is a file (not a folder)
+                if re.search(pattern, filename): #if it matches the pattern
+                    iteration_number = int(re.search(pattern, filename).group(1)) #extract the iteration number
+                    if iteration_number > max_iteration: #update highest found iteration number
                         max_iteration = iteration_number
-        if max_iteration == -1:
-            warnings.warn(f"This folder does not have any 'iteration' files, I cannot resume from the highest one: {path}")
-            return
+        if max_iteration == -1: #this means no files were found
+            warnings.warn(f"This folder does not have any 'iteration' files: {path} "\
+                          "so I cannot resume from the highest one. Will start at itno = 1.")
+            itno = 1
         else:
             print("\nFound the highest iteration "+path+"iteration"+str(max_iteration)+", will resume there.\n")
             itno = max_iteration+1
 
-    if itno == 1: #then we start by running Cloudy
+    if itno == 1: #iteration1 is just running Cloudy. Then, we move on to iteration2
         tools.run_Cloudy('iteration1', folder=path)
         itno += 1
 
-    converged = False
-    while not converged and itno <= maxit:
+    while itno <= maxit:
         converged = run_once(path, itno, fc, altmax, Rp, PdVprof, advecprof)
-        if converged: #we run the last simulation one more time but with all the output files
-            if save_sp == []:
-                tools.copyadd_Cloudy_in(path+'iteration'+str(itno-1), path+'converged', outfiles=['.heat'], hcfrac=0.01)
-            else:
-                tools.copyadd_Cloudy_in(path+'iteration'+str(itno-1), path+'converged', outfiles=['.heat', '.den', '.en'], denspecies=save_sp, selected_den_levels=True, hcfrac=0.01)
+        
+        if converged:
+            #we run the last simulation one more time but with all the output files
+            tools.copyadd_Cloudy_in(path+'iteration'+str(itno-1), path+'converged', 
+                                    outfiles=['.heat', '.den', '.en'], denspecies=save_sp, 
+                                    selected_den_levels=True, hcfrac=0.01)
             tools.run_Cloudy('converged', folder=path)
-            tools.Sim(path+'converged') #by reading in the simulation, we open the .en file (if it exists) and hence compress its size.
+            tools.Sim(path+'converged') #read in the simulation, so we open the .en file (if it exists) and hence compress its size (see tools.process_energies())
             clean_converged_folder(path) #remove all non-converged files
             break
+        
+        #if not converged:
         if itno != maxit:
             tools.run_Cloudy(f'iteration{itno}', folder=path)
 
