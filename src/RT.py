@@ -352,7 +352,7 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
                 continue #to next spectral line
 
             #get all columns in .den file which energy corresponds to this Ei
-            colname, lineweight = tools.find_line_lowerstate_in_en_df(spec, spNIST.loc[lineno], sim.en, printmessage=False)
+            colname, lineweight = tools.find_line_lowerstate_in_en_df(spec, spNIST.loc[lineno], sim.en)
             if colname == None: #we skip this line if the line energy is not found.
                 notfound_lines.append(spNIST['ritz_wl_vac(A)'][lineno])
                 continue #to next spectral line
@@ -432,7 +432,7 @@ def tau_1D(sim, wavAA, species, width_fac=1., turbulence=False):
                 continue #to next spectral line
 
             #get all columns in .den file which energy corresponds to this Ei
-            colname, lineweight = tools.find_line_lowerstate_in_en_df(spec, spNIST.loc[lineno], sim.en, printmessage=False)
+            colname, lineweight = tools.find_line_lowerstate_in_en_df(spec, spNIST.loc[lineno], sim.en)
             if colname == None: #we skip this line if the line energy is not found.
                 notfound_lines.append(spNIST['ritz_wl_vac(A)'][lineno])
                 continue #to next spectral line
@@ -484,7 +484,7 @@ def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, cut_at=None):
                 continue #to next spectral line
 
             #get all columns in .den file which energy corresponds to this Ei
-            colname, lineweight = tools.find_line_lowerstate_in_en_df(spec, spNIST.loc[lineno], sim.en, printmessage=False)
+            colname, lineweight = tools.find_line_lowerstate_in_en_df(spec, spNIST.loc[lineno], sim.en)
             if colname == None: #we skip this line if the line energy is not found.
                 notfound_lines.append(spNIST['ritz_wl_vac(A)'][lineno])
                 continue #to next spectral line

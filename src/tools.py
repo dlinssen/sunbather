@@ -454,7 +454,7 @@ def process_energies(filename, rewrite=True, cloudy_version="17"):
     return en_df
 
 
-def find_line_lowerstate_in_en_df(species, lineinfo, en_df, printmessage=True):
+def find_line_lowerstate_in_en_df(species, lineinfo, en_df, verbose=False):
     '''
     Also see process_energies() docstring.
 
@@ -467,7 +467,7 @@ def find_line_lowerstate_in_en_df(species, lineinfo, en_df, printmessage=True):
     species:        atomic or ionic species name
     lineinfo:       one row of a dataframe of NIST spectral line coefficients
     en_df:          dataframe mapping the .den / .en column names to the energy of that level
-    printmessage:   whether to print problems when trying to match the line
+    verbose:        whether to print problems when trying to match the line
     '''
 
     en_df = en_df[en_df.species == species] #keep only the part for this species to not mix up the energy levels of different ones
@@ -500,23 +500,23 @@ def find_line_lowerstate_in_en_df(species, lineinfo, en_df, printmessage=True):
 
                     match = matchedtermrow.index.item()
                 else:
-                    if printmessage:
+                    if verbose:
                         print("One J level of the term is resolved, but not the one of this line.")
 
             else:
-                if printmessage:
+                if verbose:
                     print("Multiple J levels of the term are resolved, but not the one of this line.")
 
     elif str(lineinfo['term_i']) != 'nan':
         linetype = "LS"
 
-        if printmessage:
+        if verbose:
             print("Currently not able to do lines originating from LS state without J number.")
             print("Lower state configuration:", species, lineinfo.conf_i)
     else:
         linetype = "n"
 
-        if printmessage:
+        if verbose:
             print("Currently not able to do lines originating from n state without term. This is not a problem "+
                     'if this line is also in the NIST database with its different term components, such as for e.g. '+
                     "H n=2, but only if they aren't such as for H n>6, or if they go to an upper level n>6 from any given level.")
