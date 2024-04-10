@@ -31,10 +31,15 @@ except KeyError:
                     "to the path where you want the sunbather models to be saved. " \
                     "Make sure that the 'planets.txt' file is present in that folder.")
 
-#read planet parameters globally instead of in the Planets class (so we do it only once)
-planets_file = pd.read_csv(projectpath+'/planets.txt', dtype={'name':str, 'full name':str, 'R [RJ]':np.float64,
-                            'Rstar [Rsun]':np.float64, 'a [AU]':np.float64, 'M [MJ]':np.float64, 'Mstar [Msun]':np.float64,
-                            'transit impact parameter':np.float64, 'SEDname':str}, comment='#')
+try:
+    #read planet parameters globally instead of in the Planets class (so we do it only once)
+    planets_file = pd.read_csv(projectpath+'/planets.txt', dtype={'name':str, 'full name':str, 'R [RJ]':np.float64,
+                                'Rstar [Rsun]':np.float64, 'a [AU]':np.float64, 'M [MJ]':np.float64, 'Mstar [Msun]':np.float64,
+                                'transit impact parameter':np.float64, 'SEDname':str}, comment='#')
+except FileNotFoundError:
+    raise FileNotFoundError("The $SUNBATHER_PROJECT_PATH/planets.txt file cannot be found. " \
+                            "Please check if your $SUNBATHER_PROJECT_PATH actually exists on your machine. "\
+                            "Then, copy /sunbather/planets.txt to your project path.")
 
 #define constants:
 c = 2.99792458e10 #cm/s
