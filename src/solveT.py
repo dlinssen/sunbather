@@ -245,7 +245,11 @@ def constructTstruc(grid, snewTe, cloc, v, rho, mu, Te, htot, ctot):
 
 def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, rho, HCratio, altmax, fc, 
                     cnewTe=None, cloc=None, title=None, savename=None):
-    
+    '''
+    Makes a plot of the previous and newly guessed temperature profiles,
+    together with the different heating/cooling rates and their H/C ratio.
+    '''
+
     HCratiopos, HCrationeg = np.copy(HCratio), -1 * np.copy(HCratio)
     HCratiopos[HCratiopos < 0] = 0.
     HCrationeg[HCrationeg < 0] = 0.
@@ -294,6 +298,11 @@ def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, 
 
 
 def make_converged_plot(altgrid, altmax, path, Te, htot, rho, ctot, PdV, advecheat, adveccool):
+    '''
+    Makes a plot of the converged temperature profile,
+    together with the different heating/cooling rates.
+    '''
+
     fig, (ax1, ax2) = plt.subplots(2, figsize=(4,5.5))
     ax1.plot(altgrid, Te, color='k')
     ax1.set_ylabel('Temperature [K]')
@@ -445,7 +454,7 @@ def run_loop(path, itno, fc, save_sp=[], maxit=16):
             break
 
         else: #set up the next iteration
-            Cltlaw = tools.alt_array_to_Cloudy(altmax*Rp - loggrid[::-1], snewTe[::-1], altmax, Rp, 1300)
+            Cltlaw = tools.alt_array_to_Cloudy(altmax*Rp - loggrid[::-1], snewTe[::-1], altmax, Rp, 1000)
 
             tools.copyadd_Cloudy_in(path+'template', path+'iteration'+str(itno), tlaw=Cltlaw)
             if itno != maxit:
