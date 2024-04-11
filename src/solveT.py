@@ -158,7 +158,7 @@ def calc_cloc(path, itno, htot, ctot, PdV, advecheat, adveccool, totheat, hcrati
     return cloc
 
 
-def relaxTstruc(grid, altmax, Rp, fc, path, itno, Te, rho, hcratio, htot, ctot, PdV, advecheat, adveccool, hcratiopos, hcrationeg):
+def relaxTstruc(grid, altmax, Rp, path, itno, Te, hcratio):
     '''
     This function finds a new temperature structure by relaxation:
     Add all rates, find ratio of heating to cooling rate,
@@ -180,19 +180,19 @@ def relaxTstruc(grid, altmax, Rp, fc, path, itno, Te, rho, hcratio, htot, ctot, 
 
     newTe = get_new_Tstruc(Te, hcratio, fac)
     smoothsize = int(len(grid)/(20*itno))
-    snewTe = tools.smooth_gaus_savgol(newTe, size=smoothsize)
-    snewTe = np.clip(snewTe, 1e1, 1e6) #smoothing may have pushed snewTe < 10K again.
+    newTe = tools.smooth_gaus_savgol(newTe, size=smoothsize)
+    newTe = np.clip(newTe, 1e1, 1e6) #smoothing may have pushed snewTe < 10K again.
 
     if itno >= 4: #check for fluctuations. If so, we decrease the deltaT factor
         pp_Te = iterations_file['Te'+str(itno-2)]
         previous_ratio = Te / pp_Te
-        this_ratio = snewTe / Te #because of smoothing this is not exactly the same as fT
+        this_ratio = newTe / Te #because of smoothing this is not exactly the same as fT
         fl = (((previous_ratio < 1) & (this_ratio > 1)) | ((previous_ratio > 1) & (this_ratio < 1)))
         fac[fl] = 2/3 * fac[fl] #take smaller changes in T in regions where the temperature fluctuates
         fac = np.clip(tools.smooth_gaus_savgol(fac, size=10), 0.02, 0.3)
-        snewTe = get_new_Tstruc(Te, hcratio, fac) #recalculate new temperature profile with updated fac
-        snewTe = tools.smooth_gaus_savgol(snewTe, size=smoothsize)
-        snewTe = np.clip(snewTe, 1e1, 1e6)
+        newTe = get_new_Tstruc(Te, hcratio, fac) #recalculate new temperature profile with updated fac
+        newTe = tools.smooth_gaus_savgol(newTe, size=smoothsize)
+        newTe = np.clip(newTe, 1e1, 1e6)
 
     """
     #set up the figure with plotted quantities (if converged, we will make a plot later)
@@ -204,7 +204,7 @@ def relaxTstruc(grid, altmax, Rp, fc, path, itno, Te, rho, hcratio, htot, ctot, 
     iterations_file['fac'+str(itno)] = fac
     iterations_file.to_csv(path+'iterations.txt', sep=' ', float_format='%.7e', index=False)
 
-    return snewTe
+    return newTe
 
 
 def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, rho, hcratiopos, hcrationeg, altmax, fc, 
@@ -252,10 +252,7 @@ def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, 
     plt.close()
 
 
-def make_converged_plot(grid, altmax, Rp, path, Te, htot, rho, ctot, PdV, advecheat, adveccool):
-    altgrid = altmax - grid/Rp
-
-    #set up the figure with plotted quantities
+def make_converged_plot(altgrid, altmax, path, Te, htot, rho, ctot, PdV, advecheat, adveccool):
     fig, (ax1, ax2) = plt.subplots(2, figsize=(4,5.5))
     ax1.plot(altgrid, Te, color='k')
     ax1.set_ylabel('Temperature [K]')
@@ -284,7 +281,7 @@ def make_converged_plot(grid, altmax, Rp, path, Te, htot, rho, ctot, PdV, advech
     plt.close()
 
 
-def constructTstruc(grid, snewTe, cloc, altmax, Rp, itno, path, fc, v, rho, mu, Te, htot, ctot):
+def constructTstruc(grid, snewTe, cloc, v, rho, mu, Te, htot, ctot):
     '''
     This function constructs the temperature structure from a given location (cloc),
     by minimizing the heating/cooling ratio of all terms.
@@ -404,7 +401,7 @@ def clean_converged_folder(folder):
                 os.remove(os.path.join(folder, filename))
 
 
-def run_loop(path, itno, fc, pprof, save_sp=[], maxit=16):
+def run_loop(path, itno, fc, save_sp=[], maxit=16):
     '''
     Iteratively solves the temperature profile
     '''
@@ -426,11 +423,11 @@ def run_loop(path, itno, fc, pprof, save_sp=[], maxit=16):
         totheat, totcool, nettotal, hcratio, hcratiopos, hcrationeg = getbulkrates(htot, ctot, PdV, advecheat, adveccool)
 
         #now the procedure starts - we first produce a new temperature profile
-        snewTe = relaxTstruc(loggrid, altmax, Rp, fc, path, itno, Te, rho, hcratio, htot, ctot, PdV, advecheat, adveccool, hcratiopos, hcrationeg)
+        snewTe = relaxTstruc(loggrid, altmax, Rp, path, itno, Te, hcratio)
         cloc = calc_cloc(path, itno, htot, ctot, PdV, advecheat, adveccool, totheat, hcratio)
         cnewTe = None
         if ~np.isnan(cloc):
-            cnewTe = constructTstruc(loggrid, snewTe, int(cloc), altmax, Rp, itno, path, fc, v, rho, mu, Te, htot, ctot)
+            cnewTe = constructTstruc(loggrid, snewTe, int(cloc), v, rho, mu, Te, htot, ctot)
 
         make_rates_plot(altmax - loggrid/Rp, Te, snewTe, htot, ctot, PdV, advecheat, adveccool,
                     rho, hcratiopos, hcrationeg, altmax, fc, title=f'iteration {itno}',
@@ -455,7 +452,7 @@ def run_loop(path, itno, fc, pprof, save_sp=[], maxit=16):
 
         if converged: #run once more with all output
             print(f"Temperature profile converged: {path}")
-            make_converged_plot(loggrid, altmax, Rp, path, Te, htot, rho, ctot, PdV, advecheat, adveccool)
+            make_converged_plot(altmax - loggrid/Rp, altmax, path, Te, htot, rho, ctot, PdV, advecheat, adveccool)
             #calculate these terms for the output .txt file
             np.savetxt(path+'converged.txt', np.column_stack(((altmax-loggrid/Rp)[::-1], rho[::-1], Te[::-1],
                     mu[::-1], htot[::-1], ctot[::-1], PdV[::-1], advecheat[::-1], adveccool[::-1])), fmt='%1.5e',

@@ -191,7 +191,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
 
 
     #with everything in order, run the actual temperature convergence scheme
-    solveT.run_loop(path, itno, fc, pprof, save_sp, maxit)
+    solveT.run_loop(path, itno, fc, save_sp, maxit)
 
 
 def catch_errors_run_s(*args):
