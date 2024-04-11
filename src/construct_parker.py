@@ -219,8 +219,9 @@ def run_parker_with_cloudy(filename, T, planet, zdict):
     pprof = tools.read_parker('', '', '', '', filename=filename)
 
     altmax = 20
-    hdenprof, _, _ = tools.cl_table(pprof.alt.values, pprof.rho.values, pprof.v.values,
-                                            altmax, planet.R, 1000, zdict=zdict)
+    alt = pprof.alt.values
+    hden = tools.rho_to_hden(pprof.rho.values, abundances=tools.get_abundances(zdict))
+    dlaw = tools.alt_array_to_Cloudy(alt, hden, altmax, planet.R, 1000, log=True)
 
     nuFnu_1AU_linear, Ryd = tools.get_SED_norm_1AU(planet.SEDname)
     nuFnu_a_log = np.log10(nuFnu_1AU_linear / ((planet.a - altmax*planet.R)/tools.AU)**2)
@@ -228,7 +229,7 @@ def run_parker_with_cloudy(filename, T, planet, zdict):
     simname = filename.split('.txt')[0]
     tools.write_Cloudy_in(simname, title='Simulation of '+filename, overwrite=True,
                                 flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname,
-                                dlaw=hdenprof, double_tau=True, cosmic_rays=True, zdict=zdict, constantT=T, outfiles=['.ovr'])
+                                dlaw=dlaw, double_tau=True, cosmic_rays=True, zdict=zdict, constantT=T, outfiles=['.ovr'])
 
     tools.run_Cloudy(simname)
 

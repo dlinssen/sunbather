@@ -73,7 +73,7 @@ def simtogrid(sim, grid):
     return Te, mu, rho, v, htot, ctot, exp, advheat, advcool
 
 
-def getbulkrates(htot, ctot, PdV, advecheat, adveccool):
+def getHCratio(htot, ctot, PdV, advecheat, adveccool):
     '''
     Combines the different heating and cooling rates into some useful (plotting) quantities
     '''
@@ -88,7 +88,7 @@ def getbulkrates(htot, ctot, PdV, advecheat, adveccool):
     hcratiopos[hcratiopos < 0] = 0
     hcrationeg[hcrationeg > 0] = 0
 
-    return totheat, totcool, nettotal, hcratio, hcratiopos, hcrationeg
+    return hcratio, hcratiopos, hcrationeg
 
 
 def get_new_Tstruc(old_Te, hcratio, fac):
@@ -106,7 +106,7 @@ def get_new_Tstruc(old_Te, hcratio, fac):
     return newTe
 
 
-def calc_cloc(path, itno, htot, ctot, PdV, advecheat, adveccool, totheat, hcratio):
+def calc_cloc(path, itno, htot, ctot, PdV, advecheat, adveccool, hcratio):
     '''
     This function checks if there is a point in the atmosphere where we can use
     our construction instead of relaxation algorithm. It searches for two
@@ -119,12 +119,12 @@ def calc_cloc(path, itno, htot, ctot, PdV, advecheat, adveccool, totheat, hcrati
 
     #check for advection dominated regime
     adcloc = np.nan
-    boolar = (advecheat / totheat > 0.5) #boolean array where advection heating dominates
+    boolar = (advecheat > htot) #boolean array where advection heating dominates
     bothradnotdom = np.argmax((htot > advecheat) & (ctot > adveccool) & (ctot > PdV))
     boolar[bothradnotdom:] = False #now the boolean array stores where advection heating dominates AND where there is no point at higher altitudes that is rad. heat and rad. cool dominated
     if True in boolar: #if there is no such point, adcloc is None as stated above
         advdomloc = len(htot) - 1 - np.argmax(boolar[::-1]) #get lowest altitude location where advection dominates
-        boolar2 = (advecheat / totheat) < 0.2
+        boolar2 = (advecheat < 0.25 * htot)
         advunimploc = np.argmax(boolar2[advdomloc:]) + advdomloc #first point at lower altitude where advection becomes unimportant (if no point exists, will return just advdomloc)
         #then walk to higher altitude again to find converged point. We are more lax with "converged" point if advection dominates more.
         boolar3 = (np.abs(hcratio[:advunimploc][::-1]) < 1.3 * np.clip((advecheat[:advunimploc][::-1] / htot[:advunimploc][::-1])**(2./3.), 1, 10))
@@ -327,22 +327,6 @@ def constructTstruc(grid, snewTe, cloc, v, rho, mu, Te, htot, ctot):
     cweight = 1 - scweight
     cnewTe = scnewTe * scweight + cnewTe * cweight
 
-    """
-    #for the new T structure:
-    PdV = calc_expansion(grid, rho, v, cnewTe, mu)
-    adv = -1 * calc_advection(grid, rho, v, cnewTe, mu)
-    advecheat, adveccool = np.copy(adv), -1 * np.copy(adv)
-    advecheat[advecheat < 0] = 0.
-    adveccool[adveccool < 0] = 0.
-    totheat, totcool, nettotal, hcratio, hcratiopos, hcrationeg = getbulkrates(htot, ctot, PdV, advecheat, adveccool)
-
-    #make altgrid which contains the altitude values corresponding to the depth grid. In values of Rp
-    altgrid = altmax - grid/Rp
-    make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool,
-                    rho, hcratiopos, hcrationeg, altmax, fc, title='iteration '+str(itno)+' - construction',
-                    savename=path+'iteration'+str(itno)+'_construct.png', cnewTe=cnewTe, cloc=cloc)
-    """
-
     return cnewTe
 
 
@@ -420,11 +404,11 @@ def run_loop(path, itno, fc, save_sp=[], maxit=16):
         loggrid = altmax*Rp - np.logspace(np.log10(prev_sim.ovr.alt.iloc[-1]), np.log10(prev_sim.ovr.alt.iloc[0]), num=2500)[::-1]
 
         Te, mu, rho, v, htot, ctot, PdV, advecheat, adveccool = simtogrid(prev_sim, loggrid) #get all needed Cloudy quantities on the grid
-        totheat, totcool, nettotal, hcratio, hcratiopos, hcrationeg = getbulkrates(htot, ctot, PdV, advecheat, adveccool)
+        hcratio, hcratiopos, hcrationeg = getHCratio(htot, ctot, PdV, advecheat, adveccool)
 
         #now the procedure starts - we first produce a new temperature profile
         snewTe = relaxTstruc(loggrid, altmax, Rp, path, itno, Te, hcratio)
-        cloc = calc_cloc(path, itno, htot, ctot, PdV, advecheat, adveccool, totheat, hcratio)
+        cloc = calc_cloc(path, itno, htot, ctot, PdV, advecheat, adveccool, hcratio)
         cnewTe = None
         if ~np.isnan(cloc):
             cnewTe = constructTstruc(loggrid, snewTe, int(cloc), v, rho, mu, Te, htot, ctot)

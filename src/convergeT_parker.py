@@ -118,9 +118,6 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
         os.mkdir(path[:-1]) #make the folder
 
     #get profiles and parameters we need for the input file
-    #hdenprof, PdVprof, advecprof = tools.cl_table(pprof.alt.values, pprof.rho.values, pprof.v.values,
-    #                                        altmax, planet.R, 1000, zdict=zdict)
-    
     alt = pprof.alt.values
     hden = tools.rho_to_hden(pprof.rho.values, abundances=tools.get_abundances(zdict))
     dlaw = tools.alt_array_to_Cloudy(alt, hden, altmax, planet.R, 1000, log=True)
