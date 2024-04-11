@@ -84,7 +84,7 @@ def get_new_Tstruc(old_Te, hcratio, fac):
     return newTe
 
 
-def calc_cloc(path, itno, advecheat, adveccool, htot, ctot, totheat, PdV, hcratio):
+def calc_cloc(path, itno, sim, grid, PdVprof, advecprof):
     '''
     This function checks if there is a point in the atmosphere where we can use
     our construction instead of relaxation algorithm. It searches for two
@@ -92,10 +92,15 @@ def calc_cloc(path, itno, advecheat, adveccool, htot, ctot, totheat, PdV, hcrati
     there is a point where expansion cooling dominates.
     '''
 
-    clocs = pd.read_table(path+'clocs.txt', names=['cloc'], index_col=0, delimiter=' ')
+    #clocs = pd.read_table(path+'clocs.txt', names=['cloc'], index_col=0, delimiter=' ')
+    clocs = pd.read_csv(path+'clocs.csv', index_col='iteration')
 
-    #check for advection dominated regime (then we can construct part of the atmosphere)
-    adcloc = None
+    Te, mu, htot, ctot, rho = simtogrid(sim, grid) #get all needed Cloudy quantities on this grid
+    PdV, advecheat, adveccool = getexpadvrates(grid, Te, mu, PdVprof, advecprof) #calculate PdV and advection rates
+    totheat, totcool, nettotal, hcratio, hcratiopos, hcrationeg = getbulkrates(htot, ctot, PdV, advecheat, adveccool)
+
+    #check for advection dominated regime
+    adcloc = np.nan
     boolar = (advecheat / totheat > 0.5) #boolean array where advection heating dominates
     bothradnotdom = np.argmax((htot > advecheat) & (ctot > adveccool) & (ctot > PdV))
     boolar[bothradnotdom:] = False #now the boolean array stores where advection heating dominates AND where there is no point at higher altitudes that is rad. heat and rad. cool dominated
@@ -108,33 +113,29 @@ def calc_cloc(path, itno, advecheat, adveccool, htot, ctot, totheat, PdV, hcrati
         if True in boolar3: #otherwise it stays None
             adcloc = advunimploc - np.argmax(boolar3)
 
-    #check for expansion dominated regime (then we can construct part of the atmosphere)
-    cxcloc = None
+    #check for expansion dominated regime
+    cxcloc = np.nan
     boolar4 = (np.abs(hcratio) < 1.5) & (PdV / ctot > 8.) #boolean array where the structure is amost converged and expansion dominates the cooling
     boolar4 = (PdV / ctot > 8.) #try this new version without checking for convergence - maybe this works better in some cases and worse in others.
     if False in boolar4 and True in boolar4: #then there is at least an occurence where this is not true.
         cxcloc = np.argmax(~boolar4) - 1 #this is the last location from index 0 where it is true
         if cxcloc < 1:
-            cxcloc = None
+            cxcloc = np.nan
     elif False not in boolar4: #then they are all True
         cxcloc = len(htot) - 1
 
+    cloc = max(adcloc, cxcloc, clocs.loc[itno-1, 'construct_loc']) #max of these indices is the lowest altitude
 
-    if adcloc == None and cxcloc == None:
-        cloc = None
-        save_cloc = 0 #to make it integer type
-    else: #start construction from the lowest altitude of adcloc, cxcloc and the cloc of the previous iteration
-        cloc = np.max([l for l in [adcloc, cxcloc, clocs.cloc[itno-1]] if l is not None])
-        if cloc == clocs.cloc[itno-1]: #if new cloc is not lower than previous, start 5% closer to the planet surface anyway
-            cloc_closer = np.max([cloc, min(len(htot)-1, cloc+int(0.05*len(htot)))])
-            #but only if not pushed into rad. dom. regime
-            if (ctot[cloc_closer] < PdV[cloc_closer]) or (ctot[cloc_closer] < adveccool[cloc_closer]) or (htot[cloc_closer] < advecheat[cloc_closer]):
-                cloc = cloc_closer
-        save_cloc = cloc
+    """
+    if cloc == clocs.loc[itno-1, 'construct_loc']: #if new cloc is not lower than previous, start 5% closer to the planet surface anyway
+        cloc_closer = np.max([cloc, min(len(htot)-1, cloc+int(0.05*len(htot)))])
+        #but only if not pushed into rad. dom. regime
+        if (ctot[cloc_closer] < PdV[cloc_closer]) or (ctot[cloc_closer] < adveccool[cloc_closer]) or (htot[cloc_closer] < advecheat[cloc_closer]):
+            cloc = cloc_closer
+    """
 
-
-    clocs.loc[itno] = save_cloc #add the new cloc
-    clocs.to_csv(path+'clocs.txt', sep=' ', header=None)
+    clocs.loc[itno, 'construct_loc'] = cloc
+    clocs.to_csv(path+'clocs.csv')
 
     return cloc
 
@@ -155,15 +156,11 @@ def relaxTstruc(sim, grid, altmax, Rp, PdVprof, advecprof, fc, path, itno):
     PdV, advecheat, adveccool = getexpadvrates(grid, Te, mu, PdVprof, advecprof) #calculate PdV and advection rates
     totheat, totcool, nettotal, hcratio, hcratiopos, hcrationeg = getbulkrates(htot, ctot, PdV, advecheat, adveccool)
 
-    cloc = calc_cloc(path, itno, advecheat, adveccool, htot, ctot, totheat, PdV, hcratio)
-
     if itno == 2: #save for first time
-        np.savetxt(path+'iterations.txt', np.column_stack((grid, np.repeat(0.3, len(grid)), Te, ctot, htot)),
-                    header='grid fac1 Te1 ctot1 htot1', comments='', delimiter=' ', fmt='%.7e')
+        np.savetxt(path+'iterations.txt', np.column_stack((grid, np.repeat(0.3, len(grid)), Te)),
+                    header='grid fac1 Te1', comments='', delimiter=' ', fmt='%.7e')
 
     iterations_file = pd.read_csv(path+'iterations.txt', header=0, sep=' ')
-    iterations_file['ctot'+str(itno-1)] = ctot
-    iterations_file['htot'+str(itno-1)] = htot
     fac = iterations_file['fac'+str(itno-1)].values
 
     newTe = get_new_Tstruc(Te, hcratio, fac)
@@ -190,7 +187,7 @@ def relaxTstruc(sim, grid, altmax, Rp, PdVprof, advecprof, fc, path, itno):
     iterations_file['fac'+str(itno)] = fac
     iterations_file.to_csv(path+'iterations.txt', sep=' ', float_format='%.7e', index=False)
 
-    return snewTe, cloc
+    return snewTe
 
 
 def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, rho, hcratiopos, hcrationeg, altmax, fc, title=None, savename=None, **kwargs):
@@ -417,9 +414,10 @@ def run_loop(path, itno, fc, pprof, save_sp=[], maxit=16):
         advecprof = tools.alt_array_to_Cloudy(pprof.alt.values, advec, altmax, Rp, 1000, log=True)
 
         #now the procedure starts - we first produce a new temperature profile
-        snewTe, cloc = relaxTstruc(prev_sim, loggrid, altmax, Rp, PdVprof, advecprof, fc, path, itno)
-        if cloc != None:
-            snewTe = constructTstruc(prev_sim, loggrid, snewTe, cloc, PdVprof, advecprof, altmax, Rp, itno, path, fc)
+        snewTe = relaxTstruc(prev_sim, loggrid, altmax, Rp, PdVprof, advecprof, fc, path, itno)
+        cloc = calc_cloc(path, itno, prev_sim, loggrid, PdVprof, advecprof)
+        if ~np.isnan(cloc):# != None:
+            snewTe = constructTstruc(prev_sim, loggrid, snewTe, int(cloc), PdVprof, advecprof, altmax, Rp, itno, path, fc)
 
         #add this temperature profile to the iterations file
         iterations_file = pd.read_csv(path+'iterations.txt', header=0, sep=' ')

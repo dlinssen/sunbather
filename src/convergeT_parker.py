@@ -168,8 +168,12 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
 
     #write clocs file that keeps track of from where we construct - see solveT.py
     if itno == 1:
-        with open(path+"clocs.txt", "w") as f:
-            f.write("1 0")
+        clocs = pd.DataFrame({'construct_loc': [np.nan]}, index=['1'])
+        clocs.index.name = 'iteration'
+        clocs.to_csv(path+'clocs.csv')
+
+        #with open(path+"clocs.txt", "w") as f:
+        #    f.write("1 0")
 
         #get starting temperature structure
         clconv = find_close_model(pathTstruc, T, Mdot) #find if there are any nearby models we can start from
@@ -180,7 +184,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
             copyfile(path+'template.in', path+'iteration1.in')
 
         elif startT == 'nearby': #then clconv cannot be [None, None] and we start from a previous converged T(r)
-            print("Model", T, Mdot, "starting from previously converged profile:", *clconv)
+            print(f"Model {path} starting from previously converged temperature profile: T0 = {clconv[0]}, Mdot = {clconv[1]}")
             prev_conv_T = pd.read_table(pathTstruc+'parker_'+str(clconv[0])+'_'+"{:.3f}".format(clconv[1])+'/converged.txt', delimiter=' ')
             Cltlaw = tools.alt_array_to_Cloudy(prev_conv_T.R * planet.R, prev_conv_T.Te, altmax, planet.R, 1000)
             tools.copyadd_Cloudy_in(path+'template', path+'iteration1', tlaw=Cltlaw)
