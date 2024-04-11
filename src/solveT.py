@@ -106,7 +106,7 @@ def get_new_Tstruc(old_Te, hcratio, fac):
     return newTe
 
 
-def calc_cloc(path, itno, sim, grid):
+def calc_cloc(path, itno, htot, ctot, PdV, advecheat, adveccool, totheat, hcratio):
     '''
     This function checks if there is a point in the atmosphere where we can use
     our construction instead of relaxation algorithm. It searches for two
@@ -116,9 +116,6 @@ def calc_cloc(path, itno, sim, grid):
 
     #clocs = pd.read_table(path+'clocs.txt', names=['cloc'], index_col=0, delimiter=' ')
     clocs = pd.read_csv(path+'clocs.csv', index_col='iteration')
-
-    Te, mu, rho, v, htot, ctot, PdV, advecheat, adveccool = simtogrid(sim, grid) #get all needed Cloudy quantities on this grid
-    totheat, totcool, nettotal, hcratio, hcratiopos, hcrationeg = getbulkrates(htot, ctot, PdV, advecheat, adveccool)
 
     #check for advection dominated regime
     adcloc = np.nan
@@ -161,7 +158,7 @@ def calc_cloc(path, itno, sim, grid):
     return cloc
 
 
-def relaxTstruc(sim, grid, altmax, Rp, fc, path, itno):
+def relaxTstruc(grid, altmax, Rp, fc, path, itno, Te, rho, hcratio, htot, ctot, PdV, advecheat, adveccool, hcratiopos, hcrationeg):
     '''
     This function finds a new temperature structure by relaxation:
     Add all rates, find ratio of heating to cooling rate,
@@ -173,8 +170,6 @@ def relaxTstruc(sim, grid, altmax, Rp, fc, path, itno):
 
     #make altgrid which contains the altitude values corresponding to the depth grid. In values of Rp
     altgrid = altmax - grid/Rp
-    Te, mu, rho, v, htot, ctot, PdV, advecheat, adveccool = simtogrid(sim, grid) #get all needed Cloudy quantities on this grid
-    totheat, totcool, nettotal, hcratio, hcratiopos, hcrationeg = getbulkrates(htot, ctot, PdV, advecheat, adveccool)
 
     if itno == 2: #save for first time
         np.savetxt(path+'iterations.txt', np.column_stack((grid, np.repeat(0.3, len(grid)), Te)),
@@ -199,10 +194,12 @@ def relaxTstruc(sim, grid, altmax, Rp, fc, path, itno):
         snewTe = tools.smooth_gaus_savgol(snewTe, size=smoothsize)
         snewTe = np.clip(snewTe, 1e1, 1e6)
 
+    """
     #set up the figure with plotted quantities (if converged, we will make a plot later)
     make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool,
                     rho, hcratiopos, hcrationeg, altmax, fc, title='iteration '+str(itno)+' - relaxation',
                     savename=path+'iteration'+str(itno)+'_relax.png')
+    """
 
     iterations_file['fac'+str(itno)] = fac
     iterations_file.to_csv(path+'iterations.txt', sep=' ', float_format='%.7e', index=False)
@@ -210,14 +207,16 @@ def relaxTstruc(sim, grid, altmax, Rp, fc, path, itno):
     return snewTe
 
 
-def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, rho, hcratiopos, hcrationeg, altmax, fc, title=None, savename=None, **kwargs):
+def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, rho, hcratiopos, hcrationeg, altmax, fc, 
+                    cnewTe=None, cloc=None, title=None, savename=None):
     fig, (ax1, ax2, ax3) = plt.subplots(3, figsize=(4,7))
     if title != None:
         ax1.set_title(title)
-    ax1.plot(altgrid, Te, color='grey', label='prev Te')
-    ax1.plot(altgrid, snewTe, color='black', label='new Te')
-    if 'cnewTe' in kwargs:
-        ax1.plot(altgrid, kwargs['cnewTe'], color='purple', label='constructed Te')
+    ax1.plot(altgrid, Te, color='#4CAF50', label='previous')
+    ax1.plot(altgrid, snewTe, color='#FFA500', label='relaxation')
+    if cnewTe is not None:
+        ax1.plot(altgrid, cnewTe, color='#800080', label='construction')
+        ax1.scatter(altgrid[cloc], snewTe[cloc], color='#800080')
     ax1.set_ylabel('Temperature [K]')
     ax1.legend(loc='best', fontsize=8)
 
@@ -246,10 +245,6 @@ def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, 
     tools.set_alt_ax(ax2, altmax=altmax, labels=False)
     tools.set_alt_ax(ax3, altmax=altmax, labels=True)
 
-    if 'cloc' in kwargs:
-        for ax in [ax1, ax2, ax3]:
-            ax.axvline(altgrid[kwargs['cloc']], color='k', linewidth=0.5, zorder=-10)
-
     fig.tight_layout()
     if savename != None:
         plt.savefig(savename, bbox_inches='tight', dpi=200)
@@ -257,9 +252,8 @@ def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, 
     plt.close()
 
 
-def make_converged_plot(sim, grid, altmax, Rp, path):
+def make_converged_plot(grid, altmax, Rp, path, Te, htot, rho, ctot, PdV, advecheat, adveccool):
     altgrid = altmax - grid/Rp
-    Te, mu, rho, v, htot, ctot, PdV, advecheat, adveccool = simtogrid(sim, grid)
 
     #set up the figure with plotted quantities
     fig, (ax1, ax2) = plt.subplots(2, figsize=(4,5.5))
@@ -290,13 +284,11 @@ def make_converged_plot(sim, grid, altmax, Rp, path):
     plt.close()
 
 
-def constructTstruc(sim, grid, snewTe, cloc, altmax, Rp, itno, path, fc):
+def constructTstruc(grid, snewTe, cloc, altmax, Rp, itno, path, fc, v, rho, mu, Te, htot, ctot):
     '''
     This function constructs the temperature structure from a given location (cloc),
     by minimizing the heating/cooling ratio of all terms.
     '''
-
-    Te, mu, rho, v, htot, ctot, PdV, advecheat, adveccool = simtogrid(sim, grid) #get all needed Cloudy quantities on this grid
 
     expansion_Tdivmu = tools.k/tools.mH * v * np.gradient(rho, grid) #this is expansion cooling except for the T/mu term 
     advection_gradTdivmu = tools.k/(tools.mH * 2/3) * rho * v #this is advection except for the d(T/mu)/dr term (with a minus sign due to depth != radius)
@@ -338,6 +330,7 @@ def constructTstruc(sim, grid, snewTe, cloc, altmax, Rp, itno, path, fc):
     cweight = 1 - scweight
     cnewTe = scnewTe * scweight + cnewTe * cweight
 
+    """
     #for the new T structure:
     PdV = calc_expansion(grid, rho, v, cnewTe, mu)
     adv = -1 * calc_advection(grid, rho, v, cnewTe, mu)
@@ -351,6 +344,7 @@ def constructTstruc(sim, grid, snewTe, cloc, altmax, Rp, itno, path, fc):
     make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool,
                     rho, hcratiopos, hcrationeg, altmax, fc, title='iteration '+str(itno)+' - construction',
                     savename=path+'iteration'+str(itno)+'_construct.png', cnewTe=cnewTe, cloc=cloc)
+    """
 
     return cnewTe
 
@@ -376,18 +370,14 @@ def check_T_changing(fc, grid, newTe, prevgrid, prevTe, fac=0.5, linthresh=50.):
     return Tchanging
 
 
-def check_fc_converged(sim, fc, depthgrid):
+def check_fc_converged(fc, depthgrid, hcratio):
     '''
     Checks whether the temperature profile is converged to a H/C ratio < fc.
+    Inner region really suffers from Cloudy roundoff errors and log interpolation and thus we are twice as lax there.
+    Also, when we start from nearby models, sometimes we converge immediately on the first iteration and we get the exact
+    same temperature profile. To prevent that, I force here that we do two iterations before calling converged.
     '''
 
-    Te, mu, rho, v, htot, ctot, PdV, advecheat, adveccool = simtogrid(sim, depthgrid) #get all needed Cloudy quantities on this grid
-    totheat, totcool, nettotal, hcratio, hcratiopos, hcrationeg = getbulkrates(htot, ctot, PdV, advecheat, adveccool)
-
-    #Check convergence.
-    #Inner region really suffers from Cloudy roundoff errors and log interpolation and thus we are twice as lax there.
-    #Also, when we start from nearby models, sometimes we converge immediately on the first iteration and we get the exact
-    #same temperature profile. To prevent that, I force here that we do two iterations before calling converged.
     if max(np.abs(hcratio[:int(0.95*len(depthgrid))])) < fc and max(np.abs(hcratio[int(0.95*len(depthgrid)):])) < 1+(fc-1)*2:
         converged = True
     else:
@@ -432,11 +422,22 @@ def run_loop(path, itno, fc, pprof, save_sp=[], maxit=16):
         #make logspaced grid to use throughout the code, interpolate all useful quantities to this grid.
         loggrid = altmax*Rp - np.logspace(np.log10(prev_sim.ovr.alt.iloc[-1]), np.log10(prev_sim.ovr.alt.iloc[0]), num=2500)[::-1]
 
+        Te, mu, rho, v, htot, ctot, PdV, advecheat, adveccool = simtogrid(prev_sim, loggrid) #get all needed Cloudy quantities on the grid
+        totheat, totcool, nettotal, hcratio, hcratiopos, hcrationeg = getbulkrates(htot, ctot, PdV, advecheat, adveccool)
+
         #now the procedure starts - we first produce a new temperature profile
-        snewTe = relaxTstruc(prev_sim, loggrid, altmax, Rp, fc, path, itno)
-        cloc = calc_cloc(path, itno, prev_sim, loggrid)
-        if ~np.isnan(cloc):# != None:
-            snewTe = constructTstruc(prev_sim, loggrid, snewTe, int(cloc), altmax, Rp, itno, path, fc)
+        snewTe = relaxTstruc(loggrid, altmax, Rp, fc, path, itno, Te, rho, hcratio, htot, ctot, PdV, advecheat, adveccool, hcratiopos, hcrationeg)
+        cloc = calc_cloc(path, itno, htot, ctot, PdV, advecheat, adveccool, totheat, hcratio)
+        cnewTe = None
+        if ~np.isnan(cloc):
+            cnewTe = constructTstruc(loggrid, snewTe, int(cloc), altmax, Rp, itno, path, fc, v, rho, mu, Te, htot, ctot)
+
+        make_rates_plot(altmax - loggrid/Rp, Te, snewTe, htot, ctot, PdV, advecheat, adveccool,
+                    rho, hcratiopos, hcrationeg, altmax, fc, title=f'iteration {itno}',
+                    savename=path+f'iteration{itno}.png', cnewTe=cnewTe, cloc=cloc)
+
+        if cnewTe is not None:
+            snewTe = cnewTe
 
         #add this temperature profile to the iterations file
         iterations_file = pd.read_csv(path+'iterations.txt', header=0, sep=' ')
@@ -446,7 +447,7 @@ def run_loop(path, itno, fc, pprof, save_sp=[], maxit=16):
         #now we check if the profile is converged. Either to H/C<fc, or if the Te profile does not change anymore (indicating smoothing prevents H/C<fc)
         converged = False #first assume not converged
         if itno > 2: #always update the Te profile at least once - in case we start from a 'close' Parker wind profile that immediately satisfies fc
-            converged = check_fc_converged(prev_sim, fc, loggrid)
+            converged = check_fc_converged(fc, loggrid, hcratio)
             p_Te = iterations_file['Te'+str(itno-1)].values #previous-previous Te
             Tchanging = check_T_changing(fc, loggrid, snewTe, loggrid, p_Te, linthresh=50.)
             if not Tchanging: #then say this indicates convergence that is simply limited by smoothing.
@@ -454,12 +455,11 @@ def run_loop(path, itno, fc, pprof, save_sp=[], maxit=16):
 
         if converged: #run once more with all output
             print(f"Temperature profile converged: {path}")
-            make_converged_plot(prev_sim, loggrid, altmax, Rp, path)
+            make_converged_plot(loggrid, altmax, Rp, path, Te, htot, rho, ctot, PdV, advecheat, adveccool)
             #calculate these terms for the output .txt file
-            conv_Te, conv_mu, conv_rho, conv_v, conv_htot, conv_ctot, conv_PdV, conv_advecheat, conv_adveccool = simtogrid(prev_sim, loggrid)
-            np.savetxt(path+'converged.txt', np.column_stack(((altmax-loggrid/Rp)[::-1], conv_rho[::-1], conv_Te[::-1],
-                conv_mu[::-1], conv_htot[::-1], conv_ctot[::-1], conv_PdV[::-1], conv_advecheat[::-1], conv_adveccool[::-1])), fmt='%1.5e',
-                header='R rho Te mu radheat radcool PdV advheat advcool', comments='')
+            np.savetxt(path+'converged.txt', np.column_stack(((altmax-loggrid/Rp)[::-1], rho[::-1], Te[::-1],
+                    mu[::-1], htot[::-1], ctot[::-1], PdV[::-1], advecheat[::-1], adveccool[::-1])), fmt='%1.5e',
+                    header='R rho Te mu radheat radcool PdV advheat advcool', comments='')
             
             #we run the last simulation one more time but with all the output files
             tools.copyadd_Cloudy_in(path+'iteration'+str(itno-1), path+'converged', 
@@ -472,18 +472,7 @@ def run_loop(path, itno, fc, pprof, save_sp=[], maxit=16):
             break
 
         else: #set up the next iteration
-            #we cannot use the tools.cl_table function because that expects the arrays to be ordered from low to high altitude
-            #also, that one uses the grid you give it, instead of extrapolating from Rp to altmax*Rp
-            Clgridr1 = np.logspace(np.log10(Rp), np.log10(altmax*Rp), num=1000)
-            Clgridr1 = (Clgridr1 - Clgridr1[0])
-            #sample the first 10 points better since Cloudy messes up with log-space interpolation there
-            Clgridr2 = np.logspace(-2, np.log10(Clgridr1[9]), num=300)
-            Clgridr = np.concatenate((Clgridr2, Clgridr1[10:]))
-            Clgridr[0] = 1e-35
-
-            ifunc_snewTe = interp1d(loggrid, snewTe, fill_value='extrapolate') #to put on coarse grid for cloudy
-            ClgridT = ifunc_snewTe(Clgridr)
-            Cltlaw = np.log10(np.column_stack((Clgridr, ClgridT)))
+            Cltlaw = tools.alt_array_to_Cloudy(altmax*Rp - loggrid[::-1], snewTe[::-1], altmax, Rp, 1300)
 
             tools.copyadd_Cloudy_in(path+'template', path+'iteration'+str(itno), tlaw=Cltlaw)
             if itno != maxit:
