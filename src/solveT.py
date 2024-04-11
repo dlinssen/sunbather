@@ -73,7 +73,7 @@ def simtogrid(sim, grid):
     return Te, mu, rho, v, htot, ctot, exp, advheat, advcool
 
 
-def getHCratio(htot, ctot, PdV, advecheat, adveccool):
+def calc_HCratio(htot, ctot, PdV, advecheat, adveccool):
     '''
     Combines the different heating and cooling rates into some useful (plotting) quantities
     '''
@@ -82,21 +82,17 @@ def getHCratio(htot, ctot, PdV, advecheat, adveccool):
     totcool = ctot + PdV + adveccool #all cooling rates are positive values
     nettotal = (totheat - totcool)
 
-    hcratio = np.sign(nettotal) * np.maximum(totheat, totcool) / np.minimum(totheat,totcool)
-    #for plotting purposes:
-    hcratiopos, hcrationeg = np.copy(hcratio), np.copy(hcratio)
-    hcratiopos[hcratiopos < 0] = 0
-    hcrationeg[hcrationeg > 0] = 0
+    HCratio = np.sign(nettotal) * np.maximum(totheat, totcool) / np.minimum(totheat,totcool)
 
-    return hcratio, hcratiopos, hcrationeg
+    return HCratio
 
 
-def get_new_Tstruc(old_Te, hcratio, fac):
+def get_new_Tstruc(old_Te, HCratio, fac):
     '''
     Returns a new temperature structure based on the old structure and the heating/cooling ratio.
     '''
 
-    deltaT = fac * np.sign(hcratio) * np.log10(np.abs(hcratio)) #take log-based approach to deltaT
+    deltaT = fac * np.sign(HCratio) * np.log10(np.abs(HCratio)) #take log-based approach to deltaT
     fT = np.copy(deltaT) #the temperature multiplication fraction
     fT[deltaT < 0] = 1 + deltaT[deltaT < 0]
     fT[deltaT > 0] = 1/(1 - deltaT[deltaT > 0])
@@ -106,7 +102,7 @@ def get_new_Tstruc(old_Te, hcratio, fac):
     return newTe
 
 
-def calc_cloc(path, itno, htot, ctot, PdV, advecheat, adveccool, hcratio):
+def calc_cloc(path, itno, htot, ctot, PdV, advecheat, adveccool, HCratio):
     '''
     This function checks if there is a point in the atmosphere where we can use
     our construction instead of relaxation algorithm. It searches for two
@@ -127,13 +123,13 @@ def calc_cloc(path, itno, htot, ctot, PdV, advecheat, adveccool, hcratio):
         boolar2 = (advecheat < 0.25 * htot)
         advunimploc = np.argmax(boolar2[advdomloc:]) + advdomloc #first point at lower altitude where advection becomes unimportant (if no point exists, will return just advdomloc)
         #then walk to higher altitude again to find converged point. We are more lax with "converged" point if advection dominates more.
-        boolar3 = (np.abs(hcratio[:advunimploc][::-1]) < 1.3 * np.clip((advecheat[:advunimploc][::-1] / htot[:advunimploc][::-1])**(2./3.), 1, 10))
+        boolar3 = (np.abs(HCratio[:advunimploc][::-1]) < 1.3 * np.clip((advecheat[:advunimploc][::-1] / htot[:advunimploc][::-1])**(2./3.), 1, 10))
         if True in boolar3: #otherwise it stays None
             adcloc = advunimploc - np.argmax(boolar3)
 
     #check for expansion dominated regime
     cxcloc = np.nan
-    boolar4 = (np.abs(hcratio) < 1.5) & (PdV / ctot > 8.) #boolean array where the structure is amost converged and expansion dominates the cooling
+    boolar4 = (np.abs(HCratio) < 1.5) & (PdV / ctot > 8.) #boolean array where the structure is amost converged and expansion dominates the cooling
     boolar4 = (PdV / ctot > 8.) #try this new version without checking for convergence - maybe this works better in some cases and worse in others.
     if False in boolar4 and True in boolar4: #then there is at least an occurence where this is not true.
         cxcloc = np.argmax(~boolar4) - 1 #this is the last location from index 0 where it is true
@@ -158,7 +154,7 @@ def calc_cloc(path, itno, htot, ctot, PdV, advecheat, adveccool, hcratio):
     return cloc
 
 
-def relaxTstruc(grid, altmax, Rp, path, itno, Te, hcratio):
+def relaxTstruc(grid, path, itno, Te, HCratio):
     '''
     This function finds a new temperature structure by relaxation:
     Add all rates, find ratio of heating to cooling rate,
@@ -168,8 +164,6 @@ def relaxTstruc(grid, altmax, Rp, path, itno, Te, hcratio):
     since that is harder to find by relaxation method and easier by construction.
     '''
 
-    #make altgrid which contains the altitude values corresponding to the depth grid. In values of Rp
-    altgrid = altmax - grid/Rp
 
     if itno == 2: #save for first time
         np.savetxt(path+'iterations.txt', np.column_stack((grid, np.repeat(0.3, len(grid)), Te)),
@@ -178,7 +172,7 @@ def relaxTstruc(grid, altmax, Rp, path, itno, Te, hcratio):
     iterations_file = pd.read_csv(path+'iterations.txt', header=0, sep=' ')
     fac = iterations_file['fac'+str(itno-1)].values
 
-    newTe = get_new_Tstruc(Te, hcratio, fac)
+    newTe = get_new_Tstruc(Te, HCratio, fac)
     smoothsize = int(len(grid)/(20*itno))
     newTe = tools.smooth_gaus_savgol(newTe, size=smoothsize)
     newTe = np.clip(newTe, 1e1, 1e6) #smoothing may have pushed snewTe < 10K again.
@@ -190,16 +184,9 @@ def relaxTstruc(grid, altmax, Rp, path, itno, Te, hcratio):
         fl = (((previous_ratio < 1) & (this_ratio > 1)) | ((previous_ratio > 1) & (this_ratio < 1)))
         fac[fl] = 2/3 * fac[fl] #take smaller changes in T in regions where the temperature fluctuates
         fac = np.clip(tools.smooth_gaus_savgol(fac, size=10), 0.02, 0.3)
-        newTe = get_new_Tstruc(Te, hcratio, fac) #recalculate new temperature profile with updated fac
+        newTe = get_new_Tstruc(Te, HCratio, fac) #recalculate new temperature profile with updated fac
         newTe = tools.smooth_gaus_savgol(newTe, size=smoothsize)
         newTe = np.clip(newTe, 1e1, 1e6)
-
-    """
-    #set up the figure with plotted quantities (if converged, we will make a plot later)
-    make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool,
-                    rho, hcratiopos, hcrationeg, altmax, fc, title='iteration '+str(itno)+' - relaxation',
-                    savename=path+'iteration'+str(itno)+'_relax.png')
-    """
 
     iterations_file['fac'+str(itno)] = fac
     iterations_file.to_csv(path+'iterations.txt', sep=' ', float_format='%.7e', index=False)
@@ -207,8 +194,62 @@ def relaxTstruc(grid, altmax, Rp, path, itno, Te, hcratio):
     return newTe
 
 
-def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, rho, hcratiopos, hcrationeg, altmax, fc, 
+def constructTstruc(grid, snewTe, cloc, v, rho, mu, Te, htot, ctot):
+    '''
+    This function constructs the temperature structure from a given location (cloc),
+    by minimizing the heating/cooling ratio of all terms.
+    '''
+
+    expansion_Tdivmu = tools.k/tools.mH * v * np.gradient(rho, grid) #this is expansion cooling except for the T/mu term 
+    advection_gradTdivmu = tools.k/(tools.mH * 2/3) * rho * v #this is advection except for the d(T/mu)/dr term (with a minus sign due to depth != radius)
+
+    ifuncPdVT = interp1d(grid, expansion_Tdivmu, fill_value='extrapolate')
+    ifuncadvec = interp1d(grid, advection_gradTdivmu, fill_value='extrapolate')
+    
+    def one_cell_HCratio(T, depth, mu, htot, ctot, currentT, T2, depth2, mu2):
+        '''
+        currentT is the temperature that corresponds to the htot and ctot values.
+        '''
+
+        PdV = ifuncPdVT(depth) * T / mu
+        advec = ifuncadvec(depth) * ((T/mu) - (T2/mu2))/(depth - depth2)
+
+        guess_htot = htot * (currentT / T) #so that if T > currentT, htot becomes lower. Trying some random (linear) functional form
+        guess_ctot = ctot * (T / currentT) #vice versa
+
+        totheat = guess_htot + max(advec, 0) #if advec is negative we don't add it here
+        totcool = guess_ctot + PdV - min(advec, 0) #if advec is positive we don't add it here
+
+        HCratio = max(totheat, totcool) / min(totheat, totcool) #both entities are positive
+
+        return HCratio - 1 #find root of this value to get H/C close to 1
+
+
+    cnewTe = np.copy(snewTe) #start with the temp struc from other function
+    for l in range(cloc-1, -1, -1): #walk 'backwards' to higher altitudes
+        result = minimize_scalar(one_cell_HCratio, method='bounded', bounds=[1e1,1e6], args=(grid[l], mu[l], htot[l], ctot[l], Te[l], cnewTe[l+1], grid[l+1], mu[l+1]))
+        cnewTe[l] = result.x
+
+
+    #get rid of the often abrupt edge where the constructed part sets in by smoothing it around that point
+    scnewTe = tools.smooth_gaus_savgol(cnewTe, fraction=0.03)
+    scnewTe = np.clip(scnewTe, 1e1, 1e6) #after smoothing we might have ended up below 10K.
+    scweight = np.zeros(len(grid))
+    scweight += sps.norm.pdf(range(len(grid)), cloc, int(len(grid)/30))
+    scweight /= np.max(scweight) #normalize
+    cweight = 1 - scweight
+    cnewTe = scnewTe * scweight + cnewTe * cweight
+
+    return cnewTe
+
+
+def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, rho, HCratio, altmax, fc, 
                     cnewTe=None, cloc=None, title=None, savename=None):
+    
+    HCratiopos, HCrationeg = np.copy(HCratio), -1 * np.copy(HCratio)
+    HCratiopos[HCratiopos < 0] = 0.
+    HCrationeg[HCrationeg < 0] = 0.
+
     fig, (ax1, ax2, ax3) = plt.subplots(3, figsize=(4,7))
     if title != None:
         ax1.set_title(title)
@@ -233,8 +274,8 @@ def make_rates_plot(altgrid, Te, snewTe, htot, ctot, PdV, advecheat, adveccool, 
                 (Line2D([], [], color='red', linestyle=(0,(1,2,1,8))), Line2D([], [], color='blue', linestyle=(6,(1,2,1,8))))),
                 ('radiation', 'expansion', 'advection'), loc='best', fontsize=8)
 
-    ax3.plot(altgrid, hcratiopos, color='red')
-    ax3.plot(altgrid, -hcrationeg, color='blue')
+    ax3.plot(altgrid, HCratiopos, color='red')
+    ax3.plot(altgrid, HCrationeg, color='blue')
     ax3.axhline(fc, color='k', linestyle='dotted')
     ax3.set_yscale('log')
     ax3.set_ylim(bottom=1)
@@ -281,55 +322,6 @@ def make_converged_plot(altgrid, altmax, path, Te, htot, rho, ctot, PdV, adveche
     plt.close()
 
 
-def constructTstruc(grid, snewTe, cloc, v, rho, mu, Te, htot, ctot):
-    '''
-    This function constructs the temperature structure from a given location (cloc),
-    by minimizing the heating/cooling ratio of all terms.
-    '''
-
-    expansion_Tdivmu = tools.k/tools.mH * v * np.gradient(rho, grid) #this is expansion cooling except for the T/mu term 
-    advection_gradTdivmu = tools.k/(tools.mH * 2/3) * rho * v #this is advection except for the d(T/mu)/dr term (with a minus sign due to depth != radius)
-
-    ifuncPdVT = interp1d(grid, expansion_Tdivmu, fill_value='extrapolate')
-    ifuncadvec = interp1d(grid, advection_gradTdivmu, fill_value='extrapolate')
-    
-    def calcHCratio(T, depth, mu, htot, ctot, currentT, T2, depth2, mu2):
-        '''
-        currentT is the temperature that corresponds to the htot and ctot values.
-        '''
-
-        PdV = ifuncPdVT(depth) * T / mu
-        advec = ifuncadvec(depth) * ((T/mu) - (T2/mu2))/(depth - depth2)
-
-        guess_htot = htot * (currentT / T) #so that if T > currentT, htot becomes lower. Trying some random (linear) functional form
-        guess_ctot = ctot * (T / currentT) #vice versa
-
-        totheat = guess_htot + max(advec, 0) #if advec is negative we don't add it here
-        totcool = guess_ctot + PdV - min(advec, 0) #if advec is positive we don't add it here
-
-        hcratio = max(totheat, totcool) / min(totheat, totcool) #both entities are positive
-
-        return hcratio - 1 #find root of this value to get hcratio close to 1
-
-
-    cnewTe = np.copy(snewTe) #start with the temp struc from other function
-    for l in range(cloc-1, -1, -1): #walk 'backwards' to higher altitudes
-        result = minimize_scalar(calcHCratio, method='bounded', bounds=[1e1,1e6], args=(grid[l], mu[l], htot[l], ctot[l], Te[l], cnewTe[l+1], grid[l+1], mu[l+1]))
-        cnewTe[l] = result.x
-
-
-    #get rid of the often abrupt edge where the constructed part sets in by smoothing it around that point
-    scnewTe = tools.smooth_gaus_savgol(cnewTe, fraction=0.03)
-    scnewTe = np.clip(scnewTe, 1e1, 1e6) #after smoothing we might have ended up below 10K.
-    scweight = np.zeros(len(grid))
-    scweight += sps.norm.pdf(range(len(grid)), cloc, int(len(grid)/30))
-    scweight /= np.max(scweight) #normalize
-    cweight = 1 - scweight
-    cnewTe = scnewTe * scweight + cnewTe * cweight
-
-    return cnewTe
-
-
 def check_T_changing(fc, grid, newTe, prevgrid, prevTe, fac=0.5, linthresh=50.):
     '''
     This function checks if the newly proposed temperature structure is actually changing w.r.t.
@@ -341,7 +333,7 @@ def check_T_changing(fc, grid, newTe, prevgrid, prevTe, fac=0.5, linthresh=50.):
     ratioTe = np.maximum(newTe, prevTe) / np.minimum(newTe, prevTe) #take element wise ratio
     diffTe = np.abs(newTe - prevTe)
 
-    #if not converged, we would expect max of hcratio > fc, and thus temp to change by more than (1+np.log10(fc)).
+    #if not converged, we would expect max of HCratio > fc, and thus temp to change by more than (1+np.log10(fc)).
     #If that's not the case, roundoffs or T=10K are preventing convergence.
     if np.all((ratioTe < (1 + fac * np.log10(fc))) | (diffTe < linthresh)):
         Tchanging = False
@@ -351,7 +343,7 @@ def check_T_changing(fc, grid, newTe, prevgrid, prevTe, fac=0.5, linthresh=50.):
     return Tchanging
 
 
-def check_fc_converged(fc, depthgrid, hcratio):
+def check_fc_converged(fc, depthgrid, HCratio):
     '''
     Checks whether the temperature profile is converged to a H/C ratio < fc.
     Inner region really suffers from Cloudy roundoff errors and log interpolation and thus we are twice as lax there.
@@ -359,7 +351,7 @@ def check_fc_converged(fc, depthgrid, hcratio):
     same temperature profile. To prevent that, I force here that we do two iterations before calling converged.
     '''
 
-    if max(np.abs(hcratio[:int(0.95*len(depthgrid))])) < fc and max(np.abs(hcratio[int(0.95*len(depthgrid)):])) < 1+(fc-1)*2:
+    if max(np.abs(HCratio[:int(0.95*len(depthgrid))])) < fc and max(np.abs(HCratio[int(0.95*len(depthgrid)):])) < 1+(fc-1)*2:
         converged = True
     else:
         converged = False
@@ -404,17 +396,17 @@ def run_loop(path, itno, fc, save_sp=[], maxit=16):
         loggrid = altmax*Rp - np.logspace(np.log10(prev_sim.ovr.alt.iloc[-1]), np.log10(prev_sim.ovr.alt.iloc[0]), num=2500)[::-1]
 
         Te, mu, rho, v, htot, ctot, PdV, advecheat, adveccool = simtogrid(prev_sim, loggrid) #get all needed Cloudy quantities on the grid
-        hcratio, hcratiopos, hcrationeg = getHCratio(htot, ctot, PdV, advecheat, adveccool)
+        HCratio = calc_HCratio(htot, ctot, PdV, advecheat, adveccool)
 
         #now the procedure starts - we first produce a new temperature profile
-        snewTe = relaxTstruc(loggrid, altmax, Rp, path, itno, Te, hcratio)
-        cloc = calc_cloc(path, itno, htot, ctot, PdV, advecheat, adveccool, hcratio)
+        snewTe = relaxTstruc(loggrid, path, itno, Te, HCratio)
+        cloc = calc_cloc(path, itno, htot, ctot, PdV, advecheat, adveccool, HCratio)
         cnewTe = None
         if ~np.isnan(cloc):
             cnewTe = constructTstruc(loggrid, snewTe, int(cloc), v, rho, mu, Te, htot, ctot)
 
         make_rates_plot(altmax - loggrid/Rp, Te, snewTe, htot, ctot, PdV, advecheat, adveccool,
-                    rho, hcratiopos, hcrationeg, altmax, fc, title=f'iteration {itno}',
+                    rho, HCratio, altmax, fc, title=f'iteration {itno}',
                     savename=path+f'iteration{itno}.png', cnewTe=cnewTe, cloc=cloc)
 
         if cnewTe is not None:
@@ -428,7 +420,7 @@ def run_loop(path, itno, fc, save_sp=[], maxit=16):
         #now we check if the profile is converged. Either to H/C<fc, or if the Te profile does not change anymore (indicating smoothing prevents H/C<fc)
         converged = False #first assume not converged
         if itno > 2: #always update the Te profile at least once - in case we start from a 'close' Parker wind profile that immediately satisfies fc
-            converged = check_fc_converged(fc, loggrid, hcratio)
+            converged = check_fc_converged(fc, loggrid, HCratio)
             p_Te = iterations_file['Te'+str(itno-1)].values #previous-previous Te
             Tchanging = check_T_changing(fc, loggrid, snewTe, loggrid, p_Te, linthresh=50.)
             if not Tchanging: #then say this indicates convergence that is simply limited by smoothing.

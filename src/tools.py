@@ -805,36 +805,6 @@ def set_alt_ax(ax, altmax=8, labels=True):
         ax.set_xticklabels([])
 
 
-def calc_expansionTmu(r, rho, v):
-    '''
-    Calcules the expansion cooling term divided by (T/mu), so afterwards you can
-    multiply with the T/mu as given by Cloudy to obtain back the full
-    expansion cooling rate.
-    Requires that r is in the direction of v (i.e. usually in altitude scale).
-
-    r:      radius in the atmosphere in cm
-    rho:    density in g cm-3
-    v:      velocity in cm s-1
-    '''
-
-    exp_Tmu = -1 * np.gradient(rho, r) * v*k/mH #erg / s / cm3
-    return exp_Tmu #exp_Tmu as positive values
-
-
-def calc_advectiondTmu(rho, v):
-    '''
-    Calcules the advection term divided by ( d(T/mu)/dr ), so afterwards you can
-    multiply with the d(T/mu)/dr as given by Cloudy to obtain back the full
-    advection rate.
-
-    rho:    density in g cm-3
-    v:      velocity in cm s-1
-    '''
-
-    advec_dTmu = v*rho*(3/2)*k/mH #erg / s / cm2 / K
-    return advec_dTmu
-
-
 def alt_array_to_Cloudy(alt, quantity, altmax, Rp, nmax, log=True):
     '''
     Takes as input an atmospheric quantity as a function of altitude/radius,
@@ -883,7 +853,6 @@ def alt_array_to_Cloudy(alt, quantity, altmax, Rp, nmax, log=True):
         law = np.log10(law)
 
     return law
-
 
 
 def smooth_gaus_savgol(y, size=None, fraction=None):
