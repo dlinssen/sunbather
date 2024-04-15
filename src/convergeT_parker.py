@@ -163,15 +163,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
             print(f"Found the highest iteration {path}iteration{max_iteration}, will resume at that same itno.")
             itno = max_iteration
 
-    #write clocs file that keeps track of from where we construct - see solveT.py
     if itno == 1:
-        clocs = pd.DataFrame({'construct_loc': [np.nan]}, index=['1'])
-        clocs.index.name = 'iteration'
-        clocs.to_csv(path+'clocs.csv')
-
-        #with open(path+"clocs.txt", "w") as f:
-        #    f.write("1 0")
-
         #get starting temperature structure
         clconv = find_close_model(pathTstruc, T, Mdot) #find if there are any nearby models we can start from
         if startT == 'constant': #then we start with the isothermal value
