@@ -1366,7 +1366,9 @@ class Planet:
                 self.SEDname = SEDname
 
         else:
-            print(f"Creating Planet object with name {name} that's not in the database.")
+            assert fullname is not None and R is not None and Rstar is not None and a is not None and M is not None and \
+                    Mstar is not None and bp is not None and SEDname is not None, \
+                    "I'm trying to make a Planet that is not in the planets.txt file, but I don't have all required arguments."
             self.name = name
             self.fullname = fullname
             self.R = R
