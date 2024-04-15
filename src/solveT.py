@@ -199,9 +199,9 @@ def relaxTstruc(grid, path, itno, Te, HCratio):
     newTe_relax = np.clip(newTe_relax, 1e1, 1e6) #smoothing may have pushed newTe_relax < 10K again.
 
     if itno >= 4: #check for fluctuations. If so, we decrease the deltaT factor
-        pp_Te = iterations_file['Te'+str(itno-2)]
-        previous_ratio = Te / pp_Te
-        this_ratio = newTe_relax / Te #because of smoothing this is not exactly the same as fT
+        prev_prevTe = iterations_file['Te'+str(itno-2)]
+        previous_ratio = Te / prev_prevTe #compare itno-2 to itno-1
+        this_ratio = newTe_relax / Te #compare itno-1 to the current itno (because of smoothing this ratio is not exactly the same as fT)
         fl = (((previous_ratio < 1) & (this_ratio > 1)) | ((previous_ratio > 1) & (this_ratio < 1)))
         fac[fl] = 2/3 * fac[fl] #take smaller changes in T in regions where the temperature fluctuates
         fac = np.clip(tools.smooth_gaus_savgol(fac, size=10), 0.02, 0.3)
