@@ -17,25 +17,67 @@ sigt0 = 2.654e-2 #cm2 s-1 = cm2 Hz, from Axner et al. 2004
 
 def project_1D_to_2D(r1, q1, Rp, numb=101, x_projection=False, cut_at=None, 
                      skip_alt_range=None, skip_alt_range_dayside=None, skip_alt_range_nightside=None):
-    '''
+    """
     Projects a 1D sub-stellar solution onto a 2D grid. This function preserves
-    the maximum altitude of the 1D ray, so that the 2D output looks like a half circle.
-    Values in the numpy 2D array outside of the circle radius are to 0. This will
-    also ensure 0 density and no optical depth.
+    the maximum altitude of the 1D ray, so that the 2D output looks like a half
+    circle. Values in the numpy 2D array outside of the circle radius are set to
+    0. This will also ensure 0 density and no optical depth.
 
-    r1:             altitude values from planet core in cm (ascending!)
-    q1:             1D quantity to project.
-    Rp:             planet core radius in cm. needed because we start there, and not
-                    necessarily at the lowest r-value (which may be slightly r[0] != Rp)
-    numb:           the number of bins in the y-directtion (impact parameters)
-                    twice this number is used in the x-direction (l.o.s.)
-    x_projection:   True or False. Whether to return the projection of q1(r1) in the x direction.
-                    For example for radial outflow velocities, to convert it to a velocity in the x-direction,
-                    set this to True so that you get v_x, where positive v_x are in the
-                    x-direction, i.e. from the star towards the observer.
-    cut_at:         radius at which we 'cut' the 2D structure and set values to 0.
-                    e.g. cut_at=sim.p.Rroche to set density 0 outside roche radius.
-    '''
+    Parameters
+    ----------
+    r1 : array_like
+        Altitude values from planet core in cm (ascending!).
+    q1 : array_like
+        1D quantity to project.
+    Rp : numeric
+        Planet core radius in cm. Needed because we start there, and not
+        necessarily at the lowest r-value (which may be slightly r[0] != Rp).
+    numb : int, optional
+        The number of bins in the y-directtion (impact parameters).
+        Twice this number is used in the x-direction (l.o.s.). Default is 101.
+    x_projection : bool, optional
+        Whether to return the projection of q1(r1) in the x direction.
+        For example for radial outflow velocities, to convert it to a velocity in
+        the x-direction, set this to True so that you get v_x, where positive v_x
+        are in the x-direction, i.e. from the star towards the observer. Default
+        is False.
+    cut_at : numeric, optional
+        Radius at which we 'cut' the 2D structure and set values to 0.
+        For example, cut_at=sim.p.Rroche to set density 0 outside Roche radius.
+        Default is None.
+    skip_alt_range : tuple, optional
+        Altitude range to skip for the whole 2D projection. Values within this
+        range will be set to 0. Must be specified as a tuple (min_alt, max_alt).
+        Default is None.
+    skip_alt_range_dayside : tuple, optional
+        Altitude range to skip for the dayside of the 2D projection. Values
+        within this range will be set to 0. Must be specified as a tuple
+        (min_alt, max_alt). Default is None.
+    skip_alt_range_nightside : tuple, optional
+        Altitude range to skip for the nightside of the 2D projection. Values
+        within this range will be set to 0. Must be specified as a tuple
+        (min_alt, max_alt). Default is None.
+
+    Returns
+    -------
+    b_edges : array_like
+        Impact parameters for 2D rays, the boundaries of the 'rays'.
+    b_centers : array_like
+        The actual positions of the rays and this is where the quantity is
+        calculated at.
+    x : array_like
+        Total x grid with both negative and positive values (for day- and
+        nightside).
+    q2 : array_like
+        Projected quantity onto the 2D grid.
+
+    Raises
+    ------
+    AssertionError
+        If arrays are not in order of ascending altitude or if skip_alt_range,
+        skip_alt_range_dayside, or skip_alt_range_nightside are not specified
+        correctly.
+    """
 
     assert r1[1] > r1[0], "arrays must be in order of ascending altitude"
 
@@ -68,8 +110,8 @@ def project_1D_to_2D(r1, q1, Rp, numb=101, x_projection=False, cut_at=None,
 
 
 def limbdark_quad(mu, ab):
-    '''
-    Quadratic limb darkening law from Claret & Bloemen 2011.
+    """
+    Quadratic limb darkening law from Claret & Bloemen (2011).
     Returns I(mu)/I(1). mu is cos(theta) with theta the angle between
     the normal direction and beam direction. The following holds:
     mu = sqrt(1 - (r/Rs)^2)     with r/Rs the fractional distance to the
@@ -79,19 +121,47 @@ def limbdark_quad(mu, ab):
     axis 0: the frequency axis
     axis 1: radial direction (rings) from planet core
     axis 2: angle phi within each radial ring
-    '''
+
+    Parameters
+    ----------
+    mu : array_like
+        Cosine of the angle between the normal direction and beam direction.
+    ab : array_like
+        Coefficients of the quadratic limb darkening law, where `ab[:,0]`
+        represents the linear coefficient and `ab[:,1]` represents the quadratic
+        coefficient.
+
+    Returns
+    -------
+    array_like
+        Normalized intensity profile I(mu)/I(1) according to the quadratic
+        limb darkening law.
+    """
 
     a, b = ab[:,0], ab[:,1]
     return 1 - a[:,None,None]*(1-mu[None,:,:]) - b[:,None,None]*(1-mu[None,:,:])**2
 
 
 def avg_limbdark_quad(ab):
-    '''
+    """
     Average of the quadratic limb darkening I(mu) over the stellar disk.
 
-    In the calculation of I, axis 0 is the frequency axis and axis 1 is the radial axis.
-    The returned I_avg will then have only the frequency axis left.
-    '''
+    In the calculation of I, axis 0 is the frequency axis and axis 1 is the radial
+    axis. The returned I_avg will then have only the frequency axis left.
+
+    Parameters
+    ----------
+    ab : array_like
+        Coefficients of the quadratic limb darkening law, where `ab[:,0]`
+        represents the linear coefficient and `ab[:,1]` represents the quadratic
+        coefficient.
+
+    Returns
+    -------
+    array_like
+        Average intensity profile I_avg(mu) over the stellar disk according to
+        the quadratic limb darkening law.
+    """
 
     a, b = ab[:,0], ab[:,1]
     rf = np.linspace(0, 1, num=1000) #sample the stellar disk in 1000 rings
@@ -106,7 +176,7 @@ def avg_limbdark_quad(ab):
 
 
 def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
-    '''
+    """
     Calculates optical depth using Eq. 19 from Oklopcic&Hirata 2018.
     Does this at once for all rays, lines and frequencies. When doing
     multiple lines at once, they must all be from the same species and
@@ -115,23 +185,40 @@ def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
     function does currently not make use of that (i.e. the helium triplet is
     calculated with three calls to this function).
 
-    x:      depth values of the grid 1D
-    ndens:  number density of the species 2D (ray, depth axes)
-    Te:     temperature  2D (ray, depth axes)
-    vx:     l.o.s. velocity  2D (ray, depth axes)
-    nu:     frequencies to calculate 1D
-    nu0:    central frequencies of the different lines 1D
-    m:      mass of species in g
-    sig0:   cross-section of the lines 1D, Eq. 20 from Oklopcic&Hirata 2018.
-    gamma:  HWHM of Lorentzian line part, 1D
-    turbulence: whether to add line broadening due to turbulence, Eq. 16 from Lampon et al. 2020
-
     The quantities are all treated as 4D here internally, where:
     axis 0: the frequency axis
     axis 1: the different spectral lines
     axis 2: the different rays
     axis 3: the x (depth) direction along each ray
-    '''
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        Depth values of the grid (1D array)
+    ndens : numpy.ndarray
+        Number density of the species (2D array with axes: (ray, depth)).
+    Te : numpy.ndarray
+        Temperature values (2D array with axes: (ray, depth)).
+    vx : numpy.ndarray
+        Line-of-sight velocity (2D array with axes: (ray, depth)).
+    nu : numpy.ndarray
+        Frequency values (1D array).
+    nu0 : numeric or array-like
+        Central frequencies of the different lines (1D array).
+    m : numeric
+        Mass of the chemical species in units of g.
+    sig0 : numeric or array-like
+        Cross-sections of the lines, Eq. 20 from Oklopcic&Hirata (2018) (1D array).
+    gamma : numeric or array-like
+        Half-width at half-maximum of the Lorentzian part of the line (1D array)
+    turbulence : bool, optional
+        Whether to add line broadening due to turbulence, Eq. 16 from Lampon et al. (2020), by default False.
+
+    Returns
+    -------
+    numpy.ndarray
+        Optical depth values (2D array with axes: (frequency, ray)).
+    """
 
     if not isinstance(nu0, np.ndarray):
         nu0 = np.array([nu0])
@@ -153,28 +240,48 @@ def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
 
 
 def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
-    '''
-    Similar to the function 'calc_tau', except that this does not just give the
-    total optical depth for each ray, but gives the cumulative optical depth at
-    one specific frequency at each depth point into each ray. It can still
-    calculate the contributions of multiple spectral lines at that frequency.
-
-    x:      depth values of the grid 1D
-    ndens:  number density of the species 2D (ray, depth axes)
-    Te:     temperature  2D (ray, depth axes)
-    vx:     l.o.s. velocity  2D (ray, depth axes)
-    nu:     frequency to calculate (float!)
-    nu0:    central frequencies of the different lines 1D
-    m:      mass of species in g
-    sig0:   cross-section of the lines 1D, Eq. 20 from Oklopcic&Hirata 2018.
-    gamma:  HWHM of Lorentzian line part, 1D
-    turbulence: whether to add line broadening due to turbulence, Eq. 16 from Lampon et al. 2020
+    """
+    Calculates cumulative optical depth using Eq. 19 from Oklopcic&Hirata 2018,
+    at one particular frequency. Does this at once for all rays and lines.
+    When doing multiple lines at once, they must all be from the same species and
+    same level so that m and ndens are the same for the different lines.
+    So you can do e.g. helium triplet or Ly-series at once.
 
     The quantities are all treated as 3D here internally, where:
     axis 0: the different spectral lines
     axis 1: the different rays
     axis 2: the x (depth) direction along each ray
-    '''
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        Depth values of the grid (1D array)
+    ndens : numpy.ndarray
+        Number density of the species (2D array with axes: (ray, depth)).
+    Te : numpy.ndarray
+        Temperature values (2D array with axes: (ray, depth)).
+    vx : numpy.ndarray
+        Line-of-sight velocity (2D array with axes: (ray, depth)).
+    nu : numeric
+        Frequency value.
+    nu0 : numeric or array-like
+        Central frequencies of the different lines (1D array).
+    m : numeric
+        Mass of the chemical species in units of g.
+    sig0 : numeric or array-like
+        Cross-sections of the lines, Eq. 20 from Oklopcic&Hirata (2018) (1D array).
+    gamma : numeric or array-like
+        Half-width at half-maximum of the Lorentzian part of the line (1D array)
+    turbulence : bool, optional
+        Whether to add line broadening due to turbulence, Eq. 16 from Lampon et al. (2020), by default False.
+
+    Returns
+    -------
+    numpy.ndarray
+        Cumulative (running sum) of the optical depth along the depth-direction.
+    numpy.ndarray
+        Optical depth contribution of each cell along the depth-direction.
+    """
 
     if not isinstance(nu0, np.ndarray):
         nu0 = np.array([nu0])
@@ -192,35 +299,49 @@ def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
     integrand = ndens[None,:] * sig0[:,None,None] * voigt_profile(Delnu, gaus_sigma, gamma[:,None,None])
     bin_tau = np.zeros_like(integrand)
     bin_tau[:,:,1:] = (integrand[:,:,1:] + np.roll(integrand, 1, axis=2)[:,:,1:])/2. * np.diff(x)[None,None,:]
-    bin_tau = np.sum(bin_tau, axis=0) #sum up contribution of different lines, now tau_bins has same shape as Te
+    bin_tau = np.sum(bin_tau, axis=0) #sum up contribution of different lines, now bin_tau has same shape as Te
     cum_tau = np.cumsum(bin_tau, axis=1) #do cumulative sum over the x-direction
 
     return cum_tau, bin_tau
 
 
 def tau_to_FinFout(b_edges, tau, Rs, bp=0., ab=np.zeros(2), a=0., phase=0.):
-    '''
-    Takes in tau values and calculates the Fin/Fout transit spectrum,
+    """
+    Takes in optical depth values and calculates the Fin/Fout transit spectrum,
     using the stellar radius and optional limb darkening and transit phase
     parameters. If all set to 0 (default), uses planet at stellar disk center
     with no limb darkening.
 
-    b:      impact parameters of the rays through the planet atmosphere (1D)
-    tau:    optical depth values per frequency and ray (2D: freq, ray)
-    Rs:     stellar radius in cm
-    bp:     impact parameter of the planet w.r.t the star center 0<bp<1  [in units of Rs]
-    ab:     quadratic limb darkening parameters. Either a list/array of two values if the
-            limb-darkening is wavelength-independent, or an array with shape (len(wavs),2)
-            if the limb-darkening is wavelength-dependent.
-    a:      planet orbital semi-major axis in cm
-    phase:  planetary orbital phase 0<phase<1 where 0 is mid-transit.
-            The current implementation of phase does not take into account the
-            tidally-locked rotation of the planet. So you'll always see the
-            exact same projection (terminator) of the planet, just against
-            a different limb-darkened stellar background. As long as the atmosphere is 1D
-            symmetric, which we are assuming, this is exactly the same. But if in the
-            future e.g. day-to-nightside winds are added on top, it will matter.
-    '''
+    Parameters
+    ----------
+    b_edges : array-like
+        Impact parameters of the rays through the planet atmosphere (1D array).
+    tau : array-like
+        Optical depth values (2D array with axes: (freq, ray))
+    Rs : numeric
+        Stellar radius in units of cm.
+    bp : numeric, optional
+        Transit impact parameter of the planet in units of stellar radius, by default 0.
+    ab : array-like, optional
+        Quadratic limb darkening parameters. Either a list/array of two values if the
+        limb-darkening is wavelength-independent, or an array with shape (len(wavs),2)
+        if the limb-darkening is wavelength-dependent. By default np.zeros(2).
+    a : numeric, optional
+        Planet orbital semi-major axis in units of cm, by default 0.
+    phase : numeric, optional
+        Planetary orbital phase defined as 0<phase<1 where 0 is mid-transit.
+        The current implementation of phase does not take into account the
+        tidally-locked rotation of the planet. So you'll always see the
+        exact same projection (terminator) of the planet, just against
+        a different limb-darkened stellar background. As long as the atmosphere is 1D
+        symmetric, which we are assuming, this is exactly the same. But if in the
+        future e.g. day-to-nightside winds are added on top, it will matter. By default 0.
+
+    Returns
+    -------
+    numpy.ndarray
+        Transit spectrum in units of in-transit flux / out-of-transit flux (i.e., Fin/Fout).
+    """
 
     if ab.ndim == 1:
         ab = ab[None,:]
@@ -247,9 +368,22 @@ def tau_to_FinFout(b_edges, tau, Rs, bp=0., ab=np.zeros(2), a=0., phase=0.):
 
 
 def read_NIST_lines(species, wavlower=None, wavupper=None):
-    '''
-    This function reads a table of lines from the NIST atomic database.
-    '''
+    """Reads a tabular file of spectral line coefficients from the NIST database.
+
+    Parameters
+    ----------
+    species : str
+        Atomic or ionic species, for example 'He' for atomic helium, or 'C+2' for doubly ionized carbon.
+    wavlower : numeric, optional
+        Lower boundary on the wavelengths to read in units of Å, by default None
+    wavupper : numeric, optional
+        Upper boundary on the wavelengths to read in units of Å, by default None
+
+    Returns
+    -------
+    pandas.DataFrame
+        Line coefficients needed for radiative transfer calculations.
+    """
 
     spNIST = pd.read_table(tools.sunbatherpath+'/RT_tables/'+species+'_lines_NIST.txt') #line info
     #remove lines with nan fik or Aik values. Note that lineno doesn't change (uses index instead of rowno.)
@@ -273,31 +407,65 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
 
 
 def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), phase=0., phase_bulkshift=False, turbulence=False, cut_at=None):
-    '''
-    Calculates Fin/Fout transit spectrum for a given wavelength range, and a given
-    (list of) species. Includes limb darkening.
+    """
+    Calculates a transit spectrum in units of in-transit flux / out-of-transit flux (i.e., Fin/Fout).
+    Only spectral lines originating from provided species will be calculated.
 
-    sim:        'Sim' class object of a Cloudy simulation. Needs to have
-                Planet and Parker objects as attributes.
-    wavsAA:     wavelengths to calculate spectrum on, in Angstroms (1D)
-    species:    string or list of species name(s) to calculate, e.g. H, Fe+, C, Mg2+
-                this species must be present in Cloudy's .en and .den files
-    numrays:    number of rays with different impact parameters we project the 1D structure to (int)
-    width_fac:  a multiplication factor for the 'max_voigt_width'
-                parameter, which sets how far to either side of the line core
-                we still calculate optical depths for every line.
-                Standard value is 5 Gaussian standard deviations + 5 Lorentzian gammas.
-                For e.g. Lyman alpha, you probably need a >1 factor here,
-                since the far Lorentzian wings are probed.
-    ab:         quadratic limb darkening parameters. Either a list/array of two values if the
-                limb-darkening is wavelength-independent, or an array with shape (len(wavs),2)
-                if the limb-darkening is wavelength-dependent.
-    phase:      planetary orbital phase 0<phase<1 where 0 is mid-transit.
-                my implementation of phase does not (yet) take into account the
-                tidally-locked rotation of the planet. so you'll always see the
-                exact same (mid-transit) projection of the planet, just against
-                a different limb-darkened background.
-    '''
+    Parameters
+    ----------
+    sim : tools.Sim
+        Cloudy simulation of an upper atmosphere. Needs to have tools.Planet and 
+        tools.Parker class attributes.
+    wavsAA : array-like
+        Wavelengths to calculate transit spectrum on, in units of Å (1D array).
+    species : str or array-like
+        Chemical species to include in the calculations. Molecules are not supported.
+        This argument distinguishes between atoms and ions, so for example 'Fe' will
+        only calculate lines originating from atomic iron. To calculate lines from
+        singly or doubly ionized iron, you must include 'Fe+' and 'Fe+2', respectively.
+    numrays : int, optional
+        Number of rays with different distance from the planet we project the 1D profiles onto.
+        Higher number leads to slower computation times but higher accuracy, by default 100.
+    width_fac : numeric, optional
+        A multiplication factor for the 'max_voigt_width' variable within this function,
+        which sets how far to either side of the rest-frame line centroid
+        we calculate optical depths for every line.
+        Standard value is 5 Gaussian standard deviations + 5 Lorentzian gammas.
+        For very strong lines such as Ly-alpha, you may need a value >1 to properly calculate
+        the far wings of the line. By default 1.
+    ab : array-like, optional
+        Quadratic limb darkening parameters. Either a list/array of two values if the
+        limb-darkening is wavelength-independent, or an array with shape (len(wavs),2)
+        if the limb-darkening is wavelength-dependent. By default np.zeros(2).
+    phase : numeric, optional
+        Planetary orbital phase defined as 0<phase<1 where 0 is mid-transit.
+        The current implementation of phase does not take into account the
+        tidally-locked rotation of the planet. So you'll always see the
+        exact same projection (terminator) of the planet, just against
+        a different limb-darkened stellar background. As long as the atmosphere is 1D
+        symmetric, which we are assuming, this is exactly the same. But if in the
+        future e.g. day-to-nightside winds are added on top, it will matter. By default 0.
+    phase_bulkshift : bool, optional
+        If phase != 0, the planet will have a nonzero bulk radial velocity in the stellar rest-frame.
+        If this parameter is set to True, that velocity shift will be imposed on the transit spectrum as well.
+        If this parameter is set to False, the spectral lines will still be at their rest-frame wavelengths. By default False.
+    turbulence : bool, optional
+        Whether to add line broadening due to turbulence, Eq. 16 from Lampon et al. (2020), by default False.
+    cut_at : numeric, optional
+        Radius at which we 'cut' the atmospheric profile and set values to 0.
+        For example, use cut_at=sim.p.Rroche to set density 0 outside the Roche radius.
+        Default is None (i.e., entire atmosphere included).
+
+    Returns
+    -------
+    numpy.ndarray
+        Transit spectrum in units of in-transit flux / out-of-transit flux (i.e., Fin/Fout).
+    tuple
+        Wavelengths and responsible species of the spectral lines included in this transit spectrum.
+    tuple
+        Wavelengths and responsible species of spectral lines that are listed in the NIST database,
+        but which could not be calculated due to their excitation state not being reported by Cloudy.
+    """
 
     assert hasattr(sim, 'p'), "The sim must have an attributed Planet object"
     assert 'v' in sim.ovr.columns, "We need a velocity structure, such as that from adding a Parker object to the sim"
@@ -385,27 +553,49 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
 
 
 def tau_1D(sim, wavAA, species, width_fac=1., turbulence=False):
-    '''
-    This function maps out the optical depth at one specific wavelength.
+    """
+    Maps out the optical depth at one specific wavelength.
     The running integral of the optical deph is calculated at each depth of the ray.
-    Useful for plotting purposes (i.e. where does a line form).
-    Keep in mind that this function maps out the optical depth along the direction
-    of the Cloudy simulation (i.e. the substellar ray). To do proper RT calculations,
-    you need to calculate the optical depth in the 2D plane, and the tau_12D()
-    function can be used for that.
+    Useful for identifying where a spectral line forms.
+    This function maps out the optical depth along the direction
+    of the Cloudy simulation (i.e., the substellar ray). To do proper radiative
+    transfer calculations, one needs to calculate the optical depth in a 2D-projected
+    plane. The tau_12D() function can be used for that.
 
-    sim:        'Sim' class object of a Cloudy simulation. Needs to have
-                Planet and Parker objects as attributes.
-    wavAA:      wavelength to calculate optical depth at, in Angstroms
-    species:    string or list of species name(s) to calculate, e.g. H, Fe+, C, Mg2+
-                this species must be present in Cloudy's .en and .den files
-    width_fac:  a multiplication factor for the 'max_voigt_width'
-                        parameter, which sets how far to either side of the line core
-                        we still calculate optical depths for every line.
-                        Standard value is 5 Gaussian standard deviations + 5 Lorentzian gammas.
-                        For e.g. Lyman alpha, you probably need a >1 factor here,
-                        since the far Lorentzian wings are probed.
-    '''
+    Parameters
+    ----------
+    sim : tools.Sim
+        Cloudy simulation of an upper atmosphere. Needs to have tools.Planet and 
+        tools.Parker class attributes.
+    wavAA : numeric
+        Wavelength to calculate the optical depths at, in units of Å.
+    species : str or array-like
+        Chemical species to include in the calculations. Molecules are not supported.
+        This argument distinguishes between atoms and ions, so for example 'Fe' will
+        only calculate lines originating from atomic iron. To calculate lines from
+        singly or doubly ionized iron, you must include 'Fe+' and 'Fe+2', respectively.
+    width_fac : numeric, optional
+        A multiplication factor for the 'max_voigt_width' variable within this function,
+        which sets how far to either side of the rest-frame line centroid
+        we calculate optical depths for every line.
+        Standard value is 5 Gaussian standard deviations + 5 Lorentzian gammas.
+        For very strong lines such as Ly-alpha, you may need a value >1 to properly calculate
+        the far wings of the line. By default 1.
+    turbulence : bool, optional
+        Whether to add line broadening due to turbulence, Eq. 16 from Lampon et al. (2020), by default False.
+
+    Returns
+    -------
+    numpy.ndarray
+        Cumulative (running sum) of the optical depth along the depth-direction (1D array).
+    numpy.ndarray
+        Optical depth contribution of each cell along the depth-direction (1D array).
+    tuple
+        Wavelengths and responsible species of the spectral lines included in this transit spectrum.
+    tuple
+        Wavelengths and responsible species of spectral lines that are listed in the NIST database,
+        but which could not be calculated due to their excitation state not being reported by Cloudy.
+    """
 
     assert isinstance(wavAA, float) or isinstance(wavAA, int), "Pass one wavelength in Å as a float or int"
     assert hasattr(sim, 'p'), "The sim must have an attributed Planet object"
@@ -457,10 +647,50 @@ def tau_1D(sim, wavAA, species, width_fac=1., turbulence=False):
 
 
 def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, cut_at=None):
-    '''
-    For a 1D simulation, still maps out the optical depth in 2D.
-    See tau_1D() for explanation of the arguments.
-    '''
+    """
+    Maps out the optical depth at one specific wavelength.
+    The running integral of the optical deph is calculated at each stellar light ray
+    with different impact parameter from the planet, and at each depth into those rays.
+    Useful for identifying where a spectral line forms.
+
+    Parameters
+    ----------
+    sim : tools.Sim
+        Cloudy simulation of an upper atmosphere. Needs to have tools.Planet and 
+        tools.Parker class attributes.
+    wavAA : numeric
+        Wavelength to calculate the optical depths at, in units of Å.
+    species : str or array-like
+        Chemical species to include in the calculations. Molecules are not supported.
+        This argument distinguishes between atoms and ions, so for example 'Fe' will
+        only calculate lines originating from atomic iron. To calculate lines from
+        singly or doubly ionized iron, you must include 'Fe+' and 'Fe+2', respectively.
+    width_fac : numeric, optional
+        A multiplication factor for the 'max_voigt_width' variable within this function,
+        which sets how far to either side of the rest-frame line centroid
+        we calculate optical depths for every line.
+        Standard value is 5 Gaussian standard deviations + 5 Lorentzian gammas.
+        For very strong lines such as Ly-alpha, you may need a value >1 to properly calculate
+        the far wings of the line. By default 1.
+    turbulence : bool, optional
+        Whether to add line broadening due to turbulence, Eq. 16 from Lampon et al. (2020), by default False.
+    cut_at : numeric, optional
+        Radius at which we 'cut' the atmospheric profile and set values to 0.
+        For example, use cut_at=sim.p.Rroche to set density 0 outside the Roche radius.
+        Default is None (i.e., entire atmosphere included).
+
+    Returns
+    -------
+    numpy.ndarray
+        Cumulative (running sum) of the optical depth along the depth-direction (2D array with axes: (ray, depth)).
+    numpy.ndarray
+        Optical depth contribution of each cell along the depth-direction (2D array with axes: (ray, depth)).
+    tuple
+        Wavelengths and responsible species of the spectral lines included in this transit spectrum.
+    tuple
+        Wavelengths and responsible species of spectral lines that are listed in the NIST database,
+        but which could not be calculated due to their excitation state not being reported by Cloudy.
+    """
 
     assert isinstance(wavAA, float) or isinstance(wavAA, int), "Pass one wavelength in Å as a float or int"
     assert hasattr(sim, 'p')
@@ -511,29 +741,67 @@ def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, cut_at=None):
 
 
 def FinFout2RpRs(FinFout):
-    '''
-    Converts the Fin/Fout (i.e. flux in-transit / flux out-of-transit) to
-    Rp/Rs (i.e. the apparent size of the planet relative to the star).
-    The continuum should be roughly Rp/Rs, but not necessarily exactly if
-    limb-darkening was used.
-    '''
+    """
+    Converts the Fin/Fout (i.e., flux in-transit / flux out-of-transit) to
+    Rp/Rs (i.e., the apparent size of the planet relative to the star).
+    The continuum should be roughly Rp/Rs, but not exactly with limb-darkening.
+    The reverse function of this is RpRs2FinFout().
 
-    return np.sqrt(1-FinFout)
+    Parameters
+    ----------
+    FinFout : array-like
+        In-transit / out-transit flux values, for example as returned by FinFout_1D().
+
+    Returns
+    -------
+    array-like
+        Transit spectrum in units of planet size / star size.
+    """
+
+    RpRs = np.sqrt(1-FinFout)
+
+    return RpRs
 
 
 def RpRs2FinFout(RpRs):
-    '''
-    Reverse function of FinFout2RpRs().
-    '''
+    """
+    Converts the Fin/Fout (i.e., flux in-transit / flux out-of-transit) to
+    Rp/Rs (i.e., the apparent size of the planet relative to the star).
+    The continuum should be roughly Rp/Rs, but not exactly with limb-darkening.
+    The reverse function of this is FinFout2RpRs().
 
-    return 1-RpRs**2
+    Parameters
+    ----------
+    RpRs : array-like
+        Transit spectrum in units of planet size / star size
+
+    Returns
+    -------
+    array-like
+        In-transit / out-transit flux values
+    """
+
+    FinFout = 1-RpRs**2
+
+    return FinFout
 
 
 def vac2air(wavs_vac):
-    '''
+    """
     Converts vacuum wavelengths to air. Wavelengths MUST be in Angstroms.
-    from: https://www.astro.uu.se/valdwiki/Air-to-vacuum%20conversion
-    '''
+    From: https://www.astro.uu.se/valdwiki/Air-to-vacuum%20conversion
+    The reverse function of this is vac2air().
+
+    Parameters
+    ----------
+    wavs_vac : numeric or array-like
+        Wavelength(s) in vacuum in units of Å.
+
+    Returns
+    -------
+    numeric or array-like
+        Wavelength(s) in air in units of Å.
+    """
 
     s = 1e4 / wavs_vac
     n = 1 + 0.0000834254 + 0.02406147 / (130 - s**2) + 0.00015998 / (38.9 - s**2)
@@ -543,10 +811,21 @@ def vac2air(wavs_vac):
 
 
 def air2vac(wavs_air):
-    '''
+    """
     Converts air wavelengths to vacuum. Wavelengths MUST be in Angstroms.
-    from: https://www.astro.uu.se/valdwiki/Air-to-vacuum%20conversion
-    '''
+    From: https://www.astro.uu.se/valdwiki/Air-to-vacuum%20conversion
+    The reverse function of this is air2vac().
+
+    Parameters
+    ----------
+    wavs_air : numeric or array-like
+        Wavelength(s) in air in units of Å.
+
+    Returns
+    -------
+    numeric or array-like
+        Wavelength(s) in vacuum in units of Å.
+    """
 
     s = 1e4 / wavs_air
     n = 1 + 0.00008336624212083 + 0.02408926869968 / (130.1065924522 - s**2) + 0.0001599740894897 / (38.92568793293 - s**2)
@@ -556,9 +835,23 @@ def air2vac(wavs_air):
 
 
 def constantR_wavs(wav_lower, wav_upper, R):
-    '''
-    Returns an array of wavelengths at constant spectral resolution R.
-    '''
+    """
+    Returns an array of wavelengths at a constant spectral resolution.
+
+    Parameters
+    ----------
+    wav_lower : numeric
+        Lower bound of the wavelength array.
+    wav_upper : numeric
+        Upper bound of the wavelength array.
+    R : numeric
+        Resolving power.
+
+    Returns
+    -------
+    numpy.ndarray
+        Wavelength array.
+    """
 
     wav = wav_lower
     wavs = []
@@ -570,21 +863,27 @@ def constantR_wavs(wav_lower, wav_upper, R):
 
 def convolve_spectrum_R(wavs, flux, R, verbose=False):
     """
-    Convolves a spectrum with a Gaussian filter to a target spectral resolution of R.
-
-    Parameters:
-    - wavs: numpy array, representing wavelengths
-    - flux: numpy array, representing spectrum values
-    - R: float/int, spectral resolution
-    - verbose: bool, print FWHM of Gaussian filter
-
-    Returns:
-    - convolved_spectrum: numpy array, the convolved spectrum
-
+    Convolves a spectrum with a Gaussian filter down to a lower spectral resolution.
     This function uses a constant gaussian width that is calculated from the middle wavelength point.
     This means that it only works properly when the wavs array spans a relatively small bandwidth.
-    Since R = delta-lambda / lambda, if the bandwidth is too large, the assumption that 
+    Since R = delta-lambda / lambda, if the bandwidth is too large, the assumption made here that 
     delta-lambda is the same over the whole array will not be valid.
+
+    Parameters
+    ----------
+    wavs : array-like
+        Wavelengths.
+    flux : array-like
+        Flux values.
+    R : numeric
+        Resolving power.
+    verbose : bool, optional
+        Whether to print some diagnostics, by default False
+
+    Returns
+    -------
+    numpy.ndarray
+        The convolved spectrum at resolution R.
     """
 
     assert wavs[1] > wavs[0], "Wavelengths must be in ascending order"
