@@ -301,6 +301,9 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
 
     assert hasattr(sim, 'p'), "The sim must have an attributed Planet object"
     assert 'v' in sim.ovr.columns, "We need a velocity structure, such as that from adding a Parker object to the sim"
+    assert hasattr(sim, 'den'), "The sim must have a .den file that stores the densities of the atomic/ionic excitation states. " \
+                                "Please re-run your Cloudy simulation while saving these. Either re-run sunbather.convergeT_parker.py " \
+                                "with the -save_sp flag, or use the tools.insertden_Cloudy_in() function with rerun=True."
     
     ab = np.array(ab) #turn possible list into array
     if ab.ndim == 1:
@@ -338,8 +341,13 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
             warnings.warn(f"Your requested species {spec} is not present in Cloudy's output, so the spectrum will be flat. " + \
                     "Please re-do your Cloudy simulation while saving this species. Either use the tools.insertden_Cloudy_in() " + \
                     "function, or run convergeT_parker.py again with the correct -save_sp arguments.")
+            continue
 
         spNIST = read_NIST_lines(spec, wavlower=wavsAA[0], wavupper=wavsAA[-1])
+        
+        if len(species) == 1 and len(spNIST) == 0:
+            warnings.warn(f"Your requested species {spec} does not have any lines in this wavelength range (according to the NIST database), " \
+                          "so the spectrum will be flat.")
 
         for lineno in spNIST.index.values: #loop over all lines in the spNIST table.
             gaus_sigma_max = np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec)) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
