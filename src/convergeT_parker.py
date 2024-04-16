@@ -16,13 +16,31 @@ import traceback
 
 
 def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):
-    '''
-    This function takes a parent folder where multiple 1D parker profiles have been ran,
+    """
+    Takes a parent folder where multiple 1D parker profiles have been ran,
     and for given T and Mdot it looks for another model that is already finished and closest
     to the given model, so that we can start our new simulation from that converged temperature
     structure. It returns the T and Mdot
     of the close converged folder, or None if there aren't any (within the tolerance).
-    '''
+
+    Parameters
+    ----------
+    parentfolder : str
+        Parent folder containing sunbather simulations within folders with the parker_*T0*_*Mdot* name format.
+    T : numeric
+        Target isothermal temperature in units of K.
+    Mdot : numeric
+        log of the target mass-loss rate in units of g s-1.
+    tolT : numeric, optional
+        Maximum T0 difference with the target temperature, by default 2000 K
+    tolMdot : numeric, optional
+        Maximum log10(Mdot) difference with the target mass-loss rate, by default 1 dex
+
+    Returns
+    -------
+    list
+        [T0, Mdot] of the closest found finished model, or [None, None] if none were found within the tolerance.
+    """
 
     pattern = re.compile(r'parker_\d+_\d+\.\d{3}$') #this is how folder names should be
     all_files_and_folders = os.listdir(parentfolder)
@@ -49,46 +67,63 @@ def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):
 
 
 def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdict=None, altmax=8, save_sp=[], constantT=False, maxit=16):
-    '''
-    Solves for the converged temperature structure of a single parker wind profile.
+    """
+    Solves for a nonisothermal temperature profile of a single isothermal Parker wind (density and velocity) profile.
 
-    Arguments:
-        plname: [str]       planet name that occurs in planets.txt
-        Mdot: [str/float]   parker wind log10 of the mass loss rate
-        T: [str/int]        parker wind isothermal temperature
-        itno: [int]         iteration number to start (can only be different from 1
-                            if this same model has been ran before, and then also
-                            overwrite = True needs to be set.)
-        fc: [float]         convergence factor, default should be 1.1. Sets the difference
-                            in temperature structures between successive iterations
-        dir: [str]          directory as $SUNBATHER_PROJECT_PATH/sims/1D/planetname/dir/
-                            where the profile will be solved. A folder as
-                            parker_T_Mdot/ will be made there and Cloudy is ran within.
-        SEDname: [str]      name of SED file to use. if SEDname='real', we use the name as
-                            given in the planets.txt file, but if SEDname is something else,
-                            we advice to use a separate dir folder for this.
-        overwrite: [bool]   whether to overwrite if this simulation (i.e. folder)
-                            already exists.
-        startT: [str]       either 'constant', 'free' or 'nearby'. Sets the initial
-                            temperature structure used for the first iteration.
-                            'constant' sets it equal to the parker wind isothermal value.
-                            'free' lets Cloudy solve it and thus you get the rad. eq. structure.
-                            'nearby' looks in the dir folder for previously solved
-                            parker wind profiles and starts from a converged one.
-                            If no converged ones are available, uses 'free' instead.
-        pdir: [str]         directory as $SUNBATHER_PROJECT_PATH/parker_profiles/planetname/pdir/
-                            where we take the parker wind profiles from. Different folders
-                            may exist there for a given planet for parker wind profiles
-                            with different assumptions such as SED/a/z/fH, etc.
-        zdict: [dict]       dictionary with the scale factors of all elements relative
-                            to the default solar composition.
-        save_sp: [list]     a list of atomic/ionic species to save the density structures
-                            for. This is needed when doing radiative transfer to produce
-                            transmission spectra later. For example, to be able to make
-                            metastable helium spectra, 'He' needs to be in the save_sp list.
-        constantT: [bool]   if True, instead of converging the temperature structure,
-                            the Parker wind profile is ran at the isothermal value.
-    '''
+    Parameters
+    ----------
+    plname : str
+        Planet name (must have parameters stored in $SUNBATHER_PROJECT_PATH/planets.txt)
+    Mdot : str or numeric
+        log of the mass-loss rate in units of g s-1
+    T : str or int
+        Temperature in units of g s-1
+    itno : int
+        Iteration number to start from (can only be different from 1
+        if this same model has been ran before, and then also
+        overwrite = True needs to be set). If value is 0, will automatically
+        look for the highest iteration number to start from.
+    fc : numeric
+        H/C convergence factor, see Linssen et al. (2024). A sensible value is 1.1.
+    dir : str
+        Directory as $SUNBATHER_PROJECT_PATH/sims/1D/planetname/*dir*/
+        where the temperature profile will be solved. A folder named
+        parker_*T*_*Mdot*/ will be made there.
+    SEDname : str
+        Name of SED file to use. If SEDname='real', we use the name as
+        given in the planets.txt file, but if SEDname is something else,
+        we advice to use a separate dir folder for this.
+    overwrite : bool
+        Whether to overwrite if this simulation already exists.
+    startT : str
+        Either 'constant', 'free' or 'nearby'. Sets the initial
+        temperature profile guessed/used for the first iteration.
+        'constant' sets it equal to the parker wind isothermal value.
+        'free' lets Cloudy solve it, so you will get the radiative equilibrium structure.
+        'nearby' looks in the dir folder for previously solved
+        Parker wind profiles and starts from a converged one. Then, if no converged
+        ones are available, uses 'free' instead.
+    pdir : str
+        Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/planetname/*pdir*/
+        where we take the isothermal parker wind density and velocity profiles from.
+        Different folders may exist there for a given planet, to separate for example profiles
+        with different assumptions such as stellar SED/semi-major axis/composition.
+    zdict : dict, optional
+        Dictionary with the scale factors of all elements relative
+        to the default solar composition. Default is None, which results in a solar composition.
+    altmax : int, optional
+        Maximum altitude of the simulation in units of planet radius, by default 8
+    save_sp : list, optional
+        A list of atomic/ionic species to let Cloudy save the number density profiles
+        for. Those are needed when doing radiative transfer to produce
+        transmission spectra. For example, to be able to make
+        metastable helium spectra, 'He' needs to be in the save_sp list. By default [].
+    constantT : bool, optional
+        If True, instead of sovling for a nonisothermal temperature profile,
+        the Parker wind profile is ran at the isothermal value. By default False.
+    maxit : int, optional
+        Maximum number of iterations, by default 16.
+    """
 
     Mdot = "%.3f" % float(Mdot) #enforce this format to get standard file names.
     T = str(T)
@@ -184,6 +219,10 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
 
 
 def catch_errors_run_s(*args):
+    """
+    Executes the run_s() function with provided arguments, while catching errors more gracefully.
+    """
+
     try:
         run_s(*args)
     except Exception as e:
@@ -191,10 +230,69 @@ def catch_errors_run_s(*args):
 
 
 def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname, overwrite, startT, pdir, zdict, altmax, save_sp, constantT, maxit):
-    '''
-    Runs the function run_s in parallel for a given grid of Mdots and T, and
-    for given number of cores (=parallel processes).
-    '''
+    """
+    Solves for a nonisothermal temperature profile of a grid of isothermal Parker wind models,
+    by executing the run_s() function in parallel.
+
+    Parameters
+    ----------
+    plname : str
+        Planet name (must have parameters stored in $SUNBATHER_PROJECT_PATH/planets.txt).
+    cores : int
+        Number of parallel processes to spawn (i.e., number of CPU cores).
+    Mdot_l : str or numeric
+        Lower bound on the log10(mass-loss rate) grid in units of g s-1.
+    Mdot_u : str or numeric
+        Upper bound on the log10(mass-loss rate) grid in units of g s-1.
+    Mdot_s : str or numeric
+        Step size of the log10(mass-loss rate) grid in units of g s-1.
+    T_l : str or numeric
+        Lower bound on the temperature grid in units of K.
+    T_u : str or numeric
+        Upper bound on the temperature grid in units of K.
+    T_s : str or numeric
+        Step size of the temperature grid in units of K.
+    fc : numeric
+        H/C convergence factor, see Linssen et al. (2024). A sensible value is 1.1.
+    dir : str
+        Directory as $SUNBATHER_PROJECT_PATH/sims/1D/planetname/*dir*/
+        where the temperature profile will be solved. A folder named
+        parker_*T*_*Mdot*/ will be made there.
+    SEDname : str
+        Name of SED file to use. If SEDname='real', we use the name as
+        given in the planets.txt file, but if SEDname is something else,
+        we advice to use a separate dir folder for this.
+    overwrite : bool
+        Whether to overwrite if this simulation already exists.
+    startT : str
+        Either 'constant', 'free' or 'nearby'. Sets the initial
+        temperature profile guessed/used for the first iteration.
+        'constant' sets it equal to the parker wind isothermal value.
+        'free' lets Cloudy solve it, so you will get the radiative equilibrium structure.
+        'nearby' looks in the dir folder for previously solved
+        Parker wind profiles and starts from a converged one. Then, if no converged
+        ones are available, uses 'free' instead.
+    pdir : str
+        Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/planetname/*pdir*/
+        where we take the isothermal parker wind density and velocity profiles from.
+        Different folders may exist there for a given planet, to separate for example profiles
+        with different assumptions such as stellar SED/semi-major axis/composition.
+    zdict : dict, optional
+        Dictionary with the scale factors of all elements relative
+        to the default solar composition. Default is None, which results in a solar composition.
+    altmax : int, optional
+        Maximum altitude of the simulation in units of planet radius, by default 8
+    save_sp : list, optional
+        A list of atomic/ionic species to let Cloudy save the number density profiles
+        for. Those are needed when doing radiative transfer to produce
+        transmission spectra. For example, to be able to make
+        metastable helium spectra, 'He' needs to be in the save_sp list. By default [].
+    constantT : bool, optional
+        If True, instead of sovling for a nonisothermal temperature profile,
+        the Parker wind profile is ran at the isothermal value. By default False.
+    maxit : int, optional
+        Maximum number of iterations, by default 16.
+    """
 
     p = multiprocessing.Pool(cores)
 
@@ -213,15 +311,18 @@ def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname
 if __name__ == '__main__':
 
     class OneOrThreeAction(argparse.Action):
-        '''
+        """
         Custom class for an argparse argument with exactly 1 or 3 values.
-        '''
+        """
         def __call__(self, parser, namespace, values, option_string=None):
             if len(values) not in (1, 3):
                 parser.error("Exactly one or three values are required.")
             setattr(namespace, self.dest, values)
 
     class AddDictAction(argparse.Action):
+        """
+        Custom class to add an argparse argument to a dictionary.
+        """
         def __call__(self, parser, namespace, values, option_string=None):
             if not hasattr(namespace, self.dest) or getattr(namespace, self.dest) is None:
                 setattr(namespace, self.dest, {})
