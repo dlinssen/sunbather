@@ -315,7 +315,7 @@ def run_parker_with_cloudy(filename, T, planet, zdict):
     return simname, pprof
 
 
-def calc_mu_bar(sim, temperature):
+def calc_mu_bar(sim):
     """
     Calculates the weighted mean of the radial mean particle mass profile,
     according to Eq. A.3 of Lampon et al. (2020). Code adapted from 
@@ -325,8 +325,6 @@ def calc_mu_bar(sim, temperature):
     ----------
     sim : tools.Sim
         Cloudy simulation output object.
-    temperature : numeric
-        Isothermal temperature of the atmosphere in units of K.
 
     Returns
     -------
@@ -338,6 +336,7 @@ def calc_mu_bar(sim, temperature):
     m_planet = sim.p.M / 1000. #planet mass in kg
     r = sim.ovr.alt.values[::-1] / 100.  # Radius profile in m
     v_r = sim.ovr.v.values[::-1] / 100.  # Velocity profile in unit of m / s
+    temperature = sim.ovr.Te.values[0] # (Isothermal) temperature in units of K
 
     # Physical constants
     k_b = 1.380649e-23  # Boltzmann's constant in J / K
@@ -437,7 +436,7 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, pdir,
         sim = tools.Sim(simname, altmax=20, planet=planet)
         sim.addv(pprof.alt, pprof.v) #add the velocity structure to the sim, so that calc_mu_bar() works.
 
-        mu_bar = calc_mu_bar(sim, T)
+        mu_bar = calc_mu_bar(sim)
         tools.verbose_print(f"Making new parker profile with p-winds based on Cloudy's reported mu_bar: {mu_bar}", verbose=verbose)
         mu_struc = np.column_stack((sim.ovr.alt.values[::-1]/planet.R, sim.ovr.mu[::-1].values)) #pass Cloudy's mu structure to save in the pprof
         filename, mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, mu_bar=mu_bar, mu_struc=mu_struc)
