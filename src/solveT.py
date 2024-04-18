@@ -10,21 +10,31 @@ from scipy.optimize import minimize_scalar
 from scipy.interpolate import interp1d
 import scipy.stats as sps
 import os
-import re
 import warnings
 
 
 def calc_expansion(r, rho, v, Te, mu):
-    '''
-    Calcules expansion cooling (Linssen et al. 2024 Eq. 3 second term)
-    Requires that r is in the direction of v (i.e. usually in altitude scale).
+    """
+    Calculates expansion cooling (Linssen et al. 2024 Eq. 3 second term).
 
-    r:      radius in the atmosphere in cm
-    rho:    density in g cm-3
-    v:      velocity in cm s-1
-    Te:     temperature in K
-    mu:     mean particle mass in amu
-    '''
+    Parameters
+    ----------
+    r : numpy.ndarray
+        Radius in units of cm
+    rho : numpy.ndarray
+        Density in units of g cm-3
+    v : numpy.ndarray
+        Velocity in units of cm s-1
+    Te : numpy.ndarray
+        Temperature in units of K
+    mu : numpy.ndarray
+        Mean particle mass in units of amu
+
+    Returns
+    -------
+    expansion : numpy.ndarray
+        Expansion cooling rate.
+    """
 
     expansion = tools.k/tools.mH * Te * v / mu * np.gradient(rho, r)
     assert np.max(expansion) <= 0, "Found positive expansion cooling rates (i.e., heating)."
@@ -33,16 +43,27 @@ def calc_expansion(r, rho, v, Te, mu):
 
 
 def calc_advection(r, rho, v, Te, mu):
-    '''
-    Calcules advection heating/cooling (Linssen et al. 2024 Eq. 3 first term)
-    Requires that r is in the direction of v (i.e. usually in altitude scale).
+    """
+    Calcules advection heating/cooling (Linssen et al. 2024 Eq. 3 first term).
 
-    r:      radius in the atmosphere in cm
-    rho:    density in g cm-3
-    v:      velocity in cm s-1
-    Te:     temperature in K
-    mu:     mean particle mass in amu
-    '''
+    Parameters
+    ----------
+    r : numpy.ndarray
+        Radius in units of cm
+    rho : numpy.ndarray
+        Density in units of g cm-3
+    v : numpy.ndarray
+        Velocity in units of cm s-1
+    Te : numpy.ndarray
+        Temperature in units of K
+    mu : numpy.ndarray
+        Mean particle mass in units of amu
+
+    Returns
+    -------
+    advection : numpy.ndarray
+        Advection heating/cooling rate.
+    """
 
     advection = -1 * tools.k/(tools.mH * 2/3) * rho * v * np.gradient(Te/mu, r)
 
@@ -50,10 +71,38 @@ def calc_advection(r, rho, v, Te, mu):
 
 
 def simtogrid(sim, grid):
-    '''
-    Interpolates the 4 needed quantities to new grid.
-    Extrapolate command is really only for boundary roundoff errors
-    '''
+    """
+    Extracts various needed quantities from a Cloudy simulation and interpolates
+    them onto the provided radius grid.
+
+    Parameters
+    ----------
+    sim : tools.Sim
+        Cloudy simulation.
+    grid : numpy.ndarray
+        Radius grid in units of cm.
+
+    Returns
+    -------
+    Te : numpy.ndarray
+        Temperature in units of K.
+    mu : numpy.ndarray
+        Mean particle mass in units of amu.
+    rho : numpy.ndarray
+        Density in units of g cm-3.
+    v : numpy.ndarray
+        Velocity in units of cm s-1.
+    radheat : numpy.ndarray
+        Radiative heating rate in units of erg s-1 cm-3.
+    radcool : numpy.ndarray
+        Radiative cooling rate in units of erg s-1 cm-3, as positive values.
+    expcool : numpy.ndarray
+        Expansion cooling rate in units of erg s-1 cm-3, as positive values.
+    advheat : numpy.ndarray
+        Advection heating rate in units of erg s-1 cm-3.
+    advcool : numpy.ndarray
+        Advection cooling rate in units of erg s-1 cm-3, as positive values.
+    """
 
     #get Cloudy quantities
     Te = interp1d(sim.ovr.alt, sim.ovr.Te, fill_value='extrapolate')(grid)
@@ -81,9 +130,29 @@ def simtogrid(sim, grid):
 
 
 def calc_HCratio(radheat, radcool, expcool, advheat, advcool):
-    '''
-    Combines the different heating and cooling rates into some useful (plotting) quantities
-    '''
+    """
+    Calculates the ratio of total heating to total cooling.
+
+    Parameters
+    ----------
+    radheat : numpy.ndarray
+        Radiative heating rate in units of erg s-1 cm-3.
+    radcool : numpy.ndarray
+        Radiative cooling rate in units of erg s-1 cm-3, as positive values.
+    expcool : numpy.ndarray
+        Expansion cooling rate in units of erg s-1 cm-3, as positive values.
+    advheat : numpy.ndarray
+        Advection heating rate in units of erg s-1 cm-3.
+    advcool : numpy.ndarray
+        Advection cooling rate in units of erg s-1 cm-3, as positive values.
+
+    Returns
+    -------
+    HCratio : numpy.ndarray
+        Total heating rate H divided by total cooling rate C when H > C,
+        or -C / H when C > H. The absolute value of HCratio is always >=1,
+        and the sign indicates whether heating or cooling is stronger.
+    """
 
     totheat = radheat + advheat
     totcool = radcool + expcool + advcool #all cooling rates are positive values
@@ -95,9 +164,24 @@ def calc_HCratio(radheat, radcool, expcool, advheat, advcool):
 
 
 def get_new_Tstruc(old_Te, HCratio, fac):
-    '''
-    Returns a new temperature structure based on the old structure and the heating/cooling ratio.
-    '''
+    """
+    Returns a new temperature profile based on a previous non-converged
+    temperature profile and the associated heating/cooling imbalance.
+
+    Parameters
+    ----------
+    old_Te : numpy.ndarray
+        Previous temperature profile in units of K.
+    HCratio : numpy.ndarray
+        Heating/cooling imbalance, output of the calc_HCratio() function.
+    fac : numpy.ndarray
+        Scaling factor that sets how large the temperature adjustment is.
+
+    Returns
+    -------
+    newTe : numpy.ndarray
+        New temperature profile.
+    """
 
     deltaT = fac * np.sign(HCratio) * np.log10(np.abs(HCratio)) #take log-based approach to deltaT
     fT = np.copy(deltaT) #the temperature multiplication fraction
@@ -106,18 +190,39 @@ def get_new_Tstruc(old_Te, HCratio, fac):
     fT = np.clip(fT, 0.5, 2) #max change is a factor 2 up or down in temperature
     newTe = old_Te * fT
     newTe = np.clip(newTe, 1e1, 1e6) #set minimum temperature to 10K
+
     return newTe
 
 
-def calc_cloc(ngridpoints, radheat, radcool, expcool, advheat, advcool, HCratio):
-    '''
-    This function checks if there is a point in the atmosphere where we can use
-    our construction instead of relaxation algorithm. It searches for two
-    criteria; 
-    1)  if there is a point from where on advection heating is stronger than radiative heating,
-        and the temperature profile is reasonably converged.
-    2)  if there is a point from where on expansion cooling is very dominant over radiative cooling.
-    '''
+def calc_cloc(radheat, radcool, expcool, advheat, advcool, HCratio):
+    """
+    Checks if there is a point in the atmosphere where we can use
+    the construction algorithm. It searches for two criteria:
+    1. If there is a point from where on advection heating is stronger than
+    radiative heating, and the temperature profile is reasonably converged.
+    2. If there is a point from where on expansion cooling is very dominant
+    over radiative cooling.
+
+    Parameters
+    ----------
+    radheat : numpy.ndarray
+        Radiative heating rate in units of erg s-1 cm-3.
+    radcool : numpy.ndarray
+        Radiative cooling rate in units of erg s-1 cm-3, as positive values.
+    expcool : numpy.ndarray
+        Expansion cooling rate in units of erg s-1 cm-3, as positive values.
+    advheat : numpy.ndarray
+        Advection heating rate in units of erg s-1 cm-3.
+    advcool : numpy.ndarray
+        Advection cooling rate in units of erg s-1 cm-3, as positive values.
+    HCratio : numpy.ndarray
+        Heating/cooling imbalance, output of the calc_HCratio() function.
+
+    Returns
+    -------
+    cloc : int
+        Index of the grid from where to start the construction algorithm.
+    """
 
     def first_true_index(arr):
         """
@@ -133,13 +238,6 @@ def calc_cloc(ngridpoints, radheat, radcool, expcool, advheat, advcool, HCratio)
         """
         return len(arr) - np.argmax(arr[::-1]) - 1
 
-    def first_false_index(arr):
-        """
-        Return the index of the first False value in the array.
-        If there are no False in the array, returns 0
-        """
-        return np.argmax(~arr)
-
     def last_false_index(arr):
         """
         Return the index of the last False value in the array.
@@ -148,7 +246,7 @@ def calc_cloc(ngridpoints, radheat, radcool, expcool, advheat, advcool, HCratio)
         return len(arr) - np.argmax(~arr[::-1]) - 1
 
     #check for advection dominated regime
-    adv_cloc = ngridpoints #start by setting a 'too high' value
+    adv_cloc = len(HCratio) #start by setting a 'too high' value
     advheat_dominates = (advheat > radheat) #boolean array where advection heating dominates
     bothrad_dominate = ((radheat > advheat) & (radcool > advcool) & (radcool > expcool)) #boolean array where radiative heating dominates AND radiative cooling dominates
     highest_r_above_which_no_bothrad_dominate = last_true_index(bothrad_dominate)
@@ -163,7 +261,7 @@ def calc_cloc(ngridpoints, radheat, radcool, expcool, advheat, advcool, HCratio)
             adv_cloc = advunimploc + first_true_index(almost_converged)
 
     #check for expansion dominated regime
-    exp_cloc = ngridpoints #start by setting a 'too high' value
+    exp_cloc = len(HCratio) #start by setting a 'too high' value
     expcool_dominates = (expcool / radcool > 8.) #no check on convergence - could be dangerous in some cases
     if True and False in expcool_dominates:
         exp_cloc = last_false_index(expcool_dominates) #this guarantees that all entries after this one are True
@@ -176,15 +274,28 @@ def calc_cloc(ngridpoints, radheat, radcool, expcool, advheat, advcool, HCratio)
 
 
 def relaxTstruc(grid, path, itno, Te, HCratio):
-    '''
-    This function finds a new temperature structure by relaxation:
-    Add all rates, find ratio of heating to cooling rate,
-    and change the temperature structure based on log of that value.
-    If the radiation dominated part is converged, we 'overwrite' the
-    advection/expansion dominated part of the atmosphere by the constructTstruc() function
-    since that is harder to find by relaxation method and easier by construction.
-    '''
+    """
+    Proposes a new temperature profile using a 'relaxation' algorithm.
 
+    Parameters
+    ----------
+    grid : numpy.ndarray
+        Radius grid in units of cm.
+    path : str
+        Full path to the folder where the simulations are saved and ran.
+    itno : int
+        Iteration number.
+    Te : numpy.ndarray
+        Temperature profile of the last iteration at the 'grid' radii, in units of K.
+    HCratio : numpy.ndarray
+        Heating/cooling imbalance of the temperature profile of the last iteration,
+        output of the calc_HCratio() function.
+
+    Returns
+    -------
+    newTe_relax : numpy.ndarray
+        Adjusted temperature profile to use for the next iteration.
+    """
 
     if itno == 2: #save for first time
         np.savetxt(path+'iterations.txt', np.column_stack((grid, np.repeat(0.3, len(grid)), Te)),
@@ -216,10 +327,34 @@ def relaxTstruc(grid, path, itno, Te, HCratio):
 
 
 def constructTstruc(grid, newTe_relax, cloc, v, rho, mu, radheat, radcool):
-    '''
-    This function constructs the temperature structure from a given location (cloc),
-    by minimizing the heating/cooling ratio of all terms.
-    '''
+    """
+    Proposes a new temperature profile based on a 'construction' algorithm, 
+    starting at the cloc and at higher altitudes.
+
+    Parameters
+    ----------
+    grid : numpy.ndarray
+        Radius grid in units of cm.
+    newTe_relax : numpy.ndarray
+        Newly proposed temperature profile from the relaxation algorithm.
+    cloc : int
+        Index of the grid from where to start the construction algorithm.
+    v : numpy.ndarray
+        Velocity in units of cm s-1 at the 'grid' radii.
+    rho : numpy.ndarray
+        Density in units of g cm-3 at the 'grid' radii.
+    mu : numpy.ndarray
+        Mean particle mass in units of amu at the 'grid' radii.
+    radheat : numpy.ndarray
+        Radiative heating rate in units of erg s-1 cm-3, at the 'grid' radii.
+    radcool : numpy.ndarray
+        Radiative cooling rate in units of erg s-1 cm-3, as positive values, at the 'grid' radii.
+
+    Returns
+    -------
+    newTe_construct : numpy.ndarray
+        Adjusted temperature profile to use for the next iteration.
+    """
 
     newTe_construct = np.copy(newTe_relax) #start with the temp struc from the relaxation function
 
@@ -227,10 +362,6 @@ def constructTstruc(grid, newTe_relax, cloc, v, rho, mu, radheat, radcool):
     advection_gradTdivmu = -1 * tools.k/(tools.mH * 2/3) * rho * v #this is advection except for the d(T/mu)/dr term
 
     def one_cell_HCratio(T, index):
-        '''
-        currentT is the temperature that corresponds to the radheat and radcool values.
-        '''
-
         expcool = expansion_Tdivmu[index] * T / mu[index]
         adv = advection_gradTdivmu[index] * ((T/mu[index]) - (newTe_construct[index-1]/mu[index-1]))/(grid[index] - grid[index-1])
 
@@ -257,17 +388,53 @@ def constructTstruc(grid, newTe_relax, cloc, v, rho, mu, radheat, radcool):
     smooth_weight += sps.norm.pdf(range(len(grid)), cloc, int(len(grid)/30))
     smooth_weight /= np.max(smooth_weight) #normalize
     raw_weight = 1 - smooth_weight
-    newTe = smooth_newTe_construct * smooth_weight + newTe_construct * raw_weight
+    newTe_construct = smooth_newTe_construct * smooth_weight + newTe_construct * raw_weight
 
-    return newTe
+    return newTe_construct
 
 
 def make_rates_plot(altgrid, Te, newTe_relax, radheat, radcool, expcool, advheat, advcool, rho, HCratio, altmax, fc, 
                     newTe_construct=None, cloc=None, title=None, savename=None):
-    '''
-    Makes a plot of the previous and newly guessed temperature profiles,
-    together with the different heating/cooling rates and their H/C ratio.
-    '''
+    """
+    Makes a plot of the previous and newly proposed temperature profiles,
+    as well as the different heating/cooling rates and their ratio based on the
+    previous temperature profile.
+
+    Parameters
+    ----------
+    altgrid : numpy.ndarray
+        Radius grid in units of Rp.
+    Te : numpy.ndarray
+        Temperature profile of the last iteration in units of K.
+    newTe_relax : numpy.ndarray
+        Proposed temperature profile based on the relaxation algorithm.
+    radheat : numpy.ndarray
+        Radiative heating rate in units of erg s-1 cm-3.
+    radcool : numpy.ndarray
+        Radiative cooling rate in units of erg s-1 cm-3, as positive values.
+    expcool : numpy.ndarray
+        Expansion cooling rate in units of erg s-1 cm-3, as positive values.
+    advheat : numpy.ndarray
+        Advection heating rate in units of erg s-1 cm-3.
+    advcool : numpy.ndarray
+        Advection cooling rate in units of erg s-1 cm-3, as positive values.
+    rho : numpy.ndarray
+        Density in units of g cm-3
+    HCratio : numpy.ndarray
+        Heating/cooling imbalance, output of the calc_HCratio() function.
+    altmax : numeric
+        Maximum altitude of the simulation in units of planet radius.
+    fc : numeric
+        Convergence threshold for H/C.
+    newTe_construct : numpy.ndarray, optional
+        Proposed temperature profile based on the construction algorithm, by default None
+    cloc : int, optional
+        Index of the grid from where the construction algorithm was ran, by default None
+    title : str, optional
+        Title of the figure, by default None
+    savename : str, optional
+        Full path + filename to save the figure to, by default None
+    """
 
     HCratiopos, HCrationeg = np.copy(HCratio), -1 * np.copy(HCratio)
     HCratiopos[HCratiopos < 0] = 0.
@@ -317,10 +484,33 @@ def make_rates_plot(altgrid, Te, newTe_relax, radheat, radcool, expcool, advheat
 
 
 def make_converged_plot(altgrid, altmax, path, Te, radheat, rho, radcool, expcool, advheat, advcool):
-    '''
-    Makes a plot of the converged temperature profile,
-    together with the different heating/cooling rates.
-    '''
+    """
+    Makes a plot of the converged temperature profile, as well as the different
+    heating/cooling rates.
+
+    Parameters
+    ----------
+    altgrid : numpy.ndarray
+        Radius grid in units of Rp.
+    altmax : numeric
+        Maximum altitude of the simulation in units of planet radius.
+    path : _type_
+        _description_
+    Te : numpy.ndarray
+        Converged temperature profile in units of K.
+    radheat : numpy.ndarray
+        Radiative heating rate in units of erg s-1 cm-3.
+    rho : numpy.ndarray
+        Density in units of g cm-3
+    radcool : numpy.ndarray
+        Radiative cooling rate in units of erg s-1 cm-3, as positive values.
+    expcool : numpy.ndarray
+        Expansion cooling rate in units of erg s-1 cm-3, as positive values.
+    advheat : numpy.ndarray
+        Advection heating rate in units of erg s-1 cm-3.
+    advcool : numpy.ndarray
+        Advection cooling rate in units of erg s-1 cm-3, as positive values.
+    """
 
     fig, (ax1, ax2) = plt.subplots(2, figsize=(4,5.5))
     ax1.plot(altgrid, Te, color='k')
@@ -351,19 +541,40 @@ def make_converged_plot(altgrid, altmax, path, Te, radheat, rho, radcool, expcoo
 
 
 def check_converged(fc, HCratio, newTe, prevTe, linthresh=50.):
-    '''
-    Checks whether the temperature profile is converged.
-    At every radial cell, it checks for three conditions, one of which must be satisfied:
-    1)  The H/C ratio is less than fc (this should be the main criterion)
-    2)  The newly proposed temperature profile is "less than half fc" different from the last iteration.
-        In principle, we would expect that if this were the case, the profile would also be converged to 
-        H/C < fc, but smoothing of the temperature profile can prevent this. For example, we can get stuck
-        in a loop where H/C > fc, we propose a new temperature profile that is significantly different,
-        but then after the smoothing step we end up with the profile that we had before. This second criterion
-        checks for this behavior.
-    3)  The newly proposed temperature profile is less than 50 K different from the last iteration. This
-        can be assumed to be precise enough convergence.
-    '''
+    """
+    Checks whether the temperature profile is converged. At every radial cell,
+    it checks for three conditions, one of which must be satisfied:
+    1. The H/C ratio is less than fc (this is the "main" criterion).
+    2. The newly proposed temperature profile is "less than half fc" different
+    from the last iteration. In principle, we would expect that if this were
+    the case, the profile would also be converged to H/C < fc, but smoothing
+    of the temperature profile can prevent this. For example, we can get stuck
+    in a loop where H/C > fc, we propose a new temperature profile that is 
+    significantly different, but then after the smoothing step we end up with
+    the profile that we had before. This criterion checks for this behavior.
+    3. The newly proposed temperature profile is less than `linthresh` different
+    from the last iteration. This can be assumed to be precise enough convergence.
+
+    Parameters
+    ----------
+    fc : numeric
+        Convergence threshold for the total heating/cooling ratio.
+    HCratio : numpy.ndarray
+        Heating/cooling imbalance, output of the calc_HCratio() function.
+    newTe : numpy.ndarray
+        Newly proposed temperature profile based on both relaxation and
+        construction algorithms, in units of K.
+    prevTe : numpy.ndarray
+        Temperature profile of the previous iteration in units of K.
+    linthresh : numeric, optional
+        Convergence threshold for T(r) as an absolute temperature difference
+        in units of K, by default 50.
+
+    Returns
+    -------
+    converged : bool
+        Whether the temperature profile is converged.
+    """
 
     ratioTe = np.maximum(newTe, prevTe) / np.minimum(newTe, prevTe) #take element wise ratio
     diffTe = np.abs(newTe - prevTe) #take element-wise absolute difference
@@ -377,10 +588,18 @@ def check_converged(fc, HCratio, newTe, prevTe, linthresh=50.):
 
 
 def clean_converged_folder(folder):
-    '''
-    Removes all files that are not of the converged simulation (and thus part
-    of earlier iterations / help files) from a folder.
-    '''
+    """
+    Deletes all files in a folder that are not called "converged*".
+    In the context of this module, it thus cleans all files of earlier
+    iterations, as well as helper files, preserving only the final
+    converged simulation.
+
+    Parameters
+    ----------
+    folder : str
+        Folder where the iterative algorithm is ran, typically:
+        $SUNBATHER_PROJECT_PATH/sims/1D/*plname*/*dir*/parker_*T0*_*Mdot*/
+    """
 
     if not os.path.isdir(folder):
         warnings.warn(f"This folder does not exist: {folder}")
@@ -395,11 +614,30 @@ def clean_converged_folder(folder):
 
 
 def run_loop(path, itno, fc, save_sp=[], maxit=16):
-    '''
-    Iteratively solves the temperature profile
-    '''
+    """
+    Solves for the nonisothermal temperature profile of a Parker wind
+    profile through an iterative convergence scheme including Cloudy.
 
-    ngridpoints = 1000
+    Parameters
+    ----------
+    path : str
+        Folder where the iterative algorithm is ran, typically:
+        $SUNBATHER_PROJECT_PATH/sims/1D/*plname*/*dir*/parker_*T0*_*Mdot*/.
+        In this folder, the 'template.in' and 'iteration1.in' files must be
+        present, which are created automatically by the convergeT_parker.py module.
+    itno : int
+        Iteration number to start from. Can only be different from 1 if
+        this profile has been (partly) solved before.
+    fc : float
+        H/C convergence factor, see Linssen et al. (2024). A sensible value is 1.1.
+    save_sp : list, optional
+        A list of atomic/ionic species to let Cloudy save the number density profiles
+        for in the final converged simulation. Those are needed when doing radiative
+        transfer to produce transmission spectra. For example, to be able to make
+        metastable helium spectra, 'He' needs to be in the save_sp list. By default [].
+    maxit : int, optional
+        Maximum number of iterations, by default 16.
+    """
 
     if itno == 1: #iteration1 is just running Cloudy. Then, we move on to iteration2        
         tools.run_Cloudy('iteration1', folder=path)
@@ -412,16 +650,16 @@ def run_loop(path, itno, fc, save_sp=[], maxit=16):
         Rp = prev_sim.p.R #planet radius in cm
 
         #make logspaced grid to use throughout the code, interpolate all useful quantities to this grid.
-        rgrid = np.logspace(np.log10(Rp), np.log10(altmax*Rp), num=ngridpoints)
+        rgrid = np.logspace(np.log10(Rp), np.log10(altmax*Rp), num=1000)
 
         Te, mu, rho, v, radheat, radcool, expcool, advheat, advcool = simtogrid(prev_sim, rgrid) #get all needed Cloudy quantities on the grid
         HCratio = calc_HCratio(radheat, radcool, expcool, advheat, advcool)
 
         #now the procedure starts - we first produce a new temperature profile
         newTe_relax = relaxTstruc(rgrid, path, itno, Te, HCratio)
-        cloc = calc_cloc(ngridpoints, radheat, radcool, expcool, advheat, advcool, HCratio)
+        cloc = calc_cloc(radheat, radcool, expcool, advheat, advcool, HCratio)
         newTe_construct = None
-        if cloc != ngridpoints:
+        if cloc != len(rgrid):
             newTe_construct = constructTstruc(rgrid, newTe_relax, int(cloc), v, rho, mu, radheat, radcool)
 
         make_rates_plot(rgrid/Rp, Te, newTe_relax, radheat, radcool, expcool, advheat, advcool,

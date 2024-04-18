@@ -133,13 +133,15 @@ def limbdark_quad(mu, ab):
 
     Returns
     -------
-    array_like
+    I : array_like
         Normalized intensity profile I(mu)/I(1) according to the quadratic
         limb darkening law.
     """
 
     a, b = ab[:,0], ab[:,1]
-    return 1 - a[:,None,None]*(1-mu[None,:,:]) - b[:,None,None]*(1-mu[None,:,:])**2
+    I = 1 - a[:,None,None]*(1-mu[None,:,:]) - b[:,None,None]*(1-mu[None,:,:])**2
+    
+    return I
 
 
 def avg_limbdark_quad(ab):
@@ -158,7 +160,7 @@ def avg_limbdark_quad(ab):
 
     Returns
     -------
-    array_like
+    I_avg : array_like
         Average intensity profile I_avg(mu) over the stellar disk according to
         the quadratic limb darkening law.
     """
@@ -216,7 +218,7 @@ def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
 
     Returns
     -------
-    numpy.ndarray
+    tau : numpy.ndarray
         Optical depth values (2D array with axes: (frequency, ray)).
     """
 
@@ -277,9 +279,9 @@ def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
 
     Returns
     -------
-    numpy.ndarray
+    cum_tau : numpy.ndarray
         Cumulative (running sum) of the optical depth along the depth-direction.
-    numpy.ndarray
+    bin_tau : numpy.ndarray
         Optical depth contribution of each cell along the depth-direction.
     """
 
@@ -339,7 +341,7 @@ def tau_to_FinFout(b_edges, tau, Rs, bp=0., ab=np.zeros(2), a=0., phase=0.):
 
     Returns
     -------
-    numpy.ndarray
+    FinFout : numpy.ndarray
         Transit spectrum in units of in-transit flux / out-of-transit flux (i.e., Fin/Fout).
     """
 
@@ -381,7 +383,7 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
 
     Returns
     -------
-    pandas.DataFrame
+    spNIST : pandas.DataFrame
         Line coefficients needed for radiative transfer calculations.
     """
 
@@ -414,7 +416,7 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
     Parameters
     ----------
     sim : tools.Sim
-        Cloudy simulation of an upper atmosphere. Needs to have tools.Planet and 
+        Cloudy simulation output of an upper atmosphere. Needs to have tools.Planet and 
         tools.Parker class attributes.
     wavsAA : array-like
         Wavelengths to calculate transit spectrum on, in units of Å (1D array).
@@ -458,11 +460,11 @@ def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), 
 
     Returns
     -------
-    numpy.ndarray
+    FinFout : numpy.ndarray
         Transit spectrum in units of in-transit flux / out-of-transit flux (i.e., Fin/Fout).
-    tuple
+    found_lines : tuple
         Wavelengths and responsible species of the spectral lines included in this transit spectrum.
-    tuple
+    notfound_lines : tuple
         Wavelengths and responsible species of spectral lines that are listed in the NIST database,
         but which could not be calculated due to their excitation state not being reported by Cloudy.
     """
@@ -565,7 +567,7 @@ def tau_1D(sim, wavAA, species, width_fac=1., turbulence=False):
     Parameters
     ----------
     sim : tools.Sim
-        Cloudy simulation of an upper atmosphere. Needs to have tools.Planet and 
+        Cloudy simulation output of an upper atmosphere. Needs to have tools.Planet and 
         tools.Parker class attributes.
     wavAA : numeric
         Wavelength to calculate the optical depths at, in units of Å.
@@ -586,13 +588,13 @@ def tau_1D(sim, wavAA, species, width_fac=1., turbulence=False):
 
     Returns
     -------
-    numpy.ndarray
+    tot_cum_tau : numpy.ndarray
         Cumulative (running sum) of the optical depth along the depth-direction (1D array).
-    numpy.ndarray
+    tot_bin_tau : numpy.ndarray
         Optical depth contribution of each cell along the depth-direction (1D array).
-    tuple
+    found_lines : tuple
         Wavelengths and responsible species of the spectral lines included in this transit spectrum.
-    tuple
+    notfound_lines : tuple
         Wavelengths and responsible species of spectral lines that are listed in the NIST database,
         but which could not be calculated due to their excitation state not being reported by Cloudy.
     """
@@ -656,7 +658,7 @@ def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, cut_at=None):
     Parameters
     ----------
     sim : tools.Sim
-        Cloudy simulation of an upper atmosphere. Needs to have tools.Planet and 
+        Cloudy simulation output of an upper atmosphere. Needs to have tools.Planet and 
         tools.Parker class attributes.
     wavAA : numeric
         Wavelength to calculate the optical depths at, in units of Å.
@@ -681,13 +683,13 @@ def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, cut_at=None):
 
     Returns
     -------
-    numpy.ndarray
+    tot_cum_tau : numpy.ndarray
         Cumulative (running sum) of the optical depth along the depth-direction (2D array with axes: (ray, depth)).
-    numpy.ndarray
+    tot_bin_tau : numpy.ndarray
         Optical depth contribution of each cell along the depth-direction (2D array with axes: (ray, depth)).
-    tuple
+    found_lines : tuple
         Wavelengths and responsible species of the spectral lines included in this transit spectrum.
-    tuple
+    notfound_lines : tuple
         Wavelengths and responsible species of spectral lines that are listed in the NIST database,
         but which could not be calculated due to their excitation state not being reported by Cloudy.
     """
@@ -754,7 +756,7 @@ def FinFout2RpRs(FinFout):
 
     Returns
     -------
-    array-like
+    RpRs : array-like
         Transit spectrum in units of planet size / star size.
     """
 
@@ -777,7 +779,7 @@ def RpRs2FinFout(RpRs):
 
     Returns
     -------
-    array-like
+    FinFout : array-like
         In-transit / out-transit flux values
     """
 
@@ -799,7 +801,7 @@ def vac2air(wavs_vac):
 
     Returns
     -------
-    numeric or array-like
+    wavs_air : numeric or array-like
         Wavelength(s) in air in units of Å.
     """
 
@@ -823,7 +825,7 @@ def air2vac(wavs_air):
 
     Returns
     -------
-    numeric or array-like
+    wavs_vac : numeric or array-like
         Wavelength(s) in vacuum in units of Å.
     """
 
@@ -849,7 +851,7 @@ def constantR_wavs(wav_lower, wav_upper, R):
 
     Returns
     -------
-    numpy.ndarray
+    wavs : numpy.ndarray
         Wavelength array.
     """
 
@@ -858,7 +860,9 @@ def constantR_wavs(wav_lower, wav_upper, R):
     while wav < wav_upper:
         wavs.append(wav)
         wav += wav/R
-    return np.array(wavs)
+    wavs = np.array(wavs)
+    
+    return wavs
 
 
 def convolve_spectrum_R(wavs, flux, R, verbose=False):
@@ -882,7 +886,7 @@ def convolve_spectrum_R(wavs, flux, R, verbose=False):
 
     Returns
     -------
-    numpy.ndarray
+    convolved_spectrum : numpy.ndarray
         The convolved spectrum at resolution R.
     """
 

@@ -13,6 +13,10 @@ from fractions import Fraction
 import warnings
 
 
+#######################################
+########### GLOBAL CONSTANTS ##########
+#######################################
+
 sunbatherpath = os.path.dirname(os.path.abspath(__file__)) #the absolute path where this code lives
 try:
     cloudypath = os.environ['CLOUDY_PATH'] #the path where the Cloudy installation is
@@ -68,21 +72,36 @@ element_symbols = dict((reversed(item) for item in element_names.items())) #reve
 #number of corresponding energy levels between Cloudy and NIST - read txt file header for more info
 species_enlim = pd.read_csv(sunbatherpath+"/species_enlim.txt", index_col=0, header=1)
 
+
+#######################################
+###########  CLOUDY SPECIES  ##########
+#######################################
+
 def get_specieslist(max_ion=6, exclude_elements=[]):
-    '''
+    """
     Returns a list of atomic and ionic species names. Default returns all species up to 6+
-    for which sunbather can do useful things (=NIST has lines). Higher than 6+ ionization is rarely
-    attained in an exoplanet atmosphere, but it can definitely occur when using a high XUV
-    flux (e.g. in a young system). 
-    
-    max_ion:            maximum ionization degree of included species
-    exclude_elements:   list of elements to exclude (both in atomic and ionic form)
-    '''
+    ionization. Higher than 6+ ionization is rarely attained in an exoplanet atmosphere, 
+    but it can occur in high XUV flux scenarios such as young planetary systems.
+    The species list only includes species for which the NIST database has any spectral
+    line coefficients, as there is little use saving other species as well.
+
+    Parameters
+    ----------
+    max_ion : int, optional
+        Maximum ionization degree of the included species, by default 6
+    exclude_elements : str or list, optional
+        Elements to include (in both atomic and ionic form), by default []
+
+    Returns
+    -------
+    specieslist : list
+        List of atomic and ionic species names in the string format expected by Cloudy.
+    """
 
     if max_ion > 12:
         warnings.warn("tools.get_specieslist(): You have set max_ion > 12, but " \
-              "sunbather is currently only able to process species up to 12+ ionzed. " \
-              "This should however be enough even when using a strong XUV flux.")
+              "sunbather is currently only able to process species up to 12+ ionized. " \
+              "However, this should typically be enough, even when using a strong XUV flux.")
 
     if isinstance(exclude_elements, str): #turn into list with one element
         exclude_elements = [exclude_elements]
@@ -109,12 +128,20 @@ def get_specieslist(max_ion=6, exclude_elements=[]):
 
 
 def get_mass(species):
-    '''
-    Returns the mass of an atomic or positive ion in g. For positive ions,
-    it just returns the mass of the atom, since the electron mass is negligible.
+    """
+    Returns the mass of an atomic or positive ion. For ions,
+    it returns the mass of the atom, since the electron mass is negligible.
 
-    species:     name of atom or ion for which to return the mass in g
-    '''
+    Parameters
+    ----------
+    species : str
+        Name of the species in the string format expected by Cloudy.
+
+    Returns
+    -------
+    mass : float
+        Mass of the species in units of g.
+    """
 
     atom = species.split('+')[0]
 
@@ -127,30 +154,37 @@ def get_mass(species):
             'Mn':9.1226768e-23, 'Fe':9.2733e-23, 'Co':9.786087e-23, 'Ni':9.74627e-23,
             'Cu':1.0552e-22, 'Zn':1.086e-22} #g
 
-    return mass_dict[atom]
+    mass = mass_dict[atom]
+    
+    return mass
 
 
-
-
-
-'''
-Functions that deal with processing Cloudy's output files
-'''
+#######################################
+###########   CLOUDY FILES   ##########
+#######################################
 
 def process_continuum(filename, nonzero=False):
-    '''
-    This function reads a .con file from the 'save continuum units Hz' command.
-    It renames the columns and adds a wav column. The flux units of the continuum
-    can be tricky to understand, but they are found as follows:
+    """
+    Rreads a .con file from the 'save continuum units Hz' command.
+    It renames the columns and adds a wavelength column. 
+    The flux units of the continuum are as follows:
     Take the SED in spectral flux density, so F(nu) instead of nu*F(nu), and
     find the total area by integration. Then multiply with the frequency,
     to get nu*F(nu), and normalize that by the total area found, and multiply
     with the total luminosity. Those are the units of Cloudy.
 
-    filename:       filename (including full path to it and the .con extension)
-    nonzero:        if True, removes the rows from the dataframe where the incident
-                    spectrum is 0 (i.e., not defined)
-    '''
+    Parameters
+    ----------
+    filename : str
+        Filename of a 'save continuum' Cloudy output file.
+    nonzero : bool, optional
+        Whether to remove rows where the incident spectrum is 0 (i.e., not defined), by default False
+
+    Returns
+    -------
+    con_df : pandas.DataFrame
+        Parsed output of the 'save continuum' Cloudy command.
+    """
 
     con_df = pd.read_table(filename)
     con_df.rename(columns={'#Cont  nu':'nu', 'net trans':'nettrans'}, inplace=True)
@@ -158,20 +192,37 @@ def process_continuum(filename, nonzero=False):
     con_df.insert(1, "wav", wav)
     if nonzero:
         con_df = con_df[con_df.incident != 0]
+
     return con_df
 
 
 def process_heating(filename, Rp=None, altmax=None, cloudy_version="17"):
-    '''
-    This function reads a .heat file from the 'save heating' command.
+    """
+    Reads a .heat file from the 'save heating' command.
     If Rp and altmax are given, it adds an altitude/radius scale.
     For each unique heating agent, it adds a column with its rate at each radial bin.
 
-    filename:       filename (including full path to it and the .heat extension)
-    Rp:             planet radius in cm
-    altmax:         maximum radius of the simulation in units of Rp
-    cloudy_version: major version of Cloudy used, number as string
-    '''
+    Parameters
+    ----------
+    filename : str
+        Filename of a 'save heating' Cloudy output file.
+    Rp : numeric, optional
+        Planet radius in units of cm, by default None
+    altmax : numeric, optional
+        Maximum altitude of the simulation in units of planet radius, by default None
+    cloudy_version : str, optional
+        Major Cloudy release version, by default "17"
+
+    Returns
+    -------
+    heat : pandas.DataFrame
+        Parsed output of the 'save heating' Cloudy command.
+
+    Raises
+    ------
+    TypeError
+        If a Cloudy version was used that is not supported by sunbather.
+    """
 
     #determine max number of columns (otherwise pd.read_table assumes it is the number of the first row)
     max_columns = 0
@@ -185,7 +236,7 @@ def process_heating(filename, Rp=None, altmax=None, cloudy_version="17"):
     elif cloudy_version == "23":
         fixed_column_names = ['depth', 'temp', 'htot', 'ctot', 'adv']
     else:
-        raise Exception("Only C17.02 and C23.01 are currently supported.")
+        raise TypeError("Only C17.02 and C23.01 are currently supported.")
     num_additional_columns = (max_columns - 4) // 2
     additional_column_names = [f'htype{i}' for i in range(1, num_additional_columns + 1) for _ in range(2)]
     additional_column_names[1::2] = [f'hfrac{i}' for i in range(1, num_additional_columns + 1)]
@@ -232,16 +283,32 @@ def process_heating(filename, Rp=None, altmax=None, cloudy_version="17"):
 
 
 def process_cooling(filename, Rp=None, altmax=None, cloudy_version="17"):
-    '''
-    This function reads a .cool file from the 'save cooling' command.
+    """
+    Reads a .cool file from the 'save cooling' command.
     If Rp and altmax are given, it adds an altitude/radius scale.
     For each unique cooling agent, it adds a column with its rate at each radial bin.
 
-    filename:       filename (including full path to it and the .cool extension)
-    Rp:             planet radius in cm
-    altmax:         maximum radius of the simulation in units of Rp
-    cloudy_version: major version of Cloudy used, version as string
-    '''
+    Parameters
+    ----------
+    filename : str
+        Filename of a 'save cooling' Cloudy output file.
+    Rp : numeric, optional
+        Planet radius in units of cm, by default None
+    altmax : numeric, optional
+        Maximum altitude of the simulation in units of planet radius, by default None
+    cloudy_version : str, optional
+        Major Cloudy release version, by default "17"
+
+    Returns
+    -------
+    cool : pandas.DataFrame
+        Parsed output of the 'save cooling' Cloudy command.
+
+    Raises
+    ------
+    TypeError
+        If a Cloudy version was used that is not supported by sunbather.
+    """
 
     #determine max number of columns (otherwise pd.read_table assumes it is the number of the first row)
     max_columns = 0
@@ -299,23 +366,33 @@ def process_cooling(filename, Rp=None, altmax=None, cloudy_version="17"):
 
 
 def process_coolingH2(filename, Rp=None, altmax=None):
-    '''
-    This function reads a .coolH2 file from the 'save H2 cooling' command,
+    """
+    Reads a .coolH2 file from the 'save H2 cooling' command,
     which keeps track of cooling and heating processes unique to the
     H2 molecule, when using the 'database H2' command.
-
-    From the source code "mole_h2_io.cpp" the columns are:
-
+    From the Cloudy source code "mole_h2_io.cpp" the columns are:
     depth, Temp, ctot/htot, H2 destruction rate Solomon TH85,
     H2 destruction rate Solomon big H2, photodis heating,
     heating dissoc. electronic exited states,
     cooling collisions in X (neg = heating),
     "HeatDexc"=net heat, "-HeatDexc/abundance"=net cool per particle
+    
+    If Rp and altmax are given, it adds an altitude/radius scale.
 
-    filename:       filename (including full path to it and the .coolH2 extension)
-    Rp:             planet radius in cm
-    altmax:         maximum radius of the simulation in units of Rp
-    '''
+    Parameters
+    ----------
+    filename : str
+        Filename of a 'save H2 cooling' Cloudy output file.
+    Rp : numeric, optional
+        Planet radius in units of cm, by default None
+    altmax : numeric, optional
+        Maximum altitude of the simulation in units of planet radius, by default None
+
+    Returns
+    -------
+    coolH2 : pandas.DataFrame
+        Parsed output of the 'save H2 cooling' Cloudy command.
+    """
 
     coolH2 = pd.read_table(filename, names=['depth', 'Te', 'ctot', 'desTH85',
                             'desbigH2', 'phdisheat', 'eedisheat', 'collcool',
@@ -327,20 +404,30 @@ def process_coolingH2(filename, Rp=None, altmax=None):
 
 
 def process_overview(filename, Rp=None, altmax=None, abundances=None):
-    '''
-    This function reads in a '.ovr' file from the 'save overview' command.
+    """
+    Reads in a '.ovr' file from the 'save overview' command.
     If Rp and altmax are given, it adds an altitude/radius scale.
-    It also adds the mass density (in addition to the hydrogen number density).
-    If the simulation has non-solar/default abundances, they must be specified
-    as an abundances dictionary made with the get_abundances() function, in
-    order for the hden -> rho conversion to be correct.
+    It also adds the mass density, the values of which are only correct if
+    the correct abundances are passed.
 
-    filename:       filename (including full path to it and the .ovr extension)
-    Rp:             planet radius in cm
-    altmax:         maximum radius of the simulation in units of Rp
-    abundances:     dictionary of the abundances of each element.
-                    Can be made with the get_abundances() function.
-    '''
+    Parameters
+    ----------
+    filename : str
+        Filename of a 'save overview' Cloudy output file.
+    Rp : numeric, optional
+        Planet radius in units of cm, by default None
+    altmax : numeric, optional
+        Maximum altitude of the simulation in units of planet radius, by default None
+    abundances : dict, optional
+        Dictionary with the abudance of each element, expressed as a fraction of the total.
+        Can be easily created with get_abundances(). By default None, which 
+        results in solar composition.
+
+    Returns
+    -------
+    ovr : pandas.DataFrame
+        Parsed output of the 'save overview' Cloudy command.
+    """
 
     ovr = pd.read_table(filename)
     ovr.rename(columns={'#depth':'depth'}, inplace=True)
@@ -353,14 +440,24 @@ def process_overview(filename, Rp=None, altmax=None, abundances=None):
 
 
 def process_densities(filename, Rp=None, altmax=None):
-    '''
-    This function reads a .den file from the 'save species densities' command.
+    """
+    Reads a .den file from the 'save species densities' command.
     If Rp and altmax are given, it adds an altitude/radius scale.
 
-    filename:       filename (including full path to it and the .den extension)
-    Rp:             planet radius in cm
-    altmax:         maximum radius of the simulation in units of Rp    
-    '''
+    Parameters
+    ----------
+    filename : str
+        Filename of a 'save species densities' Cloudy output file.
+    Rp : numeric, optional
+        Planet radius in units of cm, by default None
+    altmax : numeric, optional
+        Maximum altitude of the simulation in units of planet radius, by default None
+
+    Returns
+    -------
+    den : pandas.DataFrame
+        Parsed output of the 'save species densities' Cloudy command.
+    """
 
     den = pd.read_table(filename)
     den.rename(columns={'#depth densities':'depth'}, inplace=True)
@@ -372,27 +469,39 @@ def process_densities(filename, Rp=None, altmax=None):
 
 
 def process_energies(filename, rewrite=True, cloudy_version="17"):
-    '''
-    This function reads a '.en' file from the 'save species energies' command.
-    ALWAYS use that command alongside the 'save species densities' .den files,
+    """
+    Reads a '.en' file from the 'save species energies' command.
+    This command must always be used alongside the 'save species densities' command,
     since they give the associated energy of each level printed in the
-    densities file. Otherwise, it's not clear which level exactly is He[52]
-    for example. This function returns a dictionary with the column names of
-    the .den file and the corresponding energies. This can then be used for
-    radiative transfer. The lines data from the NIST database gives
-    the energy of the lower level for each line. The 'find_Ei_in_en_dict()'
-    function will then search the energy dictionary generated by
-    this function for the corresponding column name, such that the number
-    densities of the right level can be extracted from the .den file.
+    densities file. Without saving the energies, it is for example not clear
+    which atomic configuration / energy level 'He[52]' corresponds to.
+    This function returns a dictionary mapping the column names of
+    the .den file to their corresponding atomic configurations.
+    The atomic configuration is needed to identify the spectral lines originating
+    from this level during radiative transfer.
 
-    filename:       filename (including full path to it and the .en extension)
-    rewrite:        the .en file usually has a large file size. However,
-                    it contains many identical rows since Cloudy gives the energies
-                    at each depth bin into the simulation, while they should
-                    be the same at each depth. So if rewrite is True, 
-                    the function veries that the energies are indeed the same in each row,
-                    and then rewrites the .en file with only the first row.
-    '''
+    Parameters
+    ----------
+    filename : str
+        Filename of a 'save species energies' Cloudy output file.
+    rewrite : bool, optional
+        Whether to rewrite the file to only keeping only the first row. Normally,
+        the energies of each energy level are stored per depth cell of the simulation,
+        but they should be the same at each depth. Retaining only the values of the 
+        first row in this way helps to compress file size. By default True.
+    cloudy_version : str, optional
+        Major Cloudy release version, by default "17"
+
+    Returns
+    -------
+    en_df : dict
+        Dictionary mapping the column names of the .den file to their atomic configurations.
+
+    Raises
+    ------
+    ValueError
+        If the energy values are not the same at each depth.
+    """
 
     en = pd.read_table(filename, float_precision='round_trip') #use round_trip to prevent exp numerical errors
 
@@ -400,7 +509,7 @@ def process_energies(filename, rewrite=True, cloudy_version="17"):
 
         for col in range(len(en.columns)): #check if all rows are the same
             if len(en.iloc[:,col].unique()) != 1:
-                raise Exception("In reading .en file, found a column with not identical values!"
+                raise ValueError("In reading .en file, found a column with not identical values!"
                         +" filename:", filename, "col:", col, "colname:", en.columns[col], "unique values:",
                         en.iloc[:,col].unique())
 
@@ -454,20 +563,48 @@ def process_energies(filename, rewrite=True, cloudy_version="17"):
 
 
 def find_line_lowerstate_in_en_df(species, lineinfo, en_df, verbose=False):
-    '''
-    Also see process_energies() docstring.
-
-    This function finds the column name of the .den file that corresponds to
+    """
+    Finds the column name of the .den file that corresponds to
     the ground state of the given line. So for example if species='He',
     and we are looking for the metastable helium line,
-    it will return 'He2', meaning the 'He2' column of the .den file contains
+    it will return 'He[2]', meaning the 'He[2]' column of the .den file contains
     the number densities of the metastable helium atom.
+    
+    Additionally, it calculates a multiplication factor <1 for the number 
+    density of this energy level. This is for spectral lines that originate from a
+    specific J (total angular momentum quantum number) configuration, but Cloudy
+    does not save the densities of this specific J-value, only of the parent LS state.
+    In this case, we use a statistical argument to guess how many of the particles
+    are in each J-state. For this, we use that each J-state has 2*J+1 substates,
+    and then assuming all substates are equally populated, we can calculate the
+    population of each J-level. The assumption of equal population may not always be strictly
+    valid. In LTE, the population should in principle be calculated form the Boltzmann
+    distribution, but equal populations will be a good approximation at high temperature
+    or when the energy levels of the J-substates are close together. In NLTE, the
+    assumption is less valid due to departure from the Boltzmann equation.
 
-    species:        atomic or ionic species name
-    lineinfo:       one row of a dataframe of NIST spectral line coefficients
-    en_df:          dataframe mapping the .den / .en column names to the energy of that level
-    verbose:        whether to print problems when trying to match the line
-    '''
+    Parameters
+    ----------
+    species : str
+        Name of the atomic or ionic species in the string format expected by Cloudy.    
+    lineinfo : pandas.DataFrame
+        One row containing the spectral line coefficients from NIST, from the
+        RT.read_NIST_lines() function.
+    en_df : dict
+        Dictionary mapping the column names of the .den file to their atomic configurations,
+        from the process_energies() function.
+    verbose : bool, optional
+        Whether to print out , by default False
+
+    Returns
+    -------
+    match : str
+        Column name of the .den file that contains the number densities of the energy
+        level that this spectral line originates from.
+    lineweight : float
+        Multiplication factor <1 for the number density of this energy level, to get
+        the number density of the specific J-state that the spectral line originates from.
+    """
 
     en_df = en_df[en_df.species == species] #keep only the part for this species to not mix up the energy levels of different ones
     match, lineweight = None, None #start with the assumption that we cannot match it
@@ -499,58 +636,81 @@ def find_line_lowerstate_in_en_df(species, lineinfo, en_df, verbose=False):
 
                     match = matchedtermrow.index.item()
                 else:
-                    if verbose:
-                        print("One J level of the term is resolved, but not the one of this line.")
+                    verbose_print(f"One J level of the term is resolved, but not the one of this line: {species} "+ lineinfo.conf_i, verbose=verbose)
 
             else:
-                if verbose:
-                    print("Multiple J levels of the term are resolved, but not the one of this line.")
+                verbose_print(f"Multiple J levels of the term are resolved, but not the one of this line: {species} "+ lineinfo.conf_i, verbose=verbose)
 
     elif str(lineinfo['term_i']) != 'nan':
         linetype = "LS"
 
-        if verbose:
-            print("Currently not able to do lines originating from LS state without J number.")
-            print("Lower state configuration:", species, lineinfo.conf_i)
+        verbose_print("Currently not able to do lines originating from LS state without J number.", verbose=verbose)
+        verbose_print(f"Lower state configuration: {species} "+ lineinfo.conf_i, verbose=verbose)
     else:
         linetype = "n"
 
-        if verbose:
-            print("Currently not able to do lines originating from n state without term. This is not a problem "+
+        verbose_print("Currently not able to do lines originating from n state without term. This is not a problem "+
                     'if this line is also in the NIST database with its different term components, such as for e.g. '+
-                    "H n=2, but only if they aren't such as for H n>6, or if they go to an upper level n>6 from any given level.")
-            print("Lower state configuration:", species, lineinfo.conf_i)
+                    "H n=2, but only if they aren't such as for H n>6, or if they go to an upper level n>6 from any given level.", verbose=verbose)
+        verbose_print(f"Lower state configuration: {species} "+ lineinfo.conf_i, verbose=verbose)
 
         '''
-        NOTE TO SELF:
-        If I do decide to make this functionality, for example by summing the densities of all sublevels of a
-        particular n, I also need to tweak the cleaning of hydrogen lines algorithm. Right now, I remove
-        double lines only for the upper state, so e.g. for Ly alpha, I remove the separate 2p 3/2 and 2p 1/2 etc. component
+        DEVELOPERS NOTE:
+        If we do decide to make this functionality, for example by summing the densities of all sublevels of a
+        particular n, we also need to tweak the cleaning of hydrogen lines algorithm. Right now, we remove
+        double lines only for the upper state, so e.g. for Ly alpha, we remove the separate 2p 3/2 and 2p 1/2 etc. component
         and leave only the one line with upper state n=2.
-        I don't do this for lower states though, which is not a problem yet because the lower n state lines are ignored as
-        stated above. However if I make the functionality, I should also remove double lines in the lower level.
+        However, we don't do this for lower states, which is not a problem yet because the lower n state lines are ignored as
+        stated above. However if we make the functionality, we should also remove double lines in the lower level.
         '''
 
     return match, lineweight
 
 
+#######################################
+###########  MISCELLANEOUS  ###########
+#######################################
 
+def verbose_print(message, verbose=False):
+    """
+    Prints the provided string only if verbose is True.
 
-'''
-Miscellaneous functions
-'''
+    Parameters
+    ----------
+    message : str
+        String to optionally print.
+    verbose : bool, optional
+        Whether to print the provided message, by default False
+    """
+ 
+    if verbose:
+        print(message)
+
 
 def get_SED_norm_1AU(SEDname):
-    '''
-    Reads in a SED name in the data/SED/ folder of the Cloudy installation,
-    and returns the normalization in nuF(nu) and Ryd units.
-    It must then be scaled to the planet distance and the
-    log10 taken, after which it can be used with the nuF(nu)= ... at ... Ryd command.
-    Assumes (and checks) that the SED is in wav (Å) and nuFnu/lambFlamb (erg/s/cm-2) units.
+    """
+    Reads in an SED file and returns the normalization in monochromatic flux
+    (i.e., nu*F_nu or lambda*F_lambda) and Ryd units.
+    These are needed because Cloudy does not preserve the normalization of
+    user-specified SEDs. To do a simulation of an atmosphere, the normalization
+    of the SED must afterwards still be scaled to the planet distance. 
+    Then, the log10 of nuFnu can be passed to Cloudy using the
+    "nuFnu(nu) = ... at ... Ryd" command.
+    This function requires that the units of the SED are Å and
+    monochromatic flux (i.e., nu*F_nu or lambda*F_lambda).
 
-    SEDname:    name of the SED including extension but excluding the path.
-                The SED is expected to be present in the $CLOUDY_PATH/data/SED/ folder.
-    '''
+    Parameters
+    ----------
+    SEDname : str
+        Name of a SED file located in $CLOUDY_PATH/data/SED/.
+
+    Returns
+    -------
+    nuFnu : float
+        Monochromatic flux specified at the energy of the Ryd output variable.
+    Ryd : float
+        Energy where the monochromatic flux of the nuFnu output variable is specified.
+    """
 
     with open(cloudypath+'/data/SED/'+SEDname, 'r') as f:
         for line in f:
@@ -567,18 +727,30 @@ def get_SED_norm_1AU(SEDname):
 
 
 def speciesstring(specieslist, selected_levels=False, cloudy_version="17"):
-    '''
+    """
     Takes a list of species names and returns a long string with those species
-    between quotes and [:] added (or [maxlevel] if selected_levels=True),
-    and \n between them, so that this string can be used in a Cloudy input
+    between quotes and [:] added (or [:maxlevel] if selected_levels=True),
+    and \n between them. This string can then be used in a Cloudy input
     script for .den and .en files. The maxlevel is the number of energy levels
-    that can be matched between Cloudy and NIST. Saving the higher levels is not
-    really of use since they can't be postprocessed by the radiative transfer module.
+    that can be matched between Cloudy and NIST. Saving higher levels than that is not
+    really useful since they cannot be postprocessed by the radiative transfer module.
 
-    specieslist:        list of atomic and ionic species
-    selected_levels:    if False, will use all energy levels, if True will
-                        use only up to the energy level that can be matched to NIST
-    '''
+    Parameters
+    ----------
+    specieslist : list
+        Species to include.
+    selected_levels : bool, optional
+        If True, only energy levels up to the number that can be matched to NIST
+        will be included. If False, all energy levels of each species will be
+        included, regardless of whether we can match them to NIST. By default False.
+    cloudy_version : str, optional
+        Major Cloudy release version, by default "17"
+
+    Returns
+    -------
+    speciesstr : str
+        One long string containing the species and the energy level numbers.
+    """
 
     if not selected_levels: #so just all levels available in cloudy
         speciesstr = '"'+specieslist[0]+'[:]"'
@@ -596,21 +768,32 @@ def speciesstring(specieslist, selected_levels=False, cloudy_version="17"):
 
 
 def read_parker(plname, T, Mdot, pdir, filename=None):
-    '''
-    Reads a parker wind profile and returns it as a pandas Dataframe.
-    Arguments:
-        plname: [str]       planet name
-        T:                  temperature
-        Mdot: [float/str]   log10 of the mass-loss rate
-        pdir: [str]         folder to use for the parker profile. This can be
-                            any folder name as long as it exists. So e.g. you
-                            can have a folder with pure H/He profiles named
-                            fH=0.9 or fH=0.99, or have a folder with Cloudy-
-                            produced parker profiles named z=10.
-        filename: [str]     filename to read. If this argument is given then
-                            plname, T, Mdot and dir are disregarded and we
-                            directly read the specified profile.
-    '''
+    """
+    Reads an isothermal Parker wind profile as generated by the construct_parker.py module.
+
+    Parameters
+    ----------
+    plname : str
+        Planet name (must have parameters stored in $SUNBATHER_PROJECT_PATH/planets.txt).
+    T : str or numeric
+        Temperature in units of K.
+    Mdot : str or numeric
+        log of the mass-loss rate in units of g s-1.
+    pdir : str
+        Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/*plname*/*pdir*/
+        where the isothermal parker wind density and velocity profiles are saved.
+        Different folders may exist there for a given planet, to separate for example profiles
+        with different assumptions such as stellar SED/semi-major axis/composition.
+    filename : str, optional
+        If None, the profile as specified by plname, T, Mdot, pdir is read. If not None,
+        filename must specfy the full path + filename of the isothermal Parker wind profile
+        to read in. By default None.
+
+    Returns
+    -------
+    pprof : pandas.DataFrame
+        Radial density, velocity and mean particle mass profiles of the isothermal Parker wind profile.
+    """
 
     if filename == None:
         Mdot = "%.3f" % float(Mdot)
@@ -619,25 +802,42 @@ def read_parker(plname, T, Mdot, pdir, filename=None):
 
     pprof = pd.read_table(filename, names=['alt', 'rho', 'v', 'mu'], dtype=np.float64, comment='#')
     pprof['drhodr'] = np.gradient(pprof['rho'], pprof['alt'])
+
     return pprof
 
 
 def calc_mu(rho, ne, abundances=None, mass=False):
-    '''
-    Calculates the mean molecular weight, taking into account all elements and ions,
-    but NEGLECTING MOLECULES and the mass contributed by electrons.
+    """
+    Calculates the mean particle mass of an atomic/ionic gas mixture,
+    but neglecting molecules (and the negligible mass contributed by
+    electrons). Based on formula:
+    mu = sum(ni*mi) / (sum(ni) + ne)
+    where ni and mi are the number density and mass of element i, and 
+    ne is the electron number density.
+    Use ni = ntot * fi   and   ntot = rho / sum(fi*mi)
+    where ntot is the total number density, fi the abundance of element i
+    expressed as a 0<fraction<1, and rho the mass density.
+    Substitution yields:
+    mu = sum(fi*mi) / (1 + (ne * sum(fi*mi))/rho)
 
-    Based on formula: mu = sum(ni*mi) / (sum(ni) + ne)   where ni and mi are the number density
-                                                        and mass of all elements
-                        then use ni = ntot * fi   and   ntot = rho / sum(fi*mi)
-                        to get:
-                        mu = sum(fi*mi) / (1 + (ne * sum(fi*mi))/rho)
+    Parameters
+    ----------
+    rho : array-like or numeric
+        Mass density in units of g cm-3.
+    ne : array-like or numeric
+        Electron number density in units of cm-3.
+    abundances : dict, optional
+        Dictionary with the abundance of each element, expressed as a fraction of the total.
+        Can be easily created with get_abundances(). By default None, which 
+        results in solar composition.
+    mass : bool, optional
+        If True returns mu in units of g, if False returns mu in units of amu, by default False.
 
-    rho:        total mass density in g cm-3
-    ne:         electron number density in cm-3
-    abundances: dictionary with the abundance of each element made with get_abundances()
-    mass:       if False, returns mu in units of amu, if True returns mu in units of g
-    '''
+    Returns
+    -------
+    mu : array-like or numeric
+        Mean particle mass.
+    """
 
     if abundances == None:
         abundances = get_abundances()
@@ -654,14 +854,23 @@ def calc_mu(rho, ne, abundances=None, mass=False):
 
 
 def get_zdict(z=1., zelem={}):
-    '''
-    Function that returns a dictionary of the scale factors of each element.
-    arguments:
-        z:          metallicity relative to solar (in linear units, i.e. z=1 is solar)
-                    scales all elements except hydrogen and helium with this factor
-        zelem:      dictionary of abundance scale factor for specific elements
-                    (e.g. {'C':2} to get double C abundance)
-    '''
+    """
+    Returns a dictionary of the scale factors of each element relative to solar.
+
+    Parameters
+    ----------
+    z : numeric, optional
+        Metallicity relative to solar (in linear units, i.e., z=1 is solar), by default 1.
+    zelem : dict, optional
+        Dictionary of scale factors for specific elements. For example,
+        {'C':2} to get two times the solar carbon abundance. By default {}.
+
+    Returns
+    -------
+    zdict : dict
+        Dictionary with the scale factors of all elements relative
+        to the default solar composition.
+    """
 
     assert 'H' not in zelem.keys(), "You cannot scale hydrogen, scale everything else instead."
 
@@ -676,11 +885,21 @@ def get_zdict(z=1., zelem={}):
 
 
 def get_abundances(zdict=None):
-    '''
-    Function that returns a dictionary of the fractional abundances of each element (sums to 1).
-    arguments:
-        zdict:      dictionary of all fractional abundance scale factors made with get_zdict()
-    '''
+    """
+    Returns a dictionary of the fractional abundances of each element (sums to 1).
+
+    Parameters
+    ----------
+    zdict : dict, optional
+        Dictionary with the scale factors of all elements relative
+        to a solar composition. Can be easily created with get_zdict().
+        Default is None, which results in a solar composition.
+
+    Returns
+    -------
+    abundances : dict
+        Dictionary with the abundances of all elements, expressed as a fraction of the total.
+    """
 
     #solar abundance relative to hydrogen (Hazy table 7.1):
     rel_abundances = {'H':1., 'He':0.1, 'Li':2.04e-9, 'Be':2.63e-11, 'B':6.17e-10,
@@ -702,17 +921,31 @@ def get_abundances(zdict=None):
 
 
 def rho_to_hden(rho, abundances=None):
-    '''
-    Converts a total density rho in g/cm3 to a hydrogen number density in cm-3
+    """
+    Converts a mass density in units of g cm-3 to a hydrogen number density
+    in units of cm-3, for a given chemical composition. Based on formula: 
+    rho = nH*mH + ntot*sum(fj*mj) 
+    where nH is the hydrogen number density, mH the hydrogen atom mass,
+    mj and fj the mass and abundance (=fraction) of element j (the sum excludes hydrogen)
+    and ntot=rho/sum(fi*mi)
+    where the sum runs over every element i including hydrogen.
+    Substitution yields:
+    nH = rho/mH * (1 - sum(fj*mj)/sum(fi*mi))
 
-    Based on formula: rho = nH*mH + ntot*sum(fj*mj) where fj is the abundance(fraction) of element j (excluding H)
-                                                    and ntot=rho/sum(fi*mi) where i is every element (including H)
-            resulting in:
-                    nH = rho/mH * (1 - sum(fj*mj)/sum(fi*mi))
+    Parameters
+    ----------
+    rho : array-like or numeric
+        Mass density in units of g cm-3.
+    abundances : dict, optional
+        Dictionary with the abundance of each element, expressed as a fraction of the total.
+        Can be easily created with get_abundances(). By default None, which 
+        results in solar composition.
 
-    rho:        total mass density in g cm-3
-    abundances: dictionary with the abundance of each element made with get_abundances()
-    '''
+    Returns
+    -------
+    hden : array-like or numeric
+        Hydrogen number density in units of cm-3.
+    """
 
     if abundances == None:
         abundances = get_abundances() #get a solar composition
@@ -729,13 +962,31 @@ def rho_to_hden(rho, abundances=None):
 
 
 def hden_to_rho(hden, abundances=None):
-    '''
-    Converts a hydrogen number density in cm-3 to a total density rho in g/cm3
-    See rho_to_hden() for formula, just reversed here.
+    """
+    Converts a hydrogen number density in units of cm-3 to a mass density
+    in units of g cm-3, for a given chemical composition. Based on formula: 
+    rho = nH*mH + ntot*sum(fj*mj) 
+    where nH is the hydrogen number density, mH the hydrogen atom mass,
+    mj and fj the mass and abundance (=fraction) of element j (the sum excludes hydrogen)
+    and ntot=rho/sum(fi*mi)
+    where the sum runs over every element i including hydrogen.
+    Substitution yields:
+    rho = nH*mH / (1 - sum(fj*mj)/sum(fi*mi))
 
-    hden:       hydrogen number density in cm-3
-    abundances: dictionary with the abundances of each element made with get_abundances()
-    '''
+    Parameters
+    ----------
+    hden : array-like or numeric
+        Hydrogen number density in units of cm-3.
+    abundances : dict, optional
+        Dictionary with the abundance of each element, expressed as a fraction of the total.
+        Can be easily created with get_abundances(). By default None, which 
+        results in solar composition.
+
+    Returns
+    -------
+    rho : array-like or numeric
+        Mass density in units of g cm-3.
+    """
 
     if abundances == None:
         abundances = get_abundances() #get a solar composition
@@ -752,27 +1003,45 @@ def hden_to_rho(hden, abundances=None):
 
 
 def roche_radius(a, Mp, Mstar):
-    '''
-    Returns the Roche / Hill radius.
-    This is a small planet-to-star mass approximation.
+    """
+    Returns the Hill/Roche radius. This is an approximation valid for
+    small Mp / Mstar.
 
-    a:   semi-major axis of the planet in cm
-    Mp:            planet mass in g
-    Mstar:          star mass in g
-    '''
+    Parameters
+    ----------
+    a : numeric
+        Semi-major axis in units of cm.
+    Mp : numeric
+        Planet mass in units of g.
+    Mstar : numeric
+        Star mass in units of g.
 
-    return a * pow(Mp/(3.0*(Mstar+Mp)), 1.0/3.0)
+    Returns
+    -------
+    Rroche : float
+        Hill/Roche radius in units of cm.
+    """
+
+    Rroche = a * pow(Mp/(3.0*(Mstar+Mp)), 1.0/3.0)
+
+    return Rroche
 
 
 def set_alt_ax(ax, altmax=8, labels=True):
-    '''
-    This code takes in an axis object and sets the xscale to a log scale
-    with readable ticks in non-scientific notation, in units of planet radii.
+    """
+    Sets the xscale of a figure to represent altitude/radius in units
+    of planetary radius. Sets the x-axis to log, adds an xlabel and
+    sets convenient xticks.
 
-    ax:         matplotlib.Axes object
-    altmax:     maximum radius in units of Rp
-    labels:     whether to set an xlabel and xticklabels
-    '''
+    Parameters
+    ----------
+    ax : matplotlib.Axes
+        Figure axis to configure.
+    altmax : int, optional
+        Maximum altitude of the simulation in units of planet radius, by default 8.
+    labels : bool, optional
+        Whether to use an xlabel and xticklabels, by default True
+    """
 
     ax.set_xscale('log')
     ax.set_xlim(1, altmax)
@@ -806,22 +1075,35 @@ def set_alt_ax(ax, altmax=8, labels=True):
 
 
 def alt_array_to_Cloudy(alt, quantity, altmax, Rp, nmax, log=True):
-    '''
-    Takes as input an atmospheric quantity as a function of altitude/radius,
+    """
+    Takes an atmospheric quantity as a function of altitude/radius,
     and returns it as a 2D array of that same quantity as a function of
     distance from the top of the atmosphere. The latter is the format
-    in which Cloudy expects quantites to be given, since it works from the 
-    illuminated face of the 'cloud' towards the planet core.
+    in which Cloudy expects quantities to be given with for example the
+    'dlaw' and 'tlaw' commands, since it works from the illuminated face
+    of the 'cloud' towards the planet core.
 
-    alt:        altitude/radius grid in units of cm (in ascending order)
-    quantity:   array with same length of alt of some atmospheric quantity,
-                for example density/temperature
-    altmax:     maximum radius of the grid in units of Rp
-    Rp:         planet radius in units of cm
-    nmax:       number of points to use for the grid
-    log:        whether to return the depth and quantity values in log10 units,
-                which is what Cloudy expects.
-    '''
+    Parameters
+    ----------
+    alt : array-like
+        Altitude/radius grid in units of cm. Must be in ascending order.
+    quantity : array-like
+        Quantity defined at the positions of the alt grid.
+    altmax : numeric
+        Maximum altitude of the simulation in units of planet radius.
+    Rp : numeric
+        Planet radius in units of cm.
+    nmax : int
+        Number of grid points to use.
+    log : bool, optional
+        Whether to return the log10 of the depth and quantity values,
+        which is what Cloudy expects, by default True
+
+    Returns
+    -------
+    law : numpy.ndarray
+        The quantity on a 'depth'-grid as a 2D array.
+    """
 
     if isinstance(alt, pd.Series):
         alt = alt.values
@@ -856,14 +1138,32 @@ def alt_array_to_Cloudy(alt, quantity, altmax, Rp, nmax, log=True):
 
 
 def smooth_gaus_savgol(y, size=None, fraction=None):
-    '''
-    Smooth an array using a gaussian filter, but smooth the edges with a
-    savgol filter since otherwise those are not handled well.
+    """
+    Smooth an array using a Gaussian filter, but smooth the start and
+    end of the array with a Savitzky-Golay filter.
 
-    y:          array to smooth
-    size:       gaussian filter size as an absolute number
-    fraction:   gaussian filter size as a fraction of the array length
-    '''
+    Parameters
+    ----------
+    y : array-like
+        Array to smooth.
+    size : int, optional
+        Smoothing size expressed as a number of points that will serve as the Gaussian
+        standard deviation. If None, instead a fraction must be provided, by default None
+    fraction : float, optional
+        Smoothing size expressed as a fraction of the total array length
+        that will serve as the Gaussian standard deviation. If None, instead
+        a size must be provided, by default None
+
+    Returns
+    -------
+    ysmooth : numpy.ndarray
+        Smoothed array.
+
+    Raises
+    ------
+    ValueError
+        If neither or both size and fraction were provided.
+    """
 
     if size != None and fraction == None:
         size = max(3, size)
@@ -888,17 +1188,27 @@ def smooth_gaus_savgol(y, size=None, fraction=None):
     return ysmooth
 
 
-'''
-Cloudy I/O
-'''
+#######################################
+###########    CLOUDY I/O    ##########
+#######################################
 
 def run_Cloudy(filename, folder=None):
-    '''
-    Runs a Cloudy simulation. If folder is not specified,
-    filename should contain the /full/path/to/the/simulation.
-    If instead, a folder is given, the filename should only
-    contain the name of the simulation.
-    '''
+    """
+    Run a Cloudy simulation from within Python.
+
+    Parameters
+    ----------
+    filename : str
+        Name of the simulation input file. If the folder argument is not
+        specfied, filename must include the full path to the simulation.
+        If the folder argument is specified, the filename should only 
+        specify the filename.
+    folder : str, optional
+        Full path to the directory where the file is located, excluding
+        the filename itself, which must be specified with the filename
+        argument. If folder is None, filename must also include the
+        full path. By default None.
+    """
 
     if folder is None: #then the folder should be in the simname
         folder, filename = os.path.split(filename)
@@ -910,21 +1220,28 @@ def run_Cloudy(filename, folder=None):
 
 
 def remove_duplicates(law, fmt):
-    '''
-    Takes a Cloudy law (e.g. dlaw or tlaw) and a formatter, and removes
+    """
+    Takes a Cloudy law (e.g., dlaw or tlaw) and a formatter, and removes
     duplicate rows from the law. This is mainly for the illuminated side of the
     simulation, where we have a very finely sampled grid which can result in
     duplicate values after applying the string formatter. This function thus
     does not alter the law in any way, but merely improves readability of the
-    Cloudy .in file laws as it doesn't have many (obsolete) duplicate rows.
+    Cloudy .in file laws as the many (obsolete) duplicate rows are removed.
 
-    law:        2D numpy array of a quantity 'on the Cloudy grid',
-                i.e. with the first column the depth from the illuminated face
-                and the second column the quantity, both in log10 units.
-    fmt:        string formatter used when writing this law to a '.in' file.
-                This function will remove floats that are duplicate up to the
-                precision implied by this fmt formatter.
-    '''
+    Parameters
+    ----------
+    law : numpy.ndarray
+        Quantity on a 'depth'-grid as a 2D array, in the format that Cloudy expects it.
+    fmt : str
+        String formatter specifying a float precision. This function will remove
+        floats that are duplicate up to the precision implied by this fmt formatter.
+
+    Returns
+    -------
+    new_law : numpy.ndarray
+        Same quantity but with rows removed that have the same float precision
+        under the provided fmt formatter.
+    """
 
     nonduplicates = [0]
     for i in range(1, len(law)-1):
@@ -932,22 +1249,75 @@ def remove_duplicates(law, fmt):
             nonduplicates.append(i)
     nonduplicates.append(-1)
 
-    return law[nonduplicates]
+    new_law = law[nonduplicates]
 
+    return new_law
 
 
 def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
-                        dlaw=None, tlaw=None, alaw=None, pTmulaw=None, cextra=None, hextra=None,
-                        coolextra=None, othercommands=None, outfiles=[], denspecies=[], selected_den_levels=False,
+                        dlaw=None, tlaw=None, cextra=None, hextra=None,
+                        othercommands=None, outfiles=[], denspecies=[], selected_den_levels=False,
                         constantT=None, double_tau=False, hcfrac=None, cloudy_version="17"):
-    '''
-    This function makes a copy of a Cloudy in file, and it will append
-    the given commands to this .in file.
+    """
+    Makes a copy of a Cloudy input file and appends commands.
 
-    For explanation of arguments, see write_Cloudy_in(). Not all of the commands
-    of write_Cloudy_in() are also in this function, as commands are only added here
-    when they are needed. Most commands can freely be added if needed here.
-    '''
+    Parameters
+    ----------
+    oldsimname : str
+        Full path + name of the Cloudy input file to copy, without the file extension.
+    newsimname : str
+        Full path + name of the target Cloudy input file, without the file extension.
+    set_thickness : bool, optional
+        Whether to include a command that ends the simulation at a depth equal
+        to the length of the dlaw, by default True
+    dlaw : numpy.ndarray, optional
+        Hydrogen number density in units of cm-3, as a 2D array where dlaw[:,0]
+        specifies the log10 of the depth into the cloud in cm, and dlaw[:,1]
+        specifies the log10 of the hydrogen number density in units of cm-3, by default None
+    tlaw : numpy.ndarray, optional
+        Temperature in units of K as a 2D array where tlaw[:,0]
+        specifies the log10 of the depth into the cloud in cm, and tlaw[:,1]
+        specifies the log10 of the temperature in units of K, by default None
+    cextra : numpy.ndarray, optional
+        Extra unspecified cooling in units of erg s-1 cm-3, as a 2D array where
+        cextra[:,0] specifies the log10 of the depth into the cloud in cm,
+        and cextra[:,1] specifies the log10 of the cooling rate in units of
+        erg s-1 cm-3, by default None
+    hextra : numpy.ndarray, optional
+        Extra unspecified heating in units of erg s-1 cm-3, as a 2D array where
+        hextra[:,0] specifies the log10 of the depth into the cloud in cm,
+        and hextra[:,1] specifies the log10 of the heating rate in units of
+        erg s-1 cm-3, by default None
+    othercommands : str, optional
+        String to include in the input file. Any command not otherwise supported
+        by this function can be included here, by default None
+    outfiles : list, optional
+        List of file extensions indicating which Cloudy output to save. For example,
+        include '.heat' to include the 'save heating' command, by default ['.ovr', '.cool']
+    denspecies : list, optional
+        List of atomic/ionic species for which to save densities and energies, which
+        are needed to do radiative transfer. The list can easily be created by the
+        get_specieslist() function. By default [].
+    selected_den_levels : bool, optional
+        If True, only energy levels up to the number that can be matched to NIST
+        will be included in the 'save densities' command. If False, all energy levels 
+        of each species will be included, regardless of whether we can match them 
+        to NIST. By default False.
+    constantT : str or numeric, optional
+        Constant temperature in units of K, by default None
+    double_tau : bool, optional
+        Whether to use the 'double optical depths' command. This command is useful
+        for 1D simulations, ensuring that radiation does not escape the atmosphere
+        at the back-side into the planet core. By default False
+    hcfrac : str or numeric, optional
+        Threshold fraction of the total heating/cooling rate for which the .heat and
+        .cool files should save agents. Cloudy's default is 0.05, so that individual
+        heating and cooling processes contributing <0.05 of the total are not saved.
+        By default None, so that Cloudy's default of 0.05 is used.
+    cloudy_version : str, optional
+        Major Cloudy release version, used only in combination with the denspecies
+        argument, by default "17".
+    """
 
     if denspecies != []:
         assert ".den" in outfiles and ".en" in outfiles
@@ -1001,24 +1371,6 @@ def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
             f.write('{:.7f}'.format(tlaw[-1,0]+0.1)+
                         ' '+'{:.7f}'.format(tlaw[-1,1]))
             f.write("\nend of tlaw #last point added to prevent roundoff")
-        if np.any(alaw != None):
-            alaw = remove_duplicates(alaw, "1.7f")
-            f.write("\n# ========= advection law     ================")
-            f.write("\n#depth sets distances from edge of cloud")
-            f.write("\nadvectiontable depth\n")
-            np.savetxt(f, alaw, fmt='%1.7f')
-            f.write('{:.7f}'.format(alaw[-1,0]+0.1)+
-                        ' '+'{:.7f}'.format(alaw[-1,1]))
-            f.write("\nend of advectiontable #last point added to prevent roundoff")
-        if np.any(pTmulaw != None):
-            pTmulaw = remove_duplicates(pTmulaw, "1.7f")
-            f.write("\n# ========= previous T/mu law     ================")
-            f.write("\n#depth sets distances from edge of cloud")
-            f.write("\nprevTmu depth\n")
-            np.savetxt(f, pTmulaw, fmt='%1.7f')
-            f.write('{:.7f}'.format(pTmulaw[-1,0]+0.1)+
-                        ' '+'{:.7f}'.format(pTmulaw[-1,1]))
-            f.write("\nend of prevTmu #last point added to prevent roundoff")
         if np.any(cextra != None):
             cextra = remove_duplicates(cextra, "1.7f")
             f.write("\n# ========= cextra law     ================")
@@ -1037,73 +1389,108 @@ def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
             f.write('{:.7f}'.format(hextra[-1,0]+0.1)+
                         ' '+'{:.7f}'.format(hextra[-1,1]))
             f.write("\nend of hextra #last point added to prevent roundoff")
-        if np.any(coolextra != None):
-            coolextra = remove_duplicates(coolextra, "1.7f")
-            f.write("\n# ========= coolextra law     ================")
-            f.write("\n#depth sets distances from edge of cloud")
-            f.write("\ncoolextra table depth\n")
-            np.savetxt(f, coolextra, fmt='%1.7f')
-            f.write('{:.7f}'.format(coolextra[-1,0]+0.1)+
-                        ' '+'{:.7f}'.format(coolextra[-1,1]))
-            f.write("\nend of coolextra #last point added to prevent roundoff")
 
 
 def write_Cloudy_in(simname, title=None, flux_scaling=None,
                     SED=None, set_thickness=True,
-                    dlaw=None, tlaw=None, alaw=None, pTmulaw=None, cextra=None, hextra=None,
-                    coolextra=None, othercommands=None, overwrite=False, iterate='convergence',
+                    dlaw=None, tlaw=None, cextra=None, hextra=None,
+                    othercommands=None, overwrite=False, iterate='convergence',
                     nend=3000, outfiles=['.ovr', '.cool'], denspecies=[], selected_den_levels=False,
                     constantT=None, double_tau=False, cosmic_rays=False, zdict=None, hcfrac=None,
                     comments=None, cloudy_version="17"):
-    '''
-    This function writes a Cloudy .in file for simulating an exoplanet atmosphere.
-    Arguments:
-        simname:        path+name of Cloudy simulation (without extension)
-        title:          title of simulation
-        flux_scaling:   nuF(nu) value and at which energy of the SED (required!)
-                        should be given as a list with two values, e.g. [7.5, 0.3] meaning nuF(nu) = 7.5 at 0.3 Ryd
-        SED:            filename of SED (should be present in Cloudy's data/SED/ or in the folder of the simulation)
-        set_thickness:  if True, adds a 'stop thickness' argument based on the maximum depth reached in the given dlaw
-        dlaw:           density law (2D numpy array)
-        tlaw:           temperature law (2D numpy array)
-        alaw:           advectiontable law (2D numpy array). This is for a command that I added to
-                        the Cloudy source code.
-        pTmulaw:        'previous T/mu law' (2D numpy array). This if for a command that I added to
-                        the Cloudy source code.
-        cextra:         cextra law (2D numpy array). Note that this command functions differently in my
-                        Cloudy source code because I edited it to be able to add expansion cooling.
-        hextra:         hextra law (2D numpy array).
-        coolextra:      coolextra law (2D numpy array). This is for a command that I added to
-                        the Cloudy source code.
-        othercommands:  a string with any other commands to add that do not have their own treatment in this function.
-        overwrite:      boolean whether to overwrite if the .in file already exists.
-        iterate:        Cloudy's iterate command. Usually best to leave at convergence.
-        nend:           how many zones to include. Cloudy by default has 1400 but that is too few to handle
-                        some high-density profiles so I set it to 3000 standard.
-        outfiles:       which output files to produce
-        denspecies:     which species (atomic/ionic) to save the densities and energies of the excited levels for
-                        (to be used for both .en and .den output)
-        selected_den_levels:    boolean passed on to speciesstring() whether to include all excited levels or
-                                only those for which we know we can match Cloudy's output to NIST
-        constantT:      constant temperature to use
-        double_tau:     'double optical depths' command (useful for 1D simulations so that radiation does
-                        not escape the cloud/atmosphere at the back-side into the planet core)
-        cosmic_rays:    whether to include cosmic rays
-        zdict:          dictionary of scale factors for all elements
-        hcfrac:         threshold fraction of the total heating/cooling rate for which the .heat and .cool files
-                        should save agents. Cloudy's default is 0.05 (i.e. rates <0.05 of the total are not saved).
-        comments:       will be written at the top of the file with a #
-    '''
+    """
+    Writes a Cloudy input file for simulating an exoplanet atmosphere.
 
-    assert flux_scaling != None #we need this to proceed. Give in format [F,E] like nuF(nu) = F at E Ryd
+    Parameters
+    ----------
+    simname : str
+        Full path + name of the Cloudy simulation, without the file extension.
+    title : str, optional
+        Title of simulation, by default None
+    flux_scaling : tuple, optional
+        Normalization of the SED, as a tuple with the monochromatic flux
+        and energy in Ryd where it is specified, by default None
+    SED : str, optional
+        Name of a SED file located in $CLOUDY_PATH/data/SED/, by default None
+    set_thickness : bool, optional
+        Whether to include a command that ends the simulation at a depth equal
+        to the length of the dlaw, by default True
+    dlaw : numpy.ndarray, optional
+        Hydrogen number density in units of cm-3, as a 2D array where dlaw[:,0]
+        specifies the log10 of the depth into the cloud in cm, and dlaw[:,1]
+        specifies the log10 of the hydrogen number density in units of cm-3, by default None
+    tlaw : numpy.ndarray, optional
+        Temperature in units of K as a 2D array where tlaw[:,0]
+        specifies the log10 of the depth into the cloud in cm, and tlaw[:,1]
+        specifies the log10 of the temperature in units of K, by default None
+    cextra : numpy.ndarray, optional
+        Extra unspecified cooling in units of erg s-1 cm-3, as a 2D array where
+        cextra[:,0] specifies the log10 of the depth into the cloud in cm,
+        and cextra[:,1] specifies the log10 of the cooling rate in units of
+        erg s-1 cm-3, by default None
+    hextra : numpy.ndarray, optional
+        Extra unspecified heating in units of erg s-1 cm-3, as a 2D array where
+        hextra[:,0] specifies the log10 of the depth into the cloud in cm,
+        and hextra[:,1] specifies the log10 of the heating rate in units of
+        erg s-1 cm-3, by default None
+    othercommands : str, optional
+        String to include in the input file. Any command not otherwise supported
+        by this function can be included here, by default None
+    overwrite : bool, optional
+        Whether to overwrite the simname if it already exists, by default False
+    iterate : str or int, optional
+        Argument to Cloudy's 'iterate' command, either a number or 'convergence',
+        by default 'convergence'
+    nend : int, optional
+        Argument to Cloudy's 'set nend' command, which sets the maximum number of Cloudy
+        cells. Cloudy's default is 1400 which can often be too few. For this function,
+        by default 3000.
+    outfiles : list, optional
+        List of file extensions indicating which Cloudy output to save. For example,
+        include '.heat' to include the 'save heating' command, by default ['.ovr', '.cool']
+    denspecies : list, optional
+        List of atomic/ionic species for which to save densities and energies, which
+        are needed to do radiative transfer. The list can easily be created by the
+        get_specieslist() function. By default [].
+    selected_den_levels : bool, optional
+        If True, only energy levels up to the number that can be matched to NIST
+        will be included in the 'save densities' command. If False, all energy levels 
+        of each species will be included, regardless of whether we can match them 
+        to NIST. By default False.
+    constantT : str or numeric, optional
+        Constant temperature in units of K, by default None
+    double_tau : bool, optional
+        Whether to use the 'double optical depths' command. This command is useful
+        for 1D simulations, ensuring that radiation does not escape the atmosphere
+        at the back-side into the planet core. By default False
+    cosmic_rays : bool, optional
+        Whether to include cosmic rays, by default False
+    zdict : dict, optional
+        Dictionary with the scale factors of all elements relative
+        to a solar composition. Can be easily created with get_zdict().
+        Default is None, which results in a solar composition.
+    hcfrac : str or numeric, optional
+        Threshold fraction of the total heating/cooling rate for which the .heat and
+        .cool files should save agents. Cloudy's default is 0.05, so that individual
+        heating and cooling processes contributing <0.05 of the total are not saved.
+        By default None, so that Cloudy's default of 0.05 is used.
+    comments : str, optional
+        Comments to write at the top of the input file. Make sure to include hashtags
+        in the string, by default None
+    cloudy_version : str, optional
+        Major Cloudy release version, used only in combination with the denspecies
+        argument, by default "17".
+    """
+
+    assert flux_scaling is not None #we need this to proceed. Give in format [F,E] like nuF(nu) = F at E Ryd
     assert SED != None
-    if denspecies != []:
+    if denspecies is not []:
         assert ".den" in outfiles and ".en" in outfiles
     if ".den" in outfiles or ".en" in outfiles:
         assert ".den" in outfiles and ".en" in outfiles and denspecies != []
     if not overwrite:
         assert not os.path.isfile(simname+".in")
-    if constantT != None:
+    if constantT is not None:
         assert not np.any(tlaw != None)
 
     with open(simname+".in", "w") as f:
@@ -1176,24 +1563,6 @@ def write_Cloudy_in(simname, title=None, flux_scaling=None,
             f.write('{:.7f}'.format(tlaw[-1,0]+0.1)+
                         ' '+'{:.7f}'.format(tlaw[-1,1]))
             f.write("\nend of tlaw #last point added to prevent roundoff")
-        if alaw is not None:
-            alaw = remove_duplicates(alaw, "1.7f")
-            f.write("\n# ========= advection law     ================")
-            f.write("\n#depth sets distances from edge of cloud")
-            f.write("\nadvectiontable depth\n")
-            np.savetxt(f, alaw, fmt='%1.7f')
-            f.write('{:.7f}'.format(alaw[-1,0]+0.1)+
-                        ' '+'{:.7f}'.format(alaw[-1,1]))
-            f.write("\nend of advectiontable #last point added to prevent roundoff")
-        if pTmulaw is not None:
-            pTmulaw = remove_duplicates(pTmulaw, "1.7f")
-            f.write("\n# ========= previous T/mu law     ================")
-            f.write("\n#depth sets distances from edge of cloud")
-            f.write("\nprevTmu depth\n")
-            np.savetxt(f, pTmulaw, fmt='%1.7f')
-            f.write('{:.7f}'.format(pTmulaw[-1,0]+0.1)+
-                        ' '+'{:.7f}'.format(pTmulaw[-1,1]))
-            f.write("\nend of prevTmu #last point added to prevent roundoff")
         if cextra is not None:
             cextra = remove_duplicates(cextra, "1.7f")
             f.write("\n# ========= cextra law     ================")
@@ -1212,29 +1581,38 @@ def write_Cloudy_in(simname, title=None, flux_scaling=None,
             f.write('{:.7f}'.format(hextra[-1,0]+0.1)+
                         ' '+'{:.7f}'.format(hextra[-1,1]))
             f.write("\nend of hextra #last point added to prevent roundoff")
-        if coolextra is not None:
-            coolextra = remove_duplicates(coolextra, "1.7f")
-            f.write("\n# ========= coolextra law     ================")
-            f.write("\n#depth sets distances from edge of cloud")
-            f.write("\ncoolextra table depth\n")
-            np.savetxt(f, coolextra, fmt='%1.7f')
-            f.write('{:.7f}'.format(coolextra[-1,0]+0.1)+
-                        ' '+'{:.7f}'.format(coolextra[-1,1]))
-            f.write("\nend of coolextra #last point added to prevent roundoff")
 
 
 def insertden_Cloudy_in(simname, denspecies, selected_den_levels=True, rerun=False, cloudy_version="17"):
-    '''
-    This function takes a Cloudy .in input file and adds species to the
-    'save species densities' command. This is useful if you e.g. first went
-    through the temperature convergence scheme, but later want to add additional
-    species to the 'converged' simulation.
+    """
+    Takes a Cloudy .in input file and adds extra species to the
+    'save species densities' command. This is useful for example if you first went
+    through the convergeT_parker.py temperature convergence scheme, 
+    but later want to add additional species to the 'converged' simulation.
 
-    simname:                see write_Cloudy_in().
-    denspecies:             see write_Cloudy_in().
-    selected_den_levels:    see write_Cloudy_in().
-    rerun: [bool]           whether to rerun the just edited simulation through Cloudy.
-    '''
+    Parameters
+    ----------
+    simname : str
+        Full path + name of the Cloudy simulation, without the file extension.
+    denspecies : list, optional
+        List of atomic/ionic species for which to save densities and energies, which
+        are needed to do radiative transfer. The list can easily be created by the
+        get_specieslist() function.
+    selected_den_levels : bool, optional
+        If True, only energy levels up to the number that can be matched to NIST
+        will be included in the 'save densities' command. If False, all energy levels 
+        of each species will be included, regardless of whether we can match them 
+        to NIST. By default True.
+    rerun : bool, optional
+        Whether to run the new Cloudy input file, by default False
+    cloudy_version : str, optional
+        Major Cloudy release version, by default "17".
+
+    Raises
+    ------
+    ValueError
+        If there are multiple 'save species densities' commands in the Cloudy input file.
+    """
 
     with open(simname+".in", "r") as f:
         oldcontent = f.readlines()
@@ -1269,33 +1647,48 @@ def insertden_Cloudy_in(simname, denspecies, selected_den_levels=True, rerun=Fal
         run_Cloudy(simname)
 
 
-'''
-Useful classes
-'''
+#######################################
+###########     CLASSES     ###########
+#######################################
 
 class Parker:
-    '''
-    Class that stores a Parker wind profile and its parameters
-
-    Arguments:
-        plname:     [str] name of the planet
-        T:          [int] isothermal temperature
-        Mdot:       [str or float] log10 of the mass-loss rate in cgs
-        filename:   [str] filename of the parker wind profile .txt file
-        fH:         hydrogen fraction (for H/He-only profiles)
-        zdict:      scale factor dictionary
-        SED:        name of the spectrum used to construct the Parker profile
-        readin:     [bool] whether to read in the Parker profile file.
-                    If you don't want to read in, use filename=''
-    '''
+    """
+    Class that stores a Parker wind profile and its parameters.
+    """
 
     def __init__(self, plname, T, Mdot, pdir, fH=None, zdict=None, SED=None, readin=True):
+        """
+        Parameters
+        ----------
+        plname : str
+            Name of the planet
+        T : str or numeric
+            Temperature in units of K.
+        Mdot : str or numeric
+            log10 of the mass-loss rate in units of g s-1.
+        pdir : str
+            Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/*plname*/*pdir*/
+            where the isothermal parker wind density and velocity profiles are saved.
+            Different folders may exist there for a given planet, to separate for example profiles
+            with different assumptions such as stellar SED/semi-major axis/composition.
+        fH : float, optional
+            Hydrogen abundance fraction, in case of a H/He composition, by default None
+        zdict : dict, optional
+            Dictionary with the scale factors of all elements relative
+            to a solar composition. Can be easily created with get_zdict().
+            Default is None, which results in a solar composition.
+        SED : str, optional
+            Stellar SED name, by default None
+        readin : bool, optional
+            Whether to read in the atmospheric profile, by default True
+        """
+
         self.plname = plname
         self.T = int(T)
         if type(Mdot) == str:
             self.Mdot = Mdot
             self.Mdotf = float(Mdot)
-        elif type(Mdot) == float:
+        elif type(Mdot) == float or type(Mdot) == int:
             self.Mdot = "%.3f" % Mdot
             self.Mdotf = Mdot
         if fH != None:
@@ -1309,29 +1702,38 @@ class Parker:
 
 
 class Planet:
-    '''
-    Class that saves parameters for a given planet.
-
-    Arguments:
-        name:   [str] name of the planet. If this name appears in the 'planets.txt'
-                    file, the class will automatically load its parameters.
-
-        R:      [float] optional, radius in cm
-        Rstar:  [float] optional, radius of the host star in cm
-        a:      [float] optional, semimajor axis in cm
-        M:      [float] optional, mass in g
-        Mstar:  [float] optional, mass of the host star in g
-        bp:     [float] optional, transit impact parameter (dimensionless, between 0 and 1 in units of Rstar)
-        Rroche: [float] optional, Roche radius in cm,
-                if not given (preffered), will be calculated based on other parameters
-        SEDname:[str]   optional, name of the stellar SED used, including file extension
-
-        If the planet name was found in 'planets.txt', but any of the other
-        parameters are given as well, those values will overwrite the values
-        of the 'planet.txt' file.
-    '''
+    """
+    Class that stores planet/star parameters.
+    """
 
     def __init__(self, name, fullname=None, R=None, Rstar=None, a=None, M=None, Mstar=None, bp=None, SEDname=None):
+        """
+        Parameters
+        ----------
+        name : str
+            Planet name. Typically does not include spaces. If this name appears in the
+            $SUNBATHER_PROJECT_PATH/planets.txt file, those parameters are automatically
+            fetched. Specific values can then be changed by providing them as arguments.
+            If the planet name does not appear in $SUNBATHER_PROJECT_PATH/planets.txt,
+            all parameters must be provided upon initialization.
+        fullname : str, optional
+            Full planet name, can include spaces and other special characters, by default None
+        R : float, optional
+            Planet radius in units of cm, by default None
+        Rstar : float, optional
+            Star radius in units of cm, by default None
+        a : float, optional
+            Semi-major axis in units of cm, by default None
+        M : float, optional
+            Planet mass in units of g, by default None
+        Mstar : float, optional
+            Star mass in units of g, by default None
+        bp : float, optional
+            Transit impact parameter, in units of the star radius, by default None
+        SEDname : str, optional
+            Stellar SED name, by default None
+        """
+
         #check if we can fetch planet parameters from planets.txt:
         if name in planets_file['name'].values or name in planets_file['full name'].values:
             this_planet = planets_file[(planets_file['name'] == name) | (planets_file['full name'] == name)]
@@ -1384,9 +1786,10 @@ class Planet:
         self.__update_Kp()
 
     def set_var(self, name=None, fullname=None, R=None, Rstar=None, a=None, M=None, Mstar=None, bp=None, SEDname=None):
-        '''
-        To edit values after creation of the object.
-        '''
+        """
+        Change planet/star parameters after initialization.
+        """
+
         if name != None:
             self.name = name
         if R != None:
@@ -1413,33 +1816,40 @@ class Planet:
             self.SEDname = SEDname
 
     def __update_phi(self):
-        '''
-        Tries to update the gravitational potential.
-        '''
+        """
+        Tries to set/update the gravitational potential.
+        """
+
         if (self.M != None) and (self.R != None):
             self.phi = G * self.M / self.R
         else:
             self.phi = None
 
     def __update_Rroche(self):
-        '''
-        Tries to update the Roche radius.
-        '''
+        """
+        Tries to set/update the Roche radius.
+        """
+
         if (self.a != None) and (self.M != None) and (self.Mstar != None):
             self.Rroche = roche_radius(self.a, self.M, self.Mstar)
         else:
             self.Rroche = None
 
     def __update_Kp(self):
-        '''
-        Tries to update the orbital velocity.
-        '''
+        """
+        Tries to set/update the orbital velocity semi-amplitude.
+        """
+
         if (self.a != None) and (self.M != None) and (self.Mstar != None):
             self.Kp = np.sqrt(G * (self.M + self.Mstar) / self.a)
         else:
             self.Kp = None
 
     def print_params(self):
+        """
+        Prints out all parameters in read-friendly format.
+        """
+
         print(f"Name: {self.name}")
         if self.fullname is not None:
             print(f"Full name: {self.fullname}")
@@ -1465,13 +1875,15 @@ class Planet:
             print(f"Orbital velocity semi-amplitude: {self.Kp} cm/s, {self.Kp/1e5} km/s")
 
     def plot_transit_geometry(self, phase=0., altmax=None):
-        '''
-        Shows a schematic of the transit geometry. Helpful to understand
+        """
+        Plots a schematic of the transit geometry. Helpful to understand
         where the planet and its atmosphere are relative to the stellar disk,
-        for a given planet impact parameter and phase. In dotted, the planet
-        roche radius is shown. If given, another 'altmax' of the atmosphere
-        (8 by default) can be drawn in dashed.
-        '''
+        for a given planet impact parameter and phase. The dotted line shows
+        the planet Roche radius. The altmax argument can be used to draw 
+        another dashed line in units of the planet radius, for example the
+        extent of the sunbather simulation (typically 8 Rp).
+        """
+
         fig, ax = plt.subplots(1)
         #draw star
         ax.plot(self.Rstar*np.cos(np.linspace(0, 2*np.pi, 100)), self.Rstar*np.sin(np.linspace(0, 2*np.pi, 100)), c='k', zorder=0)
@@ -1515,17 +1927,23 @@ class Planet:
         plt.show()
 
     def max_T0(self, mu_bar=1.):
-        '''
-        Returns the maximum temperature T0 that the Parker wind can have,
+        """
+        Calculates the maximum isothermal temperature T0 that the Parker wind can have,
         for it to still be transonic. If T0 is higher than this value,
         Rp > Rs which breaks the assumption of the Parker wind. 
         See Vissapragada et al. (2024) on TOI-1420 b.
-        '''
+        """
 
-        return G * self.M * mH * mu_bar / (2 * self.R * k)
+        maxT0 = G * self.M * mH * mu_bar / (2 * self.R * k)
+        
+        return maxT0
 
 
 class Sim:
+    """
+    Loads the output of a Cloudy simulation. Tailored towards simulations of
+    an escaping exoplanet atmosphere.
+    """
     '''
     Main class for loading Cloudy simulations into Python.
 
@@ -1541,6 +1959,40 @@ class Sim:
     '''
 
     def __init__(self, simname, altmax=None, proceedFail=False, files=['all'], planet=None, parker=None):
+        """
+        Parameters
+        ----------
+        simname : str
+            Full path + simulation name excluding file extension.
+        altmax : int, optional
+            Maximum altitude of the simulation in units of the planet radius. Will also
+            be automatically read from the input file if written as a comment. By default None.
+        proceedFail : bool, optional
+            Whether to proceed loading the simulation if Cloudy did not exit OK, by default False
+        files : list, optional
+            List of file extensions of Cloudy output to load. For example,
+            include '.heat' to read the output of the 'save heating' command.
+            By default ['all'], which reads in all output files present that are understood by
+            this class.
+        planet : Planet, optional
+            Object storing planet parameters. Will also be automatically read from the input file
+            if written as a comment. By default None.
+        parker : Parker, optional
+            Object storing the isothermal Parker wind atmospheric profiles and parameters. Will 
+            also be automatically read from the input file if written as a comment. By default None.
+
+        Raises
+        ------
+        TypeError
+            If the simname argument is not a string.
+        TypeError
+            If a Cloudy version was used that is not supported by sunbather.
+        FileNotFoundError
+            If the Cloudy simulation did not exit OK and proceedFail = False.
+        TypeError
+            If the altmax argument is not numeric.
+        """
+
         if not isinstance(simname, str):
             raise TypeError("simname must be set to a string")
         self.simname = simname
@@ -1630,7 +2082,7 @@ class Sim:
         #overwrite/set manually given altmax
         if altmax != None:
             if not (isinstance(altmax, float) or isinstance(altmax, int)):
-                raise TypeError("altmax must be set to a float or int") #can it actually be a float? I'm not sure if my code can handle it - check and try.
+                raise TypeError("altmax must be set to a float or int") #can it actually be a float? I'm not sure if the code can handle it - check and try.
             if hasattr(self, 'altmax'):
                 if self.altmax != altmax:
                     warnings.warn("I read the altmax from the .in file, but the value you have explicitly passed is different. " \
@@ -1677,11 +2129,12 @@ class Sim:
 
 
     def get_simfile(self, simfile):
-        '''
-        Allows accessing the Cloudy simulation files.
-        They can all also be accessed as an attribute,
-        for example sim.ovr or sim.cool
-        '''
+        """
+        Returns the output of the requested simulation output file.
+        These can also be accessed as an attribute,
+        for example mysim.ovr or mysim.cool for a Sim object called mysim
+        """
+
         if simfile not in self.simfiles:
             raise FileNotFoundError("This simulation does not have a", simfile, "output file.")
 
@@ -1706,9 +2159,9 @@ class Sim:
 
 
     def add_parker(self, parker):
-        '''
+        """
         Adds a Parker profile object to the Sim, in case it wasn't added upon initialization.
-        '''
+        """
 
         assert isinstance(parker, Parker)
         self.par = parker
@@ -1717,11 +2170,11 @@ class Sim:
 
 
     def addv(self, alt, v, delete_negative=True):
-        '''
-        Adds velocity profile in cm/s on the Cloudy altitude grid. Will be added to the .ovr file,
-        but also available as the .v attribute for potential backwards compatability.
-        Called automatically when adding a Parker object to the sim.
-        '''
+        """
+        Adds a velocity profile in cm s-1 on the Cloudy grid. Will be added to the .ovr file,
+        but also available as the .v attribute for backwards compatability of sunbather.
+        Called automatically when adding a Parker object to the Sim.
+        """
 
         assert 'ovr' in self.simfiles, "Simulation must have a 'save overview .ovr file" 
         assert 'alt' in self.ovr.columns, "The .ovr file must have an altitude column (which in turn requires a known Rp and altmax)"

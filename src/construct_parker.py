@@ -20,11 +20,30 @@ import warnings
 
 
 def cloudy_spec_to_pwinds(SEDfilename, dist_SED, dist_planet):
-    '''
-        Reads a spectrum file in the format that we give it to Cloudy (angstroms and nuFnu units)
-        and converts it to a spectrum dictionary that p-winds uses.
-        This is basically an equivalent of the p_winds.parker.make_spectrum_from_file() function.
-    '''
+    """
+    Reads a spectrum file in the format that we give it to Cloudy, namely
+    angstroms and monochromatic flux (i.e., nu*F_nu or lambda*F_lambda) units.
+    and converts it to a spectrum dictionary that p-winds uses.
+    This is basically an equivalent of the p_winds.parker.make_spectrum_from_file() function.
+
+    Parameters
+    ----------
+    SEDfilename : str
+        Full path + filename of the SED file. SED file must be in the sunbather/Cloudy
+        standard units, namely wavelengths in Å and lambda*F_lambda flux units.
+    dist_SED : numeric
+        Distance from the source at which the SED is defined (typically 1 AU).
+        Must have the same units as dist_planet.
+    dist_planet : numeric
+        Distance from the source to which the SED must be scaled
+        (typically semi-major axis - total atmospheric height). Must have the
+        same units as dist_SED.
+
+    Returns
+    -------
+    spectrum : dict
+        SED at the planet distance in the dictionary format that p-winds expects.
+    """
 
     with open(SEDfilename, 'r') as f:
         for line in f:
@@ -53,6 +72,22 @@ def cloudy_spec_to_pwinds(SEDfilename, dist_SED, dist_planet):
 
 
 def calc_neutral_mu(zdict):
+    """Calculates the mean particle mass assuming a completely neutral (i.e., atomic)
+    gas, for a given composition (specified through elemental scale factors that
+    can be converted into abundances).
+
+    Parameters
+    ----------
+    zdict : dict
+        Dictionary with the scale factors of all elements relative
+        to the default solar composition. Can be easily created with tools.get_zdict().
+
+    Returns
+    -------
+    neutral_mu : float
+        Mean particle mass in units of amu.
+    """
+
     abundances = tools.get_abundances(zdict)
     neutral_mu = tools.calc_mu(1., 0., abundances=abundances) #set ne=0 so completely neutral
 
@@ -60,41 +95,47 @@ def calc_neutral_mu(zdict):
 
 
 def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9, 
-                              dir='fH=0.9', overwrite=False):
-    '''
-    Uses the p-winds code (dos Santos et al. 2022)
-    Runs p_winds and saves a 'pprof' txt file with the r, rho, v, mu structure.
-    Most of this code is taken from the tutorial found via the github:
+                              pdir='fH_0.9', overwrite=False):
+    """
+    Uses the p-winds code (dos Santos et al. 2022).
+    Runs p-winds and saves a 'pprof' txt file with the r, rho, v, mu structure.
+    This function uses p-winds standalone and can thus only calculate H/He atmospheres.
+    Most of this code is taken from the p-winds tutorial found via the github:
     https://colab.research.google.com/drive/1mTh6_YEgCRl6DAKqnmRp2XMOW8CTCvm7?usp=sharing
-
-    This function uses just p-winds and the ionization/mu structure calculated by it,
-    so it creates H/He atmospheric profiles, contrary to the save_cloudy_parker_profile() function below.
 
     Sometimes when the solver cannot find a solution, you may want to change
     initial_f_ion to 0.5 or 1.0.
 
-    arguments:
-        planet: [Planet]    tools.Planet object
-        Mdot: [str/float]   log10 of the mass-loss rate
-        T: [str/int]        temperature
-        spectrum: [dict]    dictionary with the spectrum, units, name.
-                            made with cloudy_spec_to_pwinds() function.
-        h_fraction: [float] fraction of hydrogen
-        dir: [str]          directory within parker_profiles/planetname/ to
-                            store the parker profile in. So e.g. make a
-                            directory called fH=0.9 or fH=0.99 and store
-                            the corresponding models there.
-    '''
+    Parameters
+    ----------
+    planet : tools.Planet
+        Planet parameters.
+    Mdot : str or numeric
+        log of the mass-loss rate in units of g s-1.
+    T : str or numeric
+        Temperature in units of K.
+    spectrum : dict
+        SED at the planet distance in the dictionary format that p-winds expects.
+        Can be made with cloudy_spec_to_pwinds().
+    h_fraction : float, optional
+        Hydrogen abundance expressed as a fraction of the total, by default 0.9
+    pdir : str, optional
+        Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/planetname/*pdir*/
+        where the isothermal parker wind density and velocity profiles are saved.
+        Different folders may exist there for a given planet, to separate for example profiles
+        with different assumptions such as stellar SED/semi-major axis/composition. By default 'fH_0.9'.
+    overwrite : bool, optional
+        Whether to overwrite existing models, by default False.
+    """
 
     Mdot = float(Mdot)
     T = int(T)
 
-    save_name = tools.projectpath+'/parker_profiles/'+planet.name+'/'+dir+'/pprof_'+planet.name+'_T='+str(T)+'_M='+ \
+    save_name = tools.projectpath+'/parker_profiles/'+planet.name+'/'+pdir+'/pprof_'+planet.name+'_T='+str(T)+'_M='+ \
                             "%.3f" %Mdot +".txt"
     if os.path.exists(save_name) and not overwrite:
-        print("Parker profile already exists and overwrite = False:", planet.name, dir, "%.3f" %Mdot, T)
+        print("Parker profile already exists and overwrite = False:", planet.name, pdir, "%.3f" %Mdot, T)
         return #this quits the function but if we're running a grid, it doesn't quit the whole Python code
-
 
     R_pl = planet.R / tools.RJ #convert from cm to Rjup
     M_pl = planet.M / tools.MJ #convert from g to Mjup
@@ -109,14 +150,12 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9,
     mu_0 = (1 + 4 * he_h_fraction) / (1 + he_h_fraction + mean_f_ion)
     # mu_0 is the constant mean molecular weight (assumed for now, will be updated later)
 
-
     initial_f_ion = 0.
     f_r, mu_bar = pw_hydrogen.ion_fraction(r, R_pl, T, h_fraction,
                                 m_dot, M_pl, mu_0,
                                 spectrum_at_planet=spectrum, exact_phi=True,
                                 initial_f_ion=initial_f_ion, relax_solution=True,
                                 return_mu=True, atol=1e-8, rtol=1e-5)
-
 
     vs = pw_parker.sound_speed(T, mu_bar)  # Speed of sound (km/s, assumed to be constant)
     rs = pw_parker.radius_sonic_point(M_pl, vs)  # Radius at the sonic point (jupiterRad)
@@ -131,32 +170,52 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9,
     print("Parker wind profile done:", save_name)
 
 
-def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, 
+def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
                              mu_bar=None, mu_struc=None):
-    '''
+    """
     Uses the p-winds code (dos Santos et al. 2022)
     Runs p_winds and saves a 'pprof' txt file with the r, rho, v, mu structure.
+    The difference with save_plain_parker_profile() is that this function can
+    be given a mu_bar value (e.g. from what Cloudy reports) and calculate a
+    Parker wind profile based on that.
     Most of this code is taken from the tutorial found via the github:
     https://colab.research.google.com/drive/1mTh6_YEgCRl6DAKqnmRp2XMOW8CTCvm7?usp=sharing
 
-    The difference with save_plain_parker_profile() is that this function can
-    be fed a mu_bar value (e.g. from what Cloudy reports) and construct a
-    profile based on that.
+    Parameters
+    ----------
+    planet : tools.Planet
+        Object storing the planet parameters.
+    Mdot : str or numeric
+        log of the mass-loss rate in units of g s-1.
+    T : str or numeric
+        Temperature in units of K.
+    spectrum : dict
+        SED at the planet distance in the dictionary format that p-winds expects.
+        Can be made with cloudy_spec_to_pwinds().
+    zdict : dict
+        Dictionary with the scale factors of all elements relative
+        to the default solar composition. Can be easily created with tools.get_zdict().
+    pdir : str
+        Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/planetname/*pdir*/
+        where the isothermal parker wind density and velocity profiles are saved.
+        Different folders may exist there for a given planet, to separate for example profiles
+        with different assumptions such as stellar SED/semi-major axis/composition.
+    mu_bar : float, optional
+        Weighted mean of the mean particle mass. Based on Eq. A.3 of Lampon et al. (2020).
+        If None, p-winds will calculate mu(r) and the associated mu_bar. By default None.
+    mu_struc : numpy.ndarray, optional
+        Mean particle mass profile, must be provided if mu_bar is None.
+        Typically, this is a mu(r)-profile as given by Cloudy. By default None.
 
-    arguments:
-        planet: [Planet]    tools.Planet object
-        Mdot: [str/float]   log10 of the mass-loss rate
-        T: [str/int]        temperature
-        spectrum: [dict]    dictionary with the spectrum, units, name.
-                            made with cloudy_spec_to_pwinds() function.
-        zdict: [dict]       scale factor dictionary with the scale factors
-                            for all elements. It only uses the H and He
-                            abundances to deduce the H/He ratio.
-        dir: [str]          directory within parker_profiles/planetname/ to
-                            store the parker profile in. So e.g. make a
-                            directory called fH=0.9 or fH=0.99 and store
-                            the corresponding models there.
-    '''
+    Returns
+    -------
+    save_name : str
+        Full path + filename of the saved Parker wind profile file.
+    mu_bar : float
+        Weighted mean of the mean particle mass. Based on Eq. A.3 of Lampon et al. (2020).
+        If the input mu_bar was None, this will return the value as calculated by p-winds.
+        If the input mu_bar was not None, this will return that same value.
+    """
 
     Mdot = float(Mdot)
     T = int(T)
@@ -168,7 +227,7 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir,
     r = np.logspace(0, np.log10(20), 1000)  # Radial distance profile in unit of planetary radii
 
 
-    if mu_bar == None: #if not given by a Cloudy run, let p-winds calculate it (used the first iteration)
+    if mu_bar is None: #if not given by a Cloudy run, let p-winds calculate it (used the first iteration)
         #pretend that the metals don't exist and just calculate the h_fraction with only H and He abundances
         abundances = tools.get_abundances(zdict) #solar abundances
         h_fraction = abundances['H'] / (abundances['H'] + abundances['He']) #approximate it by this for now, later Cloudy will give mu
@@ -203,7 +262,7 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir,
     v_array, rho_array = pw_parker.structure(r_array)
 
     save_array = np.column_stack((r*planet.R, rho_array*rhos, v_array*vs*1e5, mu_array))
-    save_name = tools.projectpath+'/parker_profiles/'+planet.name+'/'+dir+'/temp/pprof_'+planet.name+'_T='+str(T)+'_M='+"%.3f" %Mdot +".txt"
+    save_name = tools.projectpath+'/parker_profiles/'+planet.name+'/'+pdir+'/temp/pprof_'+planet.name+'_T='+str(T)+'_M='+"%.3f" %Mdot +".txt"
     zdictstr = "abundance scale factors relative to solar:"
     for sp in zdict.keys():
         zdictstr += " "+sp+"="+"%.1f" %zdict[sp]
@@ -213,9 +272,29 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir,
 
 
 def run_parker_with_cloudy(filename, T, planet, zdict):
-    '''
-    Runs a parker profile with Cloudy.
-    '''
+    """Runs an isothermal Parker wind profile through Cloudy, using the isothermal temperature profile.
+
+    Parameters
+    ----------
+    filename : str
+        Full path + filename of the isothermal Parker wind profile.
+        Typically $SUNBATHER_PROJECT_PATH/parker_profiles/*planetname*/*pdir*/*filename*
+    T : numeric
+        Isothermal temperature value.
+    planet : tools.Planet
+        Object storing the planet parameters.
+    zdict : dict
+        Dictionary with the scale factors of all elements relative
+        to the default solar composition. Can be easily created with tools.get_zdict().
+
+    Returns
+    -------
+    simname : str
+        Full path + name of the Cloudy simulation file without file extension.
+    pprof : pandas.DataFrame
+        Radial density, velocity and mean particle mass profiles of the isothermal Parker wind profile.
+    """
+
     pprof = tools.read_parker('', '', '', '', filename=filename)
 
     altmax = 20
@@ -237,10 +316,24 @@ def run_parker_with_cloudy(filename, T, planet, zdict):
 
 
 def calc_mu_bar(sim, temperature):
-    '''
-    Adapted from p_winds.parker.average_molecular_weight() to calculate mu_bar of
-    a Cloudy simulation Sim object. Based on Eq. A.3 of Lampon et al. 2020.
-    '''
+    """
+    Calculates the weighted mean of the radial mean particle mass profile,
+    according to Eq. A.3 of Lampon et al. (2020). Code adapted from 
+    p_winds.parker.average_molecular_weight().
+
+    Parameters
+    ----------
+    sim : tools.Sim
+        Cloudy simulation output object.
+    temperature : numeric
+        Isothermal temperature of the atmosphere in units of K.
+
+    Returns
+    -------
+    mu_bar : float
+        Weighted mean of the mean particle mass.
+    """
+
     # Converting units
     m_planet = sim.p.M / 1000. #planet mass in kg
     r = sim.ovr.alt.values[::-1] / 100.  # Radius profile in m
@@ -268,77 +361,87 @@ def calc_mu_bar(sim, temperature):
     return mu_bar
 
 
-def verbose_print(message, verbose=False):
-    '''
-    Print message only if verbose is True.
-    '''
-    if verbose:
-        print(message)
-
-
-def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, dir, 
+def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
                                convergence=0.01, maxit=7, cleantemp=False, 
                                overwrite=False, verbose=False, avoid_pwinds_mubar=False):
-    '''
-    Calculates a Parker wind profile with any composition by iteratively
-    running the p-winds code (dos Santos et al. 2022) and Cloudy (Ferland 1998; 2017).
-    p_winds calculates a profile, Cloudy gives the mean molecular weight structure,
-    we calculate a weighted mu_bar value based on that and feed that to p_winds
-    to generate a new profile until we converge. Saves a 'pprof' txt file with the r, rho, v, mu structure.
+    """
+    Calculates an isothermal Parker wind profile with any composition by iteratively
+    running the p-winds code (dos Santos et al. 2022) and Cloudy (Ferland et al. 1998; 2017, 
+    Chatziokos et al. 2023). This function works iteratively as follows:
+    p_winds calculates a density profile, Cloudy calculates the mean particle mass profile,
+    we calculate the associated mu_bar value, which is passed to p-winds to calculate a new
+    density profile, until mu_bar has converged to a stable value.
+    Saves a 'pprof' txt file with the r, rho, v, mu structure.
 
-    arguments:
-        planet: [Planet]    tools.Planet object
-        Mdot: [str/float]   log10 of the mass-loss rate
-        T: [int/float]      temperature
-        spectrum: [dict]    dictionary with the spectrum, units, name.
-                            made with cloudy_spec_to_pwinds() function.
-        zdict: [dict]       scale factor dictionary with the scale factors
-                            for all elements relative to solar abundance.
-        dir: [str]          directory within parker_profiles/planetname/ to
-                            store the parker profile in. So e.g. make a
-                            directory called z=10 or Fe=100 and store
-                            the corresponding models there.
-        convergence:[float] fractional difference in mu_bar between successive
-                            iterations needed for convergence.
-        maxit: [int]        maximum number of iterations (even if convergence
-                            threshold is not reached)
-        cleantemp: [bool]   whether to remove the temporary folder /temp/ after
-                            the calculations. The temp folder stores Cloudy
-                            files and intermediate parker profiles.
-    '''
+    Parameters
+    ----------
+    planet : tools.Planet
+        Object storing the planet parameters.
+    Mdot : str or numeric
+        log of the mass-loss rate in units of g s-1.
+    T : str or numeric
+        Temperature in units of K.
+    spectrum : dict
+        SED at the planet distance in the dictionary format that p-winds expects.
+        Can be made with cloudy_spec_to_pwinds().
+    zdict : dict
+        Dictionary with the scale factors of all elements relative
+        to the default solar composition. Can be easily created with tools.get_zdict().
+    pdir : str
+        Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/planetname/*pdir*/
+        where the isothermal parker wind density and velocity profiles are saved.
+        Different folders may exist there for a given planet, to separate for example profiles
+        with different assumptions such as stellar SED/semi-major axis/composition.
+    convergence : float, optional
+        Convergence threshold expressed as the relative change in mu_bar between iterations, by default 0.01
+    maxit : int, optional
+        Maximum number of iterations, by default 7
+    cleantemp : bool, optional
+        Whether to remove the temporary files in the /temp folder. These files store
+        the intermediate profiles during the iterative process to find mu_bar. By default False.
+    overwrite : bool, optional
+        Whether to overwrite existing models, by default False.
+    verbose : bool, optional
+        Whether to print diagnostics about the convergence of mu_bar, by default False
+    avoid_pwinds_mubar : bool, optional
+        Whether to avoid using p-winds to calculate mu_bar during the first iteration.
+        If True, we guess the mu_bar of the first iteration based on a completely neutral
+        atmosphere. This can be helpful in cases where p-winds solver cannot find a solution,
+        but Cloudy typically can. By default False.
+    """
 
-    save_name = tools.projectpath+'/parker_profiles/'+planet.name+'/'+dir+'/pprof_'+planet.name+'_T='+str(T)+'_M='+ \
+    save_name = tools.projectpath+'/parker_profiles/'+planet.name+'/'+pdir+'/pprof_'+planet.name+'_T='+str(T)+'_M='+ \
                             "%.3f" %Mdot +".txt"
     if os.path.exists(save_name) and not overwrite:
-        print("Parker profile already exists and overwrite = False:", planet.name, dir, "%.3f" %Mdot, T)
+        print("Parker profile already exists and overwrite = False:", planet.name, pdir, "%.3f" %Mdot, T)
         return #this quits the function but if we're running a grid, it doesn't quit the whole Python code
 
     if avoid_pwinds_mubar:
-        verbose_print("Making initial parker profile while assuming a completely neutral mu_bar...", verbose=verbose)
+        tools.verbose_print("Making initial parker profile while assuming a completely neutral mu_bar...", verbose=verbose)
         neutral_mu_bar = calc_neutral_mu(zdict)
         neutral_mu_struc = np.array([[1., neutral_mu_bar], [20., neutral_mu_bar]]) #set up an array with constant mu(r) at the neutral value
-        filename, previous_mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=neutral_mu_bar, mu_struc=neutral_mu_struc)
-        verbose_print(f"Saved temp parker profile with neutral mu_bar: {previous_mu_bar}" , verbose=verbose)
+        filename, previous_mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, mu_bar=neutral_mu_bar, mu_struc=neutral_mu_struc)
+        tools.verbose_print(f"Saved temp parker profile with neutral mu_bar: {previous_mu_bar}" , verbose=verbose)
     else:
-        verbose_print("Making initial parker profile with p-winds...", verbose=verbose)
-        filename, previous_mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=None)
-        verbose_print(f"Saved temp parker profile with p-winds's mu_bar: {previous_mu_bar}" , verbose=verbose)
+        tools.verbose_print("Making initial parker profile with p-winds...", verbose=verbose)
+        filename, previous_mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, mu_bar=None)
+        tools.verbose_print(f"Saved temp parker profile with p-winds's mu_bar: {previous_mu_bar}" , verbose=verbose)
 
     for itno in range(maxit):
-        verbose_print(f"Iteration number: {itno+1}", verbose=verbose)
+        tools.verbose_print(f"Iteration number: {itno+1}", verbose=verbose)
         
-        verbose_print("Running parker profile through Cloudy...", verbose=verbose)
+        tools.verbose_print("Running parker profile through Cloudy...", verbose=verbose)
         simname, pprof = run_parker_with_cloudy(filename, T, planet, zdict)
-        verbose_print("Cloudy run done.", verbose=verbose)
+        tools.verbose_print("Cloudy run done.", verbose=verbose)
 
         sim = tools.Sim(simname, altmax=20, planet=planet)
         sim.addv(pprof.alt, pprof.v) #add the velocity structure to the sim, so that calc_mu_bar() works.
 
         mu_bar = calc_mu_bar(sim, T)
-        verbose_print(f"Making new parker profile with p-winds based on Cloudy's reported mu_bar: {mu_bar}", verbose=verbose)
+        tools.verbose_print(f"Making new parker profile with p-winds based on Cloudy's reported mu_bar: {mu_bar}", verbose=verbose)
         mu_struc = np.column_stack((sim.ovr.alt.values[::-1]/planet.R, sim.ovr.mu[::-1].values)) #pass Cloudy's mu structure to save in the pprof
-        filename, mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, dir, mu_bar=mu_bar, mu_struc=mu_struc)
-        verbose_print("Saved temp parker profile.", verbose=verbose)
+        filename, mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, mu_bar=mu_bar, mu_struc=mu_struc)
+        tools.verbose_print("Saved temp parker profile.", verbose=verbose)
 
         if np.abs(mu_bar - previous_mu_bar)/previous_mu_bar < convergence:
             print("mu_bar converged:", save_name)
@@ -347,25 +450,74 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, dir,
             previous_mu_bar = mu_bar
 
     copyfile(filename, filename.split('temp/')[0] + filename.split('temp/')[1])
-    verbose_print("Copied final parker profile from temp to parent folder.", verbose=verbose)
+    tools.verbose_print("Copied final parker profile from temp to parent folder.", verbose=verbose)
 
     if cleantemp: #then we remove the temp files
         os.remove(simname+'.in')
         os.remove(simname+'.out')
         os.remove(simname+'.ovr')
         os.remove(filename)
-        verbose_print("Temporary files removed.", verbose=verbose)
+        tools.verbose_print("Temporary files removed.", verbose=verbose)
 
 
 def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, 
           mu_maxit, overwrite, verbose, avoid_pwinds_mubar):
+    """
+    Calculates a single isothermal Parker wind profile.
+
+    Parameters
+    ----------
+    plname : str
+        Planet name (must have parameters stored in $SUNBATHER_PROJECT_PATH/planets.txt).
+    pdir : str
+        Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/*plname*/*pdir*/
+        where the isothermal parker wind density and velocity profiles are saved.
+        Different folders may exist there for a given planet, to separate for example profiles
+        with different assumptions such as stellar SED/semi-major axis/composition.
+    Mdot : str or numeric
+        log of the mass-loss rate in units of g s-1.
+    T : str or numeric
+        Temperature in units of K.
+    SEDname : str
+        Name of SED file to use. If SEDname is 'real', we use the name as
+        given in the planets.txt file, but if SEDname is something else,
+        we advice to use a separate pdir folder for this.
+    fH : float or None
+        Hydrogen abundance expressed as a fraction of the total. If a value is given,
+        Parker wind profiles will be calculated using p-winds standalone with a H/He
+        composition. If None is given, Parker wind profiles will be calculated using the
+        p-winds/Cloudy iterative method and the composition is specified via the zdict argument.
+    zdict : dict
+        Dictionary with the scale factors of all elements relative
+        to the default solar composition. Can be easily created with tools.get_zdict().
+        Will only be used if fH is None, in which case the p-winds/Cloudy iterative method
+        is applied.
+    mu_conv : float
+        Convergence threshold expressed as the relative change in mu_bar between iterations.
+        Will only be used if fH is None, in which case the p-winds/Cloudy iterative method
+        is applied.
+    mu_maxit : int
+        Maximum number of iterations for the p-winds/Cloudy iterative method. Will only
+        be used if fH is None.
+    overwrite : bool
+        Whether to overwrite existing models.
+    verbose : bool
+        Whether to print diagnostics about the convergence of mu_bar.
+    avoid_pwinds_mubar : bool
+        Whether to avoid using p-winds to calculate mu_bar during the first iteration,
+        when using the p-winds/Cloudy iterative method. Will only be used if fH is None.
+        If True, we guess the mu_bar of the first iteration based on a completely neutral
+        atmosphere. This can be helpful in cases where p-winds solver cannot find a solution,
+        but Cloudy typically can.
+    """
+
     p = tools.Planet(plname)
     if SEDname != 'real':
         p.set_var(SEDname=SEDname)
     spectrum = cloudy_spec_to_pwinds(tools.cloudypath+'/data/SED/'+p.SEDname, 1., (p.a - 20*p.R)/tools.AU) #assumes SED is at 1 AU
 
     if fH != None: #then run p_winds standalone
-        save_plain_parker_profile(p, Mdot, T, spectrum, h_fraction=fH, dir=pdir, overwrite=overwrite)
+        save_plain_parker_profile(p, Mdot, T, spectrum, h_fraction=fH, pdir=pdir, overwrite=overwrite)
     else: #then run p_winds/Cloudy iterative scheme
         save_cloudy_parker_profile(p, Mdot, T, spectrum, zdict, pdir, 
                                    convergence=mu_conv, maxit=mu_maxit, cleantemp=True, 
@@ -373,6 +525,10 @@ def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv,
 
 
 def catch_errors_run_s(*args):
+    """
+    Executes the run_s() function with provided arguments, while catching errors more gracefully.
+    """
+
     try:
         run_s(*args)
     except Exception as e:
@@ -382,10 +538,64 @@ def catch_errors_run_s(*args):
 def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, 
           T_l, T_u, T_s, SEDname, fH, zdict, mu_conv, 
           mu_maxit, overwrite, verbose, avoid_pwinds_mubar):
-    '''
-    Runs the function run_s in parallel for a given grid of Mdots and T, and
-    for given number of cores (=parallel processes).
-    '''
+    """
+    Calculates a grid of isothermal Parker wind models, by executing the run_s() function in parallel.
+
+    Parameters
+    ----------
+    plname : str
+        Planet name (must have parameters stored in $SUNBATHER_PROJECT_PATH/planets.txt).
+    pdir : str
+        Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/*plname*/*pdir*/
+        where the isothermal parker wind density and velocity profiles are saved.
+        Different folders may exist there for a given planet, to separate for example profiles
+        with different assumptions such as stellar SED/semi-major axis/composition.
+    cores : int
+        Number of parallel processes to spawn (i.e., number of CPU cores).
+    Mdot_l : str or numeric
+        Lower bound on the log10(mass-loss rate) grid in units of g s-1.
+    Mdot_u : str or numeric
+        Upper bound on the log10(mass-loss rate) grid in units of g s-1.
+    Mdot_s : str or numeric
+        Step size of the log10(mass-loss rate) grid in units of g s-1.
+    T_l : str or numeric
+        Lower bound on the temperature grid in units of K.
+    T_u : str or numeric
+        Upper bound on the temperature grid in units of K.
+    T_s : str or numeric
+        Step size of the temperature grid in units of K.
+    SEDname : str
+        Name of SED file to use. If SEDname is 'real', we use the name as
+        given in the planets.txt file, but if SEDname is something else,
+        we advice to use a separate pdir folder for this.
+    fH : float or None
+        Hydrogen abundance expressed as a fraction of the total. If a value is given,
+        Parker wind profiles will be calculated using p-winds standalone with a H/He
+        composition. If None is given, Parker wind profiles will be calculated using the
+        p-winds/Cloudy iterative method and the composition is specified via the zdict argument.
+    zdict : dict
+        Dictionary with the scale factors of all elements relative
+        to the default solar composition. Can be easily created with tools.get_zdict().
+        Will only be used if fH is None, in which case the p-winds/Cloudy iterative method
+        is applied.
+    mu_conv : float
+        Convergence threshold expressed as the relative change in mu_bar between iterations.
+        Will only be used if fH is None, in which case the p-winds/Cloudy iterative method
+        is applied.
+    mu_maxit : int
+        Maximum number of iterations for the p-winds/Cloudy iterative method. Will only
+        be used if fH is None.
+    overwrite : bool
+        Whether to overwrite existing models.
+    verbose : bool
+        Whether to print diagnostics about the convergence of mu_bar.
+    avoid_pwinds_mubar : bool
+        Whether to avoid using p-winds to calculate mu_bar during the first iteration,
+        when using the p-winds/Cloudy iterative method. Will only be used if fH is None.
+        If True, we guess the mu_bar of the first iteration based on a completely neutral
+        atmosphere. This can be helpful in cases where p-winds solver cannot find a solution,
+        but Cloudy typically can.
+    """
 
     p = multiprocessing.Pool(cores)
 
@@ -404,18 +614,18 @@ def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s,
 if __name__ == '__main__':
 
     class OneOrThreeAction(argparse.Action):
-        '''
+        """
         Custom class for an argparse argument with exactly 1 or 3 values.
-        '''
+        """
         def __call__(self, parser, namespace, values, option_string=None):
             if len(values) not in (1, 3):
                 parser.error("Exactly one or three values are required.")
             setattr(namespace, self.dest, values)
 
     class AddDictAction(argparse.Action):
-        '''
-        Custom class for an argparse argument that adds to a dictionary.
-        '''
+        """
+        Custom class to add an argparse argument to a dictionary.
+        """
         def __call__(self, parser, namespace, values, option_string=None):
             if not hasattr(namespace, self.dest) or getattr(namespace, self.dest) is None:
                 setattr(namespace, self.dest, {})

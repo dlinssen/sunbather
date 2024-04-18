@@ -38,7 +38,7 @@ def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):
 
     Returns
     -------
-    list
+    clconv : list
         [T0, Mdot] of the closest found finished model, or [None, None] if none were found within the tolerance.
     """
 
@@ -73,11 +73,11 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
     Parameters
     ----------
     plname : str
-        Planet name (must have parameters stored in $SUNBATHER_PROJECT_PATH/planets.txt)
+        Planet name (must have parameters stored in $SUNBATHER_PROJECT_PATH/planets.txt).
     Mdot : str or numeric
-        log of the mass-loss rate in units of g s-1
+        log of the mass-loss rate in units of g s-1.
     T : str or int
-        Temperature in units of g s-1
+        Temperature in units of g s-1.
     itno : int
         Iteration number to start from (can only be different from 1
         if this same model has been ran before, and then also
@@ -110,7 +110,8 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
         with different assumptions such as stellar SED/semi-major axis/composition.
     zdict : dict, optional
         Dictionary with the scale factors of all elements relative
-        to the default solar composition. Default is None, which results in a solar composition.
+        to the default solar composition. Can be easily created with tools.get_zdict().
+        Default is None, which results in a solar composition.
     altmax : int, optional
         Maximum altitude of the simulation in units of planet radius, by default 8
     save_sp : list, optional
@@ -259,7 +260,7 @@ def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname
         where the temperature profile will be solved. A folder named
         parker_*T*_*Mdot*/ will be made there.
     SEDname : str
-        Name of SED file to use. If SEDname='real', we use the name as
+        Name of SED file to use. If SEDname is 'real', we use the name as
         given in the planets.txt file, but if SEDname is something else,
         we advice to use a separate dir folder for this.
     overwrite : bool
@@ -279,7 +280,8 @@ def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname
         with different assumptions such as stellar SED/semi-major axis/composition.
     zdict : dict, optional
         Dictionary with the scale factors of all elements relative
-        to the default solar composition. Default is None, which results in a solar composition.
+        to the default solar composition. Can be easily created with tools.get_zdict().
+        Default is None, which results in a solar composition.
     altmax : int, optional
         Maximum altitude of the simulation in units of planet radius, by default 8
     save_sp : list, optional
