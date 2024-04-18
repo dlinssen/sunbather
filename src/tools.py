@@ -165,7 +165,7 @@ def get_mass(species):
 
 def process_continuum(filename, nonzero=False):
     """
-    Rreads a .con file from the 'save continuum units Hz' command.
+    Rreads a .con file from the 'save continuum units angstrom' command.
     It renames the columns and adds a wavelength column. 
     The flux units of the continuum are as follows:
     Take the SED in spectral flux density, so F(nu) instead of nu*F(nu), and
@@ -187,9 +187,7 @@ def process_continuum(filename, nonzero=False):
     """
 
     con_df = pd.read_table(filename)
-    con_df.rename(columns={'#Cont  nu':'nu', 'net trans':'nettrans'}, inplace=True)
-    wav = c * 1e8 / con_df.nu #wav in AA
-    con_df.insert(1, "wav", wav)
+    con_df.rename(columns={'#Cont  nu':'wav', 'net trans':'nettrans'}, inplace=True)
     if nonzero:
         con_df = con_df[con_df.incident != 0]
 
@@ -1340,7 +1338,7 @@ def copyadd_Cloudy_in(oldsimname, newsimname, set_thickness=False,
         if ".heat" in outfiles:
             f.write('\nsave heating ".heat" last')
         if ".con" in outfiles:
-            f.write('\nsave continuum ".con" last units Hz')
+            f.write('\nsave continuum ".con" last units angstrom')
         if ".den" in outfiles: #then ".en" is always there as well due to the assertion above
             if denspecies != []:
                 f.write('\nsave species densities last ".den"\n'+speciesstring(denspecies, selected_levels=selected_den_levels, cloudy_version=cloudy_version)+"\nend")
@@ -1541,7 +1539,7 @@ def write_Cloudy_in(simname, title=None, flux_scaling=None,
         if ".heat" in outfiles:
             f.write('\nsave heating ".heat" last')
         if ".con" in outfiles:
-            f.write('\nsave continuum ".con" last units Hz')
+            f.write('\nsave continuum ".con" last units angstrom')
         if ".den" in outfiles: #then ".en" is always there as well.
             f.write('\nsave species densities last ".den"\n'+speciesstring(denspecies, selected_levels=selected_den_levels, cloudy_version=cloudy_version)+"\nend")
             f.write('\nsave species energies last ".en"\n'+speciesstring(denspecies, selected_levels=selected_den_levels, cloudy_version=cloudy_version)+"\nend")
