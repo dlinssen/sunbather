@@ -545,13 +545,17 @@ def check_converged(fc, HCratio, newTe, prevTe, linthresh=50.):
     Checks whether the temperature profile is converged. At every radial cell,
     it checks for three conditions, one of which must be satisfied:
     1. The H/C ratio is less than fc (this is the "main" criterion).
-    2. The newly proposed temperature profile is "less than half fc" different
-    from the last iteration. In principle, we would expect that if this were
-    the case, the profile would also be converged to H/C < fc, but smoothing
-    of the temperature profile can prevent this. For example, we can get stuck
-    in a loop where H/C > fc, we propose a new temperature profile that is 
+    2. The newly proposed temperature profile is within the temperature difference
+    that a H/C equal to fc would induce. In principle, we would expect that if
+    this were the case, H/C itself would be < fc, but smoothing of the
+    temperature profile can cause different behavior. For example, we can get stuck
+    in a loop where H/C > fc, we then propose a new temperature profile that is 
     significantly different, but then after the smoothing step we end up with
-    the profile that we had before. This criterion checks for this behavior.
+    the profile that we had before. To break out of such a loop that never converges,
+    we check if the temperature changes are less than we would expect for an
+    "fc-converged" profile, even if H/C itself is still >fc. In practice, this
+    means that the temperature profile changes less than 0.3 * log10(1.1),
+    which is ~1%, so up to 100 K for a typical profile.
     3. The newly proposed temperature profile is less than `linthresh` different
     from the last iteration. This can be assumed to be precise enough convergence.
 
@@ -579,7 +583,7 @@ def check_converged(fc, HCratio, newTe, prevTe, linthresh=50.):
     ratioTe = np.maximum(newTe, prevTe) / np.minimum(newTe, prevTe) #take element wise ratio
     diffTe = np.abs(newTe - prevTe) #take element-wise absolute difference
     
-    if np.all((np.abs(HCratio) < fc) | (ratioTe < (1 + 0.5 * np.log10(fc))) | (diffTe < linthresh)):
+    if np.all((np.abs(HCratio) < fc) | (ratioTe < (1 + 0.3 * np.log10(fc))) | (diffTe < linthresh)):
         converged = True
     else:
         converged = False
