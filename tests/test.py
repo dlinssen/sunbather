@@ -12,6 +12,7 @@ import RT
 import pandas as pd
 import numpy as np
 from scipy.interpolate import interp1d
+import shutil
 
 
 
@@ -26,6 +27,24 @@ assert os.path.isdir(tools.projectpath), "Please create the projectpath folder o
 assert os.path.isfile(tools.projectpath+'/planets.txt'), "Please make sure the 'planets.txt' file is present in $SUNBATHER_PROJECT_PATH"
 #make sure the SED we need for this test has been copied to Cloudy
 assert os.path.isfile(tools.cloudypath+'/data/SED/eps_Eri_binned.spec'), "Please copy /sunbather/stellar_SEDs/eps_Eri_binned.spec into $CLOUDY_PATH/data/SED/"
+
+
+
+### CHECK IF test.py HAS BEEN RAN BEFORE ###
+
+parker_profile_path = tools.projectpath+"/parker_profiles/WASP52b/test/"
+simulation_path = tools.projectpath+"/sims/1D/WASP52b/test/"
+
+if os.path.exists(parker_profile_path) or os.path.exists(simulation_path):
+      confirmation = input(f"It looks like test.py has been ran before, as {parker_profile_path} and/or {simulation_path} already exist. Do you want to delete the previous output before continuing (recommended)? (y/n): ")
+      if confirmation.lower() == "y":
+            if os.path.exists(parker_profile_path):
+                  shutil.rmtree(parker_profile_path)
+            if os.path.exists(simulation_path):
+                  shutil.rmtree(simulation_path)
+            print("\nFolder(s) deleted successfully.")
+      else:
+            print("\nDeletion cancelled.")
 
 
 
