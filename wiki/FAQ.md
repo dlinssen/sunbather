@@ -12,7 +12,7 @@ The composition usually has to be specified at two stages:
 
 ## How do I calculate the transmission spectrum?
 
-Create the Parker wind profile with `construct_parker.py` and simulate it with _Cloudy_ with `convergeT_parker.py` while making sure you specify for which species you want to save output with the `-save_sp` argument (if unsure, just pass `-save_sp all`). Then, load the _Cloudy_ output in your Python script with the `tools.Sim` class (see FAQ below), and use the `RT.FinFout_1D()` function to make the transit spectrum. At minimum, `RT.FinFout_1D()` expects the `Sim` object, a wavelength array, and a list of species for which to calculate the spectrum. See the _sunbather/examples/fit_helium.ipynb_ notebook for an example.
+Create the Parker wind profile with `construct_parker.py` and simulate it with _Cloudy_ with `convergeT_parker.py` while making sure you specify for which species you want to save output with the `-save_sp` argument (if unsure, just pass `-save_sp all`). Then, load the _Cloudy_ output in your Python script with the `tools.Sim` class (see FAQ below), and use the `RT.FinFout()` function to make the transit spectrum. At minimum, `RT.FinFout()` expects the `Sim` object, a wavelength array, and a list of species for which to calculate the spectrum. See the _sunbather/examples/fit_helium.ipynb_ notebook for an example.
 
 ## How do I simulate one planet with different stellar SEDs?
 
@@ -87,4 +87,4 @@ The `construct_parker.py` module always creates a profile up until 20 $R_p$ and 
 
 The `convergeT_parker.py` module by default simulates the atmosphere with *Cloudy* up until 8 $R_p$ and this can be changed with the `-altmax` argument. 
 
-The `RT.FinFout_1D()` function by default makes a transit spectrum based on the full *Cloudy* simulation (so up until 8 $R_p$), but you can give an upper boundary in cm with the `cut_at` argument. For example, if you want to include only material up until the planet's Roche radius when making the transit spectrum, it generally doesn't hurt to leave `construct_parker.py` and `convergeT_parker.py` at the default values, and just pass `cut_at=mysimulation.p.Rroche` to `RT.FinFout_1D()` (assuming `mysimulation` is the `tools.Sim` object of your *Cloudy* simulation).
+The `RT.FinFout()` function by default makes a transit spectrum based on the full *Cloudy* simulation (so up until 8 $R_p$), but you can give an upper boundary in cm with the `cut_at` argument. For example, if you want to include only material up until the planet's Roche radius when making the transit spectrum, it generally doesn't hurt to leave `construct_parker.py` and `convergeT_parker.py` at the default values, and just pass `cut_at=mysimulation.p.Rroche` to `RT.FinFout()` (assuming `mysimulation` is the `tools.Sim` object of your *Cloudy* simulation).

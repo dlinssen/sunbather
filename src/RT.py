@@ -183,7 +183,7 @@ def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
     Does this at once for all rays, lines and frequencies. When doing
     multiple lines at once, they must all be from the same species and
     same level so that m and ndens are the same for the different lines.
-    So you can do e.g. helium triplet or Ly-series at once. The FinFout_1D()
+    So you can do e.g. helium triplet or Ly-series at once. The FinFout()
     function does currently not make use of that (i.e. the helium triplet is
     calculated with three calls to this function).
 
@@ -408,7 +408,7 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
     return spNIST
 
 
-def FinFout_1D(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), phase=0., phase_bulkshift=False, turbulence=False, cut_at=None):
+def FinFout(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), phase=0., phase_bulkshift=False, turbulence=False, cut_at=None):
     """
     Calculates a transit spectrum in units of in-transit flux / out-of-transit flux (i.e., Fin/Fout).
     Only spectral lines originating from provided species will be calculated.
@@ -752,7 +752,7 @@ def FinFout2RpRs(FinFout):
     Parameters
     ----------
     FinFout : array-like
-        In-transit / out-transit flux values, for example as returned by FinFout_1D().
+        In-transit / out-transit flux values, for example as returned by FinFout().
 
     Returns
     -------

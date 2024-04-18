@@ -92,13 +92,13 @@ print("\nChecking RT.py...\n")
 
 #make a helium spectrum
 wavs = np.linspace(10830, 10836, num=300)
-FinFout_created, found_lines, notfound_lines = RT.FinFout_1D(sim_created, wavs, 'He')
+FinFout_created, found_lines, notfound_lines = RT.FinFout(sim_created, wavs, 'He')
 #load the expected helium spectrum
 FinFout_expected = np.genfromtxt('materials/FinFout_helium.txt')[:,1]
 assert np.isclose(FinFout_created, FinFout_expected, rtol=0.05).all(), "The created helium spectrum is not as expected"
 #make a magnesium+ spectrum
 wavs = np.linspace(2795.5, 2797, num=300)
-FinFout_created, found_lines, notfound_lines = RT.FinFout_1D(sim_created, wavs, 'Mg+')
+FinFout_created, found_lines, notfound_lines = RT.FinFout(sim_created, wavs, 'Mg+')
 #load the expected magnesium+ spectrum
 FinFout_expected = np.genfromtxt('materials/FinFout_magnesium+.txt')[:,1]
 assert np.isclose(FinFout_created, FinFout_expected, rtol=0.05).all(), "The created magnesium+ spectrum is not as expected"
