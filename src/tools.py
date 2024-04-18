@@ -1484,13 +1484,13 @@ def write_Cloudy_in(simname, title=None, flux_scaling=None,
 
     assert flux_scaling is not None #we need this to proceed. Give in format [F,E] like nuF(nu) = F at E Ryd
     assert SED != None
-    if denspecies is not []:
+    if denspecies != []:
         assert ".den" in outfiles and ".en" in outfiles
     if ".den" in outfiles or ".en" in outfiles:
         assert ".den" in outfiles and ".en" in outfiles and denspecies != []
     if not overwrite:
         assert not os.path.isfile(simname+".in")
-    if constantT is not None:
+    if constantT != None:
         assert not np.any(tlaw != None)
 
     with open(simname+".in", "w") as f:
