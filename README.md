@@ -7,4 +7,4 @@ The main use of the code is to construct 1D Parker wind profiles (Parker 1958) u
 If you make use of _sunbather_, please cite Linssen et al. (2024).
 
 ## Installation
-Installation instructions can be found in the wiki.
+Installation instructions can be found in the [wiki](https://github.com/dlinssen/sunbather/wiki).
