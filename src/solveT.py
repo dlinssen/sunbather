@@ -251,11 +251,11 @@ def calc_cloc(radheat, radcool, expcool, advheat, advcool, HCratio):
     bothrad_dominate = ((radheat > advheat) & (radcool > advcool) & (radcool > expcool)) #boolean array where radiative heating dominates AND radiative cooling dominates
     highest_r_above_which_no_bothrad_dominate = last_true_index(bothrad_dominate)
     advheat_dominates[:highest_r_above_which_no_bothrad_dominate] = False #now the boolean array stores where advection heating dominates AND where there is no point at higher altitudes that is rad. heat and rad. cool dominated
-    if True in advheat_dominates: #if there is no such point, adcloc is None as stated above
+    if True in advheat_dominates: #if there is no such point, adv_cloc stays default value
         advdomloc = first_true_index(advheat_dominates) #get lowest altitude location where advection dominates
         advheat_unimportant = (advheat < 0.25 * radheat) #boolean array where advection heating is relatively unimportant
-        advunimploc = last_true_index(advheat_unimportant[:advdomloc]) #first point at lower altitude where advection becomes unimportant (if no point exists, will return just advdomloc)
-        #then walk to higher altitude again to find converged point. We are more lax with "converged" point if advection dominates more.
+        advunimploc = last_true_index(advheat_unimportant[:advdomloc]) #first point at lower altitude where advection becomes unimportant (if no point exists, it will become advdomloc)
+        #then walk to higher altitude again to find converged point. We are more lax with H/C ratio if advection dominates more.
         almost_converged = (np.abs(HCratio[advunimploc:]) < 1.3 * np.clip((advheat[advunimploc:] / radheat[advunimploc:])**(2./3.), 1, 10))
         if True in almost_converged: #otherwise it stays default value
             adv_cloc = advunimploc + first_true_index(almost_converged)
@@ -264,7 +264,7 @@ def calc_cloc(radheat, radcool, expcool, advheat, advcool, HCratio):
     exp_cloc = len(HCratio) #start by setting a 'too high' value
     expcool_dominates = (expcool / radcool > 8.) #no check on convergence - could be dangerous in some cases
     if True and False in expcool_dominates:
-        exp_cloc = last_false_index(expcool_dominates) #this guarantees that all entries after this one are True
+        exp_cloc = last_false_index(expcool_dominates) #this way of evaluating it guarantees that all entries after this one are True
     elif False not in expcool_dominates: #if they are all True
         exp_cloc = 0
 
@@ -304,20 +304,19 @@ def relaxTstruc(grid, path, itno, Te, HCratio):
     iterations_file = pd.read_csv(path+'iterations.txt', header=0, sep=' ')
     fac = iterations_file['fac'+str(itno-1)].values
 
-    newTe_relax = get_new_Tstruc(Te, HCratio, fac)
-    smoothsize = int(len(grid)/(20*itno))
-    newTe_relax = tools.smooth_gaus_savgol(newTe_relax, size=smoothsize)
+    newTe_relax = get_new_Tstruc(Te, HCratio, fac) #adjust the temperature profile
+    newTe_relax = tools.smooth_gaus_savgol(newTe_relax, fraction = 1./(20*itno)) #smooth it
     newTe_relax = np.clip(newTe_relax, 1e1, 1e6) #smoothing may have pushed newTe_relax < 10K again.
 
     if itno >= 4: #check for fluctuations. If so, we decrease the deltaT factor
         prev_prevTe = iterations_file['Te'+str(itno-2)]
         previous_ratio = Te / prev_prevTe #compare itno-2 to itno-1
         this_ratio = newTe_relax / Te #compare itno-1 to the current itno (because of smoothing this ratio is not exactly the same as fT)
-        fl = (((previous_ratio < 1) & (this_ratio > 1)) | ((previous_ratio > 1) & (this_ratio < 1)))
+        fl = (((previous_ratio < 1) & (this_ratio > 1)) | ((previous_ratio > 1) & (this_ratio < 1))) #boolean indicating where temperature fluctuates
         fac[fl] = 2/3 * fac[fl] #take smaller changes in T in regions where the temperature fluctuates
-        fac = np.clip(tools.smooth_gaus_savgol(fac, size=10), 0.02, 0.3)
+        fac = np.clip(tools.smooth_gaus_savgol(fac, size=10), 0.02, 0.3) #smooth the factor itself as well
         newTe_relax = get_new_Tstruc(Te, HCratio, fac) #recalculate new temperature profile with updated fac
-        newTe_relax = tools.smooth_gaus_savgol(newTe_relax, size=smoothsize)
+        newTe_relax = tools.smooth_gaus_savgol(newTe_relax, fraction = 1/(20*itno)) #smooth it
         newTe_relax = np.clip(newTe_relax, 1e1, 1e6)
 
     iterations_file['fac'+str(itno)] = fac
@@ -358,15 +357,18 @@ def constructTstruc(grid, newTe_relax, cloc, v, rho, mu, radheat, radcool):
 
     newTe_construct = np.copy(newTe_relax) #start with the temp struc from the relaxation function
 
-    expansion_Tdivmu = tools.k/tools.mH * v * np.gradient(rho, grid) #this is expansion except for the T/mu term (negative values)
+    expansion_Tdivmu = tools.k/tools.mH * v * np.gradient(rho, grid) #this is expansion except for the T/mu term (still negative values)
     advection_gradTdivmu = -1 * tools.k/(tools.mH * 2/3) * rho * v #this is advection except for the d(T/mu)/dr term
 
     def one_cell_HCratio(T, index):
         expcool = expansion_Tdivmu[index] * T / mu[index]
         adv = advection_gradTdivmu[index] * ((T/mu[index]) - (newTe_construct[index-1]/mu[index-1]))/(grid[index] - grid[index-1])
 
-        guess_radheat = radheat[index] * (newTe_construct[index] / T) #so that if T > currentT, radheat becomes lower. Trying some random (linear) functional form
-        guess_radcool = radcool[index] * (T / newTe_construct[index]) #vice versa
+        #instead of completely keeping the radiative heating and cooling rate the same while we are solving for T in this bin,
+        #we adjust it a little bit. We just guess a linear dependence of the rates on T. This is not the true dependence,
+        #but it does reduce to the original rate when T -> original T, which is important.
+        guess_radheat = radheat[index] * (newTe_construct[index] / T)
+        guess_radcool = radcool[index] * (T / newTe_construct[index])
 
         totheat = guess_radheat + max(adv, 0) #if adv is negative we don't add it here
         totcool = guess_radcool - expcool - min(adv, 0) #if adv is positive we don't add it here, we subtract expcool and adv because they are negative
@@ -382,9 +384,10 @@ def constructTstruc(grid, newTe_relax, cloc, v, rho, mu, radheat, radcool):
 
 
     #smooth around the abrupt edge where the constructed part sets in
-    smooth_newTe_construct = tools.smooth_gaus_savgol(newTe_construct, fraction=0.03)
+    smooth_newTe_construct = tools.smooth_gaus_savgol(newTe_construct, fraction=0.03) #first smooth the complete T(r) profile
     smooth_newTe_construct = np.clip(smooth_newTe_construct, 1e1, 1e6) #after smoothing we might have ended up below 10K
-    smooth_weight = np.zeros(len(grid)) #now combine the smoothed profile around 'cloc', and the non-smoothed version away from 'cloc'
+    #now combine the smoothed profile around 'cloc', and the non-smoothed version away from 'cloc'
+    smooth_weight = np.zeros(len(grid))
     smooth_weight += sps.norm.pdf(range(len(grid)), cloc, int(len(grid)/30))
     smooth_weight /= np.max(smooth_weight) #normalize
     raw_weight = 1 - smooth_weight
@@ -451,7 +454,7 @@ def make_rates_plot(altgrid, Te, newTe_relax, radheat, radcool, expcool, advheat
     ax1.set_ylabel('Temperature [K]')
     ax1.legend(loc='best', fontsize=8)
 
-    ax2.plot(altgrid, radheat/rho, color='red', linewidth=2.) #so we see it underneath radcool if they are equal
+    ax2.plot(altgrid, radheat/rho, color='red', linewidth=2.)
     ax2.plot(altgrid, radcool/rho, color='blue')
     ax2.plot(altgrid, expcool/rho, color='blue', linestyle='dashed')
     ax2.plot(altgrid, advheat/rho, color='red', linestyle='dotted')
@@ -649,33 +652,34 @@ def run_loop(path, itno, fc, save_sp=[], maxit=16):
 
     #now, we have ran our iteration1 and can start the iterative scheme to find a new profile:
     while itno <= maxit:
-        prev_sim = tools.Sim(path+f'iteration{itno-1}')
-        altmax = prev_sim.altmax #maximum radius of the simulation in units of Rp
+        prev_sim = tools.Sim(path+f'iteration{itno-1}') #load Cloudy results from previous iteration
         Rp = prev_sim.p.R #planet radius in cm
+        altmax = prev_sim.altmax #maximum radius of the simulation in units of Rp
 
-        #make logspaced grid to use throughout the code, interpolate all useful quantities to this grid.
+        #make logspaced grid to use throughout the code, interpolate all quantities onto this grid.
         rgrid = np.logspace(np.log10(Rp), np.log10(altmax*Rp), num=1000)
 
         Te, mu, rho, v, radheat, radcool, expcool, advheat, advcool = simtogrid(prev_sim, rgrid) #get all needed Cloudy quantities on the grid
-        HCratio = calc_HCratio(radheat, radcool, expcool, advheat, advcool)
+        HCratio = calc_HCratio(radheat, radcool, expcool, advheat, advcool) #H/C or C/H ratio, depending on which is larger
 
         #now the procedure starts - we first produce a new temperature profile
-        newTe_relax = relaxTstruc(rgrid, path, itno, Te, HCratio)
-        cloc = calc_cloc(radheat, radcool, expcool, advheat, advcool, HCratio)
+        newTe_relax = relaxTstruc(rgrid, path, itno, Te, HCratio) #apply the relaxation algorithm
+        cloc = calc_cloc(radheat, radcool, expcool, advheat, advcool, HCratio) #look for a point from where we could use construction
         newTe_construct = None
         if cloc != len(rgrid):
-            newTe_construct = constructTstruc(rgrid, newTe_relax, int(cloc), v, rho, mu, radheat, radcool)
+            newTe_construct = constructTstruc(rgrid, newTe_relax, int(cloc), v, rho, mu, radheat, radcool) #apply construction algorithm
 
         make_rates_plot(rgrid/Rp, Te, newTe_relax, radheat, radcool, expcool, advheat, advcool,
                     rho, HCratio, altmax, fc, title=f'iteration {itno}',
                     savename=path+f'iteration{itno}.png', newTe_construct=newTe_construct, cloc=cloc)
 
+        #get the final new temperature profile, based on whether the construction algorithm was applied
         if newTe_construct is None:
             newTe = newTe_relax
         else:
             newTe = newTe_construct
 
-        #add this temperature profile to the iterations file
+        #add this temperature profile to the 'iterations' file for future reference
         iterations_file = pd.read_csv(path+'iterations.txt', header=0, sep=' ')
         iterations_file['Te'+str(itno)] = newTe
         iterations_file.to_csv(path+'iterations.txt', sep=' ', float_format='%.7e', index=False)
@@ -685,12 +689,12 @@ def run_loop(path, itno, fc, save_sp=[], maxit=16):
             converged = False
         else: 
             prevTe = iterations_file['Te'+str(itno-1)].values #read out from file instead of Sim because the file has higher resolution
-            converged = check_converged(fc, HCratio, newTe, prevTe, linthresh=50.)
+            converged = check_converged(fc, HCratio, newTe, prevTe, linthresh=50.) #check convergence criteria
 
-        if converged: #run once more with all output
+        if converged: #run once more with more output
             print(f"Temperature profile converged: {path}")
             make_converged_plot(rgrid/Rp, altmax, path, Te, radheat, rho, radcool, expcool, advheat, advcool)
-            #calculate these terms for the output .txt file
+            #calculate these terms for the output converged.txt file - for fast access of some key parameters without loading in the Cloudy sim.
             np.savetxt(path+'converged.txt', np.column_stack((rgrid/Rp, rho, Te, mu, radheat, radcool, expcool, advheat, advcool)), fmt='%1.5e',
                         header='R rho Te mu radheat radcool expcool advheat advcool', comments='')
             
@@ -705,9 +709,9 @@ def run_loop(path, itno, fc, save_sp=[], maxit=16):
             break
 
         else: #set up the next iteration
-            Cltlaw = tools.alt_array_to_Cloudy(rgrid, newTe, altmax, Rp, 1000)
+            Cltlaw = tools.alt_array_to_Cloudy(rgrid, newTe, altmax, Rp, 1000) #convert the temperature profile to a table format accepted by Cloudy
 
-            tools.copyadd_Cloudy_in(path+'template', path+'iteration'+str(itno), tlaw=Cltlaw)
+            tools.copyadd_Cloudy_in(path+'template', path+'iteration'+str(itno), tlaw=Cltlaw) #add temperature profile to the template input file
             if itno != maxit: #no use running it if we are not entering the next while-loop iteration
                 tools.run_Cloudy(f'iteration{itno}', folder=path)
 
