@@ -32,17 +32,17 @@ assert os.path.isfile(tools.cloudypath+'/data/SED/eps_Eri_binned.spec'), "Please
 
 ### CHECK IF test.py HAS BEEN RAN BEFORE ###
 
-parker_profile_path = tools.projectpath+"/parker_profiles/WASP52b/test/"
-simulation_path = tools.projectpath+"/sims/1D/WASP52b/test/"
+parker_profile_file = tools.projectpath+"/parker_profiles/WASP52b/test/pprof_WASP52b_T=9000_M=11.000.txt"
+simulation_folder = tools.projectpath+"/sims/1D/WASP52b/test/parker_9000_11.000/"
 
-if os.path.exists(parker_profile_path) or os.path.exists(simulation_path):
-      confirmation = input(f"It looks like test.py has been ran before, as {parker_profile_path} and/or {simulation_path} already exist. Do you want to delete the previous output before continuing (recommended)? (y/n): ")
+if os.path.exists(parker_profile_file) or os.path.exists(simulation_folder):
+      confirmation = input(f"It looks like test.py has been ran before, as {parker_profile_file} and/or {simulation_folder} already exist. Do you want to delete the previous output before continuing (recommended)? (y/n): ")
       if confirmation.lower() == "y":
-            if os.path.exists(parker_profile_path):
-                  shutil.rmtree(parker_profile_path)
-            if os.path.exists(simulation_path):
-                  shutil.rmtree(simulation_path)
-            print("\nFolder(s) deleted successfully.")
+            if os.path.exists(parker_profile_file):
+                  os.remove(parker_profile_file)
+            if os.path.exists(simulation_folder):
+                  shutil.rmtree(simulation_folder)
+            print("\nFile(s) deleted successfully.")
       else:
             print("\nDeletion cancelled.")
 
@@ -53,7 +53,7 @@ print("\nChecking construct_parker.py. A runtime for this module will follow whe
 ### CREATING PARKER PROFILE ###
 
 #create a parker profile - we use the p-winds/Cloudy hybrid scheme
-os.system("cd .. && cd src && python construct_parker.py -plname WASP52b -pdir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0 -overwrite")
+os.system(f"cd {tools.sunbatherpath} && python construct_parker.py -plname WASP52b -pdir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0 -overwrite")
 #load the created profile
 pprof_created = pd.read_table(tools.projectpath+'/parker_profiles/WASP52b/test/pprof_WASP52b_T=9000_M=11.000.txt',
                                 names=['alt', 'rho', 'v', 'mu'], dtype=np.float64, comment='#')
@@ -71,7 +71,7 @@ print("\nChecking convergeT_parker.py. A runtime for this module will follow whe
 ### CONVERGING TEMPERATURE STRUCTURE WITH CLOUDY ###
 
 #run the created profile through Cloudy
-os.system("cd .. && cd src && python convergeT_parker.py -plname WASP52b -pdir test -dir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0 -save_sp He Mg+ -overwrite")
+os.system(f"cd {tools.sunbatherpath} && python convergeT_parker.py -plname WASP52b -pdir test -dir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0 -save_sp He Mg+ -overwrite")
 #load the created simulation
 sim_created = tools.Sim(tools.projectpath+'/sims/1D/WASP52b/test/parker_9000_11.000/converged')
 #load the expected simulation
