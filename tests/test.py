@@ -71,7 +71,7 @@ print("\nChecking convergeT_parker.py. A runtime for this module will follow whe
 ### CONVERGING TEMPERATURE STRUCTURE WITH CLOUDY ###
 
 #run the created profile through Cloudy
-os.system(f"cd {tools.sunbatherpath} && python convergeT_parker.py -plname WASP52b -pdir test -dir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0 -save_sp He Mg+ -overwrite")
+os.system(f"cd {tools.sunbatherpath} && python convergeT_parker.py -plname WASP52b -pdir test -dir test -Mdot 11.0 -T 9000 -z 10 -zelem Ca=0 -overwrite")
 #load the created simulation
 sim_created = tools.Sim(tools.projectpath+'/sims/1D/WASP52b/test/parker_9000_11.000/converged')
 #load the expected simulation

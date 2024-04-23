@@ -8,7 +8,6 @@ import numpy as np
 import multiprocessing
 from shutil import copyfile
 import time
-import glob
 import os
 import re
 import argparse
@@ -356,7 +355,7 @@ if __name__ == '__main__':
                                         "Can also be used to toggle elements off, e.g. -zelem Ca=0. Combines with -z argument. Using this " \
                                         "command results in running p_winds in an an iterative scheme where Cloudy updates the mu parameter.")
     parser.add_argument("-altmax", type=int, default=8, help="maximum altitude of the simulation in units of Rp. [default=8]")
-    parser.add_argument("-save_sp", type=str, nargs='+', default=[], help="atomic or ionic species to save densities for (needed for radiative transfer). " \
+    parser.add_argument("-save_sp", type=str, nargs='+', default=['all'], help="atomic or ionic species to save densities for (needed for radiative transfer). " \
                                     "You can add multiple as e.g. -save_sp He Ca+ Fe3+ Passing 'all' includes all species that weren't turned off. In that case, you can "\
                                     "set the maximum degree of ionization with the -save_sp_max_ion flag. default=[] i.e. none.")
     parser.add_argument("-save_sp_max_ion", type=int, default=6, help="only used when you set -save_sp all   This command sets the maximum degree of ionization "\
