@@ -177,7 +177,7 @@ def avg_limbdark_quad(ab):
     return I_avg
 
 
-def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
+def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, v_turb=0.):
     """
     Calculates optical depth using Eq. 19 from Oklopcic&Hirata 2018.
     Does this at once for all rays, lines and frequencies. When doing
@@ -213,8 +213,9 @@ def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
         Cross-sections of the lines, Eq. 20 from Oklopcic&Hirata (2018) (1D array).
     gamma : numeric or array-like
         Half-width at half-maximum of the Lorentzian part of the line (1D array)
-    turbulence : bool, optional
-        Whether to add line broadening due to turbulence, Eq. 16 from Lampon et al. (2020), by default False.
+    v_turb : float, optional
+        Root mean-squared of turbulent velocities in units of cm s-1. Turbulent
+        motion will lead to extra spectral line broadening. By default 0.
 
     Returns
     -------
@@ -229,10 +230,7 @@ def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
     if not isinstance(gamma, np.ndarray):
         gamma = np.array([gamma])
 
-    if turbulence:
-        gaus_sigma = np.sqrt(tools.k * Te[None,None,:] / m + 5/6*tools.k * Te[None,None,:] / m) * nu0[None,:,None,None] / tools.c
-    else:
-        gaus_sigma = np.sqrt(tools.k * Te[None,None,:] / m) * nu0[None,:,None,None] / tools.c
+    gaus_sigma = np.sqrt(tools.k * Te[None,None,:] / m + 0.5*v_turb**2) * nu0[None,:,None,None] / tools.c
     #the following has a minus sign like in Eq. 21 of Oklopcic&Hirata (2018) because their formula is only correct if you take v_LOS from star->planet i.e. vx   
     Delnu = (nu[:,None,None,None] - nu0[None,:,None,None]) - nu0[None,:,None,None] / tools.c * vx[None,None,:]
     tau_cube = trapezoid(ndens[None,None,:] * sig0[None,:,None,None] * voigt_profile(Delnu, gaus_sigma, gamma[None,:,None,None]), x=x)
@@ -241,7 +239,7 @@ def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
     return tau
 
 
-def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
+def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, v_turb=0.):
     """
     Calculates cumulative optical depth using Eq. 19 from Oklopcic&Hirata 2018,
     at one particular frequency. Does this at once for all rays and lines.
@@ -274,8 +272,9 @@ def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
         Cross-sections of the lines, Eq. 20 from Oklopcic&Hirata (2018) (1D array).
     gamma : numeric or array-like
         Half-width at half-maximum of the Lorentzian part of the line (1D array)
-    turbulence : bool, optional
-        Whether to add line broadening due to turbulence, Eq. 16 from Lampon et al. (2020), by default False.
+    v_turb : float, optional
+        Root mean-squared of turbulent velocities in units of cm s-1. Turbulent
+        motion will lead to extra spectral line broadening. By default 0.
 
     Returns
     -------
@@ -292,10 +291,7 @@ def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, turbulence=False):
     if not isinstance(gamma, np.ndarray):
         gamma = np.array([gamma])
 
-    if turbulence:
-        gaus_sigma = np.sqrt(tools.k * Te[None,None,:] / m + 5/6*tools.k * Te[None,None,:] / m) * nu0[None,:,None,None] / tools.c
-    else:
-        gaus_sigma = np.sqrt(tools.k * Te[None,None,:] / m) * nu0[None,:,None,None] / tools.c
+    gaus_sigma = np.sqrt(tools.k * Te[None,None,:] / m + 0.5*v_turb**2) * nu0[None,:,None,None] / tools.c
     #the following has a minus sign like in Eq. 21 of Oklopcic&Hirata (2018) because their formula is only correct if you take v_LOS from star->planet i.e. vx   
     Delnu = (nu - nu0[:,None,None]) - nu0[:,None,None] / tools.c * vx[None,:]
     integrand = ndens[None,:] * sig0[:,None,None] * voigt_profile(Delnu, gaus_sigma, gamma[:,None,None])
@@ -408,7 +404,7 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
     return spNIST
 
 
-def FinFout(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), phase=0., phase_bulkshift=False, turbulence=False, cut_at=None):
+def FinFout(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), phase=0., phase_bulkshift=False, v_turb=0., cut_at=None):
     """
     Calculates a transit spectrum in units of in-transit flux / out-of-transit flux (i.e., Fin/Fout).
     Only spectral lines originating from provided species will be calculated.
@@ -451,8 +447,9 @@ def FinFout(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), pha
         If phase != 0, the planet will have a nonzero bulk radial velocity in the stellar rest-frame.
         If this parameter is set to True, that velocity shift will be imposed on the transit spectrum as well.
         If this parameter is set to False, the spectral lines will still be at their rest-frame wavelengths. By default False.
-    turbulence : bool, optional
-        Whether to add line broadening due to turbulence, Eq. 16 from Lampon et al. (2020), by default False.
+    v_turb : float, optional
+        Root mean-squared of turbulent velocities in units of cm s-1. Turbulent
+        motion will lead to extra spectral line broadening. By default 0.
     cut_at : numeric, optional
         Radius at which we 'cut' the atmospheric profile and set values to 0.
         For example, use cut_at=sim.p.Rroche to set density 0 outside the Roche radius.
@@ -520,7 +517,7 @@ def FinFout(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), pha
                           "so the spectrum will be flat.")
 
         for lineno in spNIST.index.values: #loop over all lines in the spNIST table.
-            gaus_sigma_max = np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec)) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
+            gaus_sigma_max = np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec) + 0.5*v_turb**2) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
             max_voigt_width = 5*(gaus_sigma_max+spNIST['lorgamma'].loc[lineno]) * width_fac #the max offset of Voigt components (=natural+thermal broad.)
             linenu_low = (1 + np.min(vx)/tools.c) * spNIST.nu0.loc[lineno] - max_voigt_width
             linenu_hi = (1 + np.max(vx)/tools.c) * spNIST.nu0.loc[lineno] + max_voigt_width
@@ -546,7 +543,7 @@ def FinFout(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), pha
 
             ndens_lw = ndens*lineweight #important that we make this a new variable as otherwise state_ndens would change as well!
 
-            tau_line = calc_tau(x, ndens_lw, Te, vx, nus_line, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], turbulence=turbulence)
+            tau_line = calc_tau(x, ndens_lw, Te, vx, nus_line, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], v_turb=v_turb)
             tau[(nus > linenu_low) & (nus < linenu_hi), :] += tau_line #add the tau values to the correct nu bins
 
     FinFout = tau_to_FinFout(be, tau, Rs, bp=sim.p.bp, ab=ab, phase=phase, a=sim.p.a)
@@ -554,7 +551,7 @@ def FinFout(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), pha
     return FinFout, found_lines, notfound_lines
 
 
-def tau_1D(sim, wavAA, species, width_fac=1., turbulence=False):
+def tau_1D(sim, wavAA, species, width_fac=1., v_turb=0.):
     """
     Maps out the optical depth at one specific wavelength.
     The running integral of the optical deph is calculated at each depth of the ray.
@@ -583,8 +580,9 @@ def tau_1D(sim, wavAA, species, width_fac=1., turbulence=False):
         Standard value is 5 Gaussian standard deviations + 5 Lorentzian gammas.
         For very strong lines such as Ly-alpha, you may need a value >1 to properly calculate
         the far wings of the line. By default 1.
-    turbulence : bool, optional
-        Whether to add line broadening due to turbulence, Eq. 16 from Lampon et al. (2020), by default False.
+    v_turb : float, optional
+        Root mean-squared of turbulent velocities in units of cm s-1. Turbulent
+        motion will lead to extra spectral line broadening. By default 0.
 
     Returns
     -------
@@ -623,7 +621,7 @@ def tau_1D(sim, wavAA, species, width_fac=1., turbulence=False):
         spNIST = read_NIST_lines(spec)
 
         for lineno in spNIST.index.values: #loop over all lines in the spNIST table.
-            gaus_sigma_max = np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec)) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
+            gaus_sigma_max = np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec) + 0.5*v_turb**2) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
             max_voigt_width = 5*(gaus_sigma_max+spNIST['lorgamma'].loc[lineno]) * width_fac #the max offset of Voigt components (=natural+thermal broad.)
             linenu_low = (1 + np.min(vx)/tools.c) * spNIST.nu0.loc[lineno] - max_voigt_width
             linenu_hi = (1 + np.max(vx)/tools.c) * spNIST.nu0.loc[lineno] + max_voigt_width
@@ -641,14 +639,14 @@ def tau_1D(sim, wavAA, species, width_fac=1., turbulence=False):
 
             ndens = sim.den[colname].values * lineweight #see explanation in FinFout_2D function
 
-            cum_tau, bin_tau = calc_cum_tau(d, ndens, Te, vx, nu, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], turbulence=turbulence)
+            cum_tau, bin_tau = calc_cum_tau(d, ndens, Te, vx, nu, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], v_turb=v_turb)
             tot_cum_tau += cum_tau[0] #add the tau values to the total (of all species & lines together)
             tot_bin_tau += bin_tau[0]
 
     return tot_cum_tau, tot_bin_tau, found_lines, notfound_lines
 
 
-def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, cut_at=None):
+def tau_12D(sim, wavAA, species, width_fac=1., v_turb=0., cut_at=None):
     """
     Maps out the optical depth at one specific wavelength.
     The running integral of the optical deph is calculated at each stellar light ray
@@ -674,8 +672,9 @@ def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, cut_at=None):
         Standard value is 5 Gaussian standard deviations + 5 Lorentzian gammas.
         For very strong lines such as Ly-alpha, you may need a value >1 to properly calculate
         the far wings of the line. By default 1.
-    turbulence : bool, optional
-        Whether to add line broadening due to turbulence, Eq. 16 from Lampon et al. (2020), by default False.
+    v_turb : float, optional
+        Root mean-squared of turbulent velocities in units of cm s-1. Turbulent
+        motion will lead to extra spectral line broadening. By default 0.
     cut_at : numeric, optional
         Radius at which we 'cut' the atmospheric profile and set values to 0.
         For example, use cut_at=sim.p.Rroche to set density 0 outside the Roche radius.
@@ -715,7 +714,7 @@ def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, cut_at=None):
         spNIST = read_NIST_lines(spec)
 
         for lineno in spNIST.index.values: #loop over all lines in the spNIST table.
-            gaus_sigma_max = np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec)) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
+            gaus_sigma_max = np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec) + 0.5*v_turb**2) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
             max_voigt_width = 5*(gaus_sigma_max+spNIST['lorgamma'].loc[lineno]) * width_fac #the max offset of Voigt components (=natural+thermal broad.)
             linenu_low = (1 + np.min(vx)/tools.c) * spNIST.nu0.loc[lineno] - max_voigt_width
             linenu_hi = (1 + np.max(vx)/tools.c) * spNIST.nu0.loc[lineno] + max_voigt_width
@@ -735,7 +734,7 @@ def tau_12D(sim, wavAA, species, width_fac=1., turbulence=False, cut_at=None):
             _, _, _, ndens = project_1D_to_2D(sim.ovr.alt.values[::-1], sim.den[colname].values[::-1], sim.p.R, cut_at=cut_at)
             ndens *= lineweight
 
-            cum_tau, bin_tau = calc_cum_tau(x, ndens, Te, vx, nu, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], turbulence=turbulence)
+            cum_tau, bin_tau = calc_cum_tau(x, ndens, Te, vx, nu, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], v_turb=v_turb)
             tot_cum_tau += cum_tau #add the tau values to the total (of all species & lines together)
             tot_bin_tau += bin_tau
 
