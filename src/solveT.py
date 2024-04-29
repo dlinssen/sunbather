@@ -714,5 +714,7 @@ def run_loop(path, itno, fc, save_sp=[], maxit=16):
             tools.copyadd_Cloudy_in(path+'template', path+'iteration'+str(itno), tlaw=Cltlaw) #add temperature profile to the template input file
             if itno != maxit: #no use running it if we are not entering the next while-loop iteration
                 tools.run_Cloudy(f'iteration{itno}', folder=path)
+            else:
+                print(f"Failed temperature convergence after {itno} iterations: {path}")
 
             itno += 1
