@@ -347,7 +347,7 @@ if __name__ == '__main__':
     parser.add_argument("-startT", choices=["nearby", "free", "constant"], default="nearby", help="initial T structure, either 'constant', 'free' or 'nearby' [default=nearby]")
     parser.add_argument("-itno", type=int, default=1, help="starting iteration number (itno != 1 only works with -overwrite). As a special use, you can pass " \
                                     "-itno 0 which will automatically find the highest previously ran iteration number [default=1]")
-    parser.add_argument("-maxit", type=int, default=16, help="maximum number of iterations [default = 16]")
+    parser.add_argument("-maxit", type=int, default=20, help="maximum number of iterations [default = 20]")
     parser.add_argument("-SEDname", type=str, default='real', help="name of SED to use. Must be in Cloudy's data/SED/ folder [default=SEDname set in planet.txt file]")
     parser.add_argument("-overwrite", action='store_true', help="overwrite existing simulation if passed [default=False]")
     parser.add_argument("-z", type=float, default=1., help="metallicity (=scale factor relative to solar for all elements except H and He) [default=1.]")
