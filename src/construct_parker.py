@@ -177,7 +177,7 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9,
     mu_array = ((1-h_fraction)*4.0 + h_fraction)/(h_fraction*(1+f_r)+(1-h_fraction)) #this assumes no Helium ionization
 
     save_array = np.column_stack((r*planet.R, rho_array*rhos, v_array*vs*1e5, mu_array))
-    np.savetxt(save_name, save_array, delimiter='\t', header="alt rho v mu")
+    np.savetxt(save_name, save_array, delimiter='\t', header=f"hydrogen fraction: {h_fraction:.3f}\nalt rho v mu")
     print("Parker wind profile done:", save_name)
 
 
