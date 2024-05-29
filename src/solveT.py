@@ -693,7 +693,6 @@ def run_loop(path, itno, fc, save_sp=[], maxit=16):
             converged = check_converged(fc, HCratio, newTe, prevTe, linthresh=50.) #check convergence criteria
 
         if converged: #run once more with more output
-            print(f"Temperature profile converged: {path}")
             make_converged_plot(rgrid/Rp, altmax, path, Te, radheat, rho, radcool, expcool, advheat, advcool)
             #calculate these terms for the output converged.txt file - for fast access of some key parameters without loading in the Cloudy sim.
             np.savetxt(path+'converged.txt', np.column_stack((rgrid/Rp, rho, Te, mu, radheat, radcool, expcool, advheat, advcool)), fmt='%1.5e',
@@ -706,6 +705,7 @@ def run_loop(path, itno, fc, save_sp=[], maxit=16):
             tools.run_Cloudy('converged', folder=path)
             tools.Sim(path+'converged') #read in the simulation, so we open the .en file (if it exists) and hence compress its size (see tools.process_energies())
             clean_converged_folder(path) #remove all non-converged files            
+            print(f"Temperature profile converged: {path}")
             
             break
 
