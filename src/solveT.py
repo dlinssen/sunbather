@@ -200,8 +200,8 @@ def calc_cloc(radheat, radcool, expcool, advheat, advcool, HCratio):
     the construction algorithm. It searches for two criteria:
     1. If there is a point from where on advection heating is stronger than
     radiative heating, and the temperature profile is reasonably converged.
-    2. If there is a point from where on expansion cooling is very dominant
-    over radiative cooling.
+    2. If there is a point from where on radiative cooling is weak
+    compared to expansion and advection cooling.
 
     Parameters
     ----------
@@ -260,9 +260,9 @@ def calc_cloc(radheat, radcool, expcool, advheat, advcool, HCratio):
         if True in almost_converged: #otherwise it stays default value
             adv_cloc = advunimploc + first_true_index(almost_converged)
 
-    #check for expansion dominated regime
+    #check for regime where radiative cooling is weak. Usually this means that expansion cooling dominates, but advection cooling can contribute in some cases
     exp_cloc = len(HCratio) #start by setting a 'too high' value
-    expcool_dominates = (expcool / radcool > 8.) #no check on convergence - could be dangerous in some cases
+    expcool_dominates = (radcool / (radcool+expcool+advcool) < 0.2)
     if True and False in expcool_dominates:
         exp_cloc = last_false_index(expcool_dominates) #this way of evaluating it guarantees that all entries after this one are True
     elif False not in expcool_dominates: #if they are all True
@@ -365,10 +365,11 @@ def constructTstruc(grid, newTe_relax, cloc, v, rho, mu, radheat, radcool):
         adv = advection_gradTdivmu[index] * ((T/mu[index]) - (newTe_construct[index-1]/mu[index-1]))/(grid[index] - grid[index-1])
 
         #instead of completely keeping the radiative heating and cooling rate the same while we are solving for T in this bin,
-        #we adjust it a little bit. We just guess a linear dependence of the rates on T. This is not the true dependence,
+        #we adjust it a little bit. This helps to prevent that the temperature changes are too drastic and go into a regime where
+        #radiation becomes important again. We guess a quadratic dependence of the rates on T. This is not the true dependence,
         #but it does reduce to the original rate when T -> original T, which is important.
-        guess_radheat = radheat[index] * (newTe_construct[index] / T)
-        guess_radcool = radcool[index] * (T / newTe_construct[index])
+        guess_radheat = radheat[index] * (newTe_construct[index] / T)**2
+        guess_radcool = radcool[index] * (T / newTe_construct[index])**2
 
         totheat = guess_radheat + max(adv, 0) #if adv is negative we don't add it here
         totcool = guess_radcool - expcool - min(adv, 0) #if adv is positive we don't add it here, we subtract expcool and adv because they are negative
