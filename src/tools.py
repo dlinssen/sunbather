@@ -434,6 +434,9 @@ def process_overview(filename, Rp=None, altmax=None, abundances=None):
         ovr['alt'] = altmax * Rp - ovr['depth']
     ovr['mu'] = calc_mu(ovr.rho, ovr.eden, abundances=abundances)
 
+    if (ovr['2H_2/H'].max() > 0.1) or (ovr['CO/C'].max() > 0.1) or (ovr['H2O/O'].max() > 0.1):
+        warnings.warn(f"Molecules are significant, the calculated mean particle mass could be inaccurate: {filename}")
+
     return ovr
 
 
