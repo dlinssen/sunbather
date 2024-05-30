@@ -180,6 +180,11 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9,
     np.savetxt(save_name, save_array, delimiter='\t', header=f"hydrogen fraction: {h_fraction:.3f}\nalt rho v mu")
     print("Parker wind profile done:", save_name)
 
+    launch_velocity = v_array[0] #velocity at Rp in units of sonic speed
+
+    if launch_velocity > 1:
+        warnings.warn(f"This Parker wind profile is supersonic already at Rp: {save_name}")
+
 
 def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
                              mu_bar=None, mu_struc=None, no_tidal=False):
@@ -230,6 +235,10 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir,
         Weighted mean of the mean particle mass. Based on Eq. A.3 of Lampon et al. (2020).
         If the input mu_bar was None, this will return the value as calculated by p-winds.
         If the input mu_bar was not None, this will return that same value.
+    launch_velocity : float
+        Velocity at the planet radius in units of the sonic speed. If it is larger than 1,
+        the wind is "launched" already supersonic, and hence the assumption of a transonic
+        wind is not valid anymore.
     """
 
     Mdot = float(Mdot)
@@ -290,7 +299,9 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir,
         zdictstr += " "+sp+"="+"%.1f" %zdict[sp]
     np.savetxt(save_name, save_array, delimiter='\t', header=zdictstr+"\nalt rho v mu")
 
-    return save_name, mu_bar
+    launch_velocity = v_array[0] #velocity at Rp in units of sonic speed
+
+    return save_name, mu_bar, launch_velocity
 
 
 def run_parker_with_cloudy(filename, T, planet, zdict):
@@ -446,12 +457,12 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, pdir,
         tools.verbose_print("Making initial parker profile while assuming a completely neutral mu_bar...", verbose=verbose)
         neutral_mu_bar = calc_neutral_mu(zdict)
         neutral_mu_struc = np.array([[1., neutral_mu_bar], [20., neutral_mu_bar]]) #set up an array with constant mu(r) at the neutral value
-        filename, previous_mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
+        filename, previous_mu_bar, launch_velocity = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
                                                              mu_bar=neutral_mu_bar, mu_struc=neutral_mu_struc, no_tidal=no_tidal)
         tools.verbose_print(f"Saved temp parker profile with neutral mu_bar: {previous_mu_bar}" , verbose=verbose)
     else:
         tools.verbose_print("Making initial parker profile with p-winds...", verbose=verbose)
-        filename, previous_mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, mu_bar=None, no_tidal=no_tidal)
+        filename, previous_mu_bar, launch_velocity = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, mu_bar=None, no_tidal=no_tidal)
         tools.verbose_print(f"Saved temp parker profile with p-winds's mu_bar: {previous_mu_bar}" , verbose=verbose)
 
     for itno in range(maxit):
@@ -467,12 +478,14 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, pdir,
         mu_bar = calc_mu_bar(sim)
         tools.verbose_print(f"Making new parker profile with p-winds based on Cloudy's reported mu_bar: {mu_bar}", verbose=verbose)
         mu_struc = np.column_stack((sim.ovr.alt.values[::-1]/planet.R, sim.ovr.mu[::-1].values)) #pass Cloudy's mu structure to save in the pprof
-        filename, mu_bar = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
+        filename, mu_bar, launch_velocity = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
                                                     mu_bar=mu_bar, mu_struc=mu_struc, no_tidal=no_tidal)
         tools.verbose_print("Saved temp parker profile.", verbose=verbose)
 
         if np.abs(mu_bar - previous_mu_bar)/previous_mu_bar < convergence:
             print("mu_bar converged:", save_name)
+            if launch_velocity > 1:
+                warnings.warn(f"This Parker wind profile is supersonic already at Rp: {save_name}")
             break
         else:
             previous_mu_bar = mu_bar
