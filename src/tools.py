@@ -1945,19 +1945,6 @@ class Sim:
     Loads the output of a Cloudy simulation. Tailored towards simulations of
     an escaping exoplanet atmosphere.
     """
-    '''
-    Main class for loading Cloudy simulations into Python.
-
-    Arguments:
-        simname:        [str] name of the Cloudy simulation without extension.
-                        Usually safest to give the full path, i.e.
-                        '/Users/dion/src/cloudy/sims/1D/HD209458b/Tstruc_fiducial/parker_8000_10.000/converged'
-        altmax:         [int] maximum altitude of the Cloudy simulation, in units of Rp (optional)
-        proceedFail:    [bool] proceed even if the targeted Cloudy simulation did not exit OK.
-        files:          [list] which output files to read in, e.g. 'con', 'heat', 'ovr'
-        planet:         [Planet] object of the simulated planet
-        parker:         [Parker] object of the simulated Parker wind profile
-    '''
 
     def __init__(self, simname, altmax=None, proceedFail=False, files=['all'], planet=None, parker=None):
         """
