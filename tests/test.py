@@ -58,7 +58,7 @@ os.system(f"cd {tools.sunbatherpath} && python construct_parker.py -plname WASP5
 pprof_created = pd.read_table(tools.projectpath+'/parker_profiles/WASP52b/test/pprof_WASP52b_T=9000_M=11.000.txt',
                                 names=['alt', 'rho', 'v', 'mu'], dtype=np.float64, comment='#')
 #load the expected output
-pprof_expected = pd.read_table('materials/pprof_WASP52b_T=9000_M=11.000.txt',
+pprof_expected = pd.read_table(this_path+'/materials/pprof_WASP52b_T=9000_M=11.000.txt',
                                 names=['alt', 'rho', 'v', 'mu'], dtype=np.float64, comment='#')
 #check if they are equal to within 1% in altitude and mu and 10% in rho and v.
 assert np.isclose(pprof_created[['alt', 'mu']], pprof_expected[['alt', 'mu']], rtol=0.01).all().all(), "The profile created with the construct_parker.py module is not as expected"
@@ -75,7 +75,7 @@ os.system(f"cd {tools.sunbatherpath} && python convergeT_parker.py -plname WASP5
 #load the created simulation
 sim_created = tools.Sim(tools.projectpath+'/sims/1D/WASP52b/test/parker_9000_11.000/converged')
 #load the expected simulation
-sim_expected = tools.Sim('materials/converged')
+sim_expected = tools.Sim(this_path+'/materials/converged')
 #interpolate them to a common altitude grid as Cloudy's internal depth-grid may vary between simulations
 alt_grid = np.logspace(np.log10(max(sim_created.ovr.alt.iloc[-1], sim_expected.ovr.alt.iloc[-1])+1e4), 
                        np.log10(min(sim_created.ovr.alt.iloc[0], sim_expected.ovr.alt.iloc[0])-1e4), num=100)
@@ -94,13 +94,13 @@ print("\nChecking RT.py...\n")
 wavs = np.linspace(10830, 10836, num=300)
 FinFout_created, found_lines, notfound_lines = RT.FinFout(sim_created, wavs, 'He')
 #load the expected helium spectrum
-FinFout_expected = np.genfromtxt('materials/FinFout_helium.txt')[:,1]
+FinFout_expected = np.genfromtxt(this_path+'/materials/FinFout_helium.txt')[:,1]
 assert np.isclose(FinFout_created, FinFout_expected, rtol=0.05).all(), "The created helium spectrum is not as expected"
 #make a magnesium+ spectrum
 wavs = np.linspace(2795.5, 2797, num=300)
 FinFout_created, found_lines, notfound_lines = RT.FinFout(sim_created, wavs, 'Mg+')
 #load the expected magnesium+ spectrum
-FinFout_expected = np.genfromtxt('materials/FinFout_magnesium+.txt')[:,1]
+FinFout_expected = np.genfromtxt(this_path+'/materials/FinFout_magnesium+.txt')[:,1]
 assert np.isclose(FinFout_created, FinFout_expected, rtol=0.05).all(), "The created magnesium+ spectrum is not as expected"
 
 
