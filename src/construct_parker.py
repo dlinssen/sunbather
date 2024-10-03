@@ -11,7 +11,7 @@ import astropy.units as u
 from p_winds import tools as pw_tools
 from p_winds import parker as pw_parker
 from p_winds import hydrogen as pw_hydrogen
-from scipy.integrate import simps, trapz
+from scipy.integrate import simpson, trapz
 from scipy.interpolate import interp1d
 import argparse
 import multiprocessing
@@ -384,11 +384,11 @@ def calc_mu_bar(sim):
 
     # Eq. A.3 of Lampón et al. 2020 is a combination of several integrals, which
     # we calculate here
-    int_1 = simps(mu_r / r ** 2, r)
-    int_2 = simps(mu_r * v_r, v_r)
+    int_1 = simpson(mu_r / r ** 2, r)
+    int_2 = simpson(mu_r * v_r, v_r)
     int_3 = trapz(mu_r, 1 / mu_r)
-    int_4 = simps(1 / r ** 2, r)
-    int_5 = simps(v_r, v_r)
+    int_4 = simpson(1 / r ** 2, r)
+    int_5 = simpson(v_r, v_r)
     int_6 = 1 / mu_r[-1] - 1 / mu_r[0]
     term_1 = grav * m_planet * int_1 + int_2 + k_b * temperature * int_3
     term_2 = grav * m_planet * int_4 + int_5 + k_b * temperature * int_6
