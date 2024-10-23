@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sunbather"
+version = "2024.10.0"
+# dynamic = ["version"]
+dependencies = [
+  "numpy >= 1.18",
+  "pandas",
+  "matplotlib >= 2.0",
+  "scipy",
+]
+requires-python = ">= 3.7"
+authors = [
+  {name = "Dion Linssen", email = "d.c.linssen@uva.nl"},
+  {name = "Antonija Oklopčić", email = "a.oklopcic@uva.nl"},
+]
+description = "Sunbather"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {file = "LICENSE"}
+keywords = ["astrophysics"]
+
+[project.urls]
+Issues = "https://github.com/antonpannekoek/sunbather/issues"
+Repository = "https://github.com/antonpannekoek/sunbather"
