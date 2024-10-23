@@ -1,12 +1,9 @@
 import os
 import sys
-this_path = os.path.dirname(os.path.abspath(__file__)) #the absolute path where this code lives
-src_path = this_path.split('tests')[-2] + 'src/'
-sys.path.append(src_path)
 
 #sunbather imports
-import tools
-import RT
+import sunbather.tools as tools
+import sunbather.RT as RT
 
 #other imports
 import pandas as pd
