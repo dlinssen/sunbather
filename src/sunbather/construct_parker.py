@@ -1,5 +1,5 @@
 #sunbather imports
-import tools
+import .tools
 
 #other imports
 import numpy as np

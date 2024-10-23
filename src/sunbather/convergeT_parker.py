@@ -1,6 +1,6 @@
 #sunbather imports
-import tools
-import solveT
+import .tools
+import .solveT
 
 #other imports
 import pandas as pd
