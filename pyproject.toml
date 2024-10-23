@@ -7,12 +7,14 @@ name = "sunbather"
 version = "2024.10.0"
 # dynamic = ["version"]
 dependencies = [
-  "numpy >= 1.18",
-  "pandas",
-  "matplotlib >= 2.0",
-  "scipy",
+  "numpy >= 1.24.3",
+  "pandas >= 1.1.4",
+  "matplotlib >= 3.7.1",
+  "scipy >= 1.8.0",
+  "astropy >= 5.3",
+  "p-winds >= 1.3.4",
 ]
-requires-python = ">= 3.7"
+requires-python = ">= 3.9"
 authors = [
   {name = "Dion Linssen", email = "d.c.linssen@uva.nl"},
   {name = "Antonija Oklopčić", email = "a.oklopcic@uva.nl"},
