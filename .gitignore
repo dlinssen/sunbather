@@ -5,3 +5,4 @@ examples/WASP52b_dT.csv
 examples/WASP52b_sigmaT.csv
 examples/WASP52b_nsig_fit.csv
 env/
+dist/
