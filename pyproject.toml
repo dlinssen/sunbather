@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sunbather"
-version = "2024.10.0"
+version = "1.0.0a1"
 # dynamic = ["version"]
 dependencies = [
   "numpy >= 1.24.3",
@@ -19,7 +19,7 @@ authors = [
   {name = "Dion Linssen", email = "d.c.linssen@uva.nl"},
   {name = "Antonija Oklopčić", email = "a.oklopcic@uva.nl"},
 ]
-description = "Sunbather"
+description = "sunbather"
 readme = {file = "README.md", content-type = "text/markdown"}
 license = {file = "LICENSE"}
 keywords = ["astrophysics"]
