@@ -5,7 +5,10 @@ import tarfile
 import subprocess
 
 
-class get_cloudy:
+class GetCloudy:
+    """
+    Class to download and compile the Cloudy program
+    """
     def __init__(self, version="23.01"):
         self.version = version
         self.path = "./"
@@ -15,6 +18,9 @@ class get_cloudy:
         self.cloudypath = f"{pathlib.Path(__file__).parent.resolve()}/cloudy/"
 
     def download(self):
+        """
+        Creates the cloudy directory and downloads the cloudy version specified.
+        """
         if not pathlib.Path(self.cloudypath).is_dir():
             os.mkdir(self.cloudypath)
         else:
@@ -28,19 +34,19 @@ class get_cloudy:
         return
 
     def compile(self):
-        # Extract it in a location where you want to install Cloudy.
+        """
+        Extracts and builds Cloudy.
+        """
         os.chdir(self.cloudypath)
-        tar = tarfile.open(self.filename, "r:gz")
-        tar.extractall(filter="data")
-        tar.close()
+        with tarfile.open(self.filename, "r:gz") as tar:
+            tar.extractall(filter="data")
 
-        # cd into the /c23.01/source/ or /c17.02/source/ folder and compile the code by running make.
-        os.chdir(f"{self.cloudypath}/c{version}/source/")
+        os.chdir(f"{self.cloudypath}/c{self.version}/source/")
         subprocess.Popen(["make",]).wait()
 
     def test(self):
         # Quickly test the Cloudy installation: in the source folder, run ./cloudy.exe, type "test" and hit return twice. It should print "Cloudy exited OK" at the end.
-        os.chdir(f"{self.cloudypath}/c{version}/source/")
+        os.chdir(f"{self.cloudypath}/c{self.version}/source/")
         print(
             "Type \"test\" and hit return twice. "
             "It should print \"Cloudy exited OK\" at the end."
