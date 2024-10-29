@@ -1,5 +1,5 @@
 # sunbather imports
-import sunbather.tools
+import sunbather.tools as tools
 
 # other imports
 import pandas as pd
