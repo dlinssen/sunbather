@@ -3,6 +3,7 @@ import pathlib
 import urllib.request
 import tarfile
 import subprocess
+import shutil
 
 
 class GetCloudy:
@@ -15,7 +16,8 @@ class GetCloudy:
         major = version.split(".")[0]
         self.url = f"https://data.nublado.org/cloudy_releases/c{major}/"
         self.filename = "c{version}.tar.gz"
-        self.cloudypath = f"{pathlib.Path(__file__).parent.resolve()}/cloudy/"
+        self.sunbatherpath = f"{pathlib.Path(__file__).parent.resolve()}"
+        self.cloudypath = f"{self.sunbatherpath}/cloudy/"
 
     def download(self):
         """
@@ -52,3 +54,9 @@ class GetCloudy:
             "It should print \"Cloudy exited OK\" at the end."
         )
         subprocess.Popen(["./cloudy.exe",]).wait()
+
+    def copy_data(self):
+        shutil.copy2(
+            f"{self.sunbatherpath}/stellar_SEDs/*.spec",
+            f"{self.cloudypath}/c{self.version}/data/SED/",
+        )
