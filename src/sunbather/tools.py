@@ -829,9 +829,7 @@ def find_line_lowerstate_in_en_df(species, lineinfo, en_df, verbose=False):
             ]
 
             if len(matchedtermrow) == 1:
-                if (
-                    str(matchedtermrow.J.values[0]) == "nan"
-                ):
+                if str(matchedtermrow.J.values[0]) == "nan":
                     # This can only happen if the Cloudy level is a term with
                     # no J resolved.  Then we use statistical weights to guess
                     # how many of the atoms in this term state would be in the
@@ -2794,9 +2792,7 @@ class Sim:
             if not isinstance(altmax, (float, int)):
                 # can it actually be a float? I'm not sure if the code can handle it -
                 # check and try.
-                raise TypeError(
-                    "altmax must be set to a float or int"
-                )
+                raise TypeError("altmax must be set to a float or int")
             if hasattr(self, "altmax"):
                 if self.altmax != altmax:
                     warnings.warn(
@@ -2916,9 +2912,7 @@ class Sim:
         """
 
         assert "ovr" in self.simfiles, "Simulation must have a 'save overview .ovr file"
-        assert (
-            "alt" in self.ovr.columns
-        ), (
+        assert "alt" in self.ovr.columns, (
             "The .ovr file must have an altitude column (which in turn requires a "
             "known Rp and altmax)"
         )

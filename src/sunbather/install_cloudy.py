@@ -10,6 +10,7 @@ class GetCloudy:
     """
     Class to download and compile the Cloudy program
     """
+
     def __init__(self, version="23.01"):
         self.version = version
         self.path = "./"
@@ -44,16 +45,24 @@ class GetCloudy:
             tar.extractall(filter="data")
 
         os.chdir(f"{self.cloudypath}/c{self.version}/source/")
-        subprocess.Popen(["make",]).wait()
+        subprocess.Popen(
+            [
+                "make",
+            ]
+        ).wait()
 
     def test(self):
         # Quickly test the Cloudy installation: in the source folder, run ./cloudy.exe, type "test" and hit return twice. It should print "Cloudy exited OK" at the end.
         os.chdir(f"{self.cloudypath}/c{self.version}/source/")
         print(
-            "Type \"test\" and hit return twice. "
-            "It should print \"Cloudy exited OK\" at the end."
+            'Type "test" and hit return twice. '
+            'It should print "Cloudy exited OK" at the end.'
         )
-        subprocess.Popen(["./cloudy.exe",]).wait()
+        subprocess.Popen(
+            [
+                "./cloudy.exe",
+            ]
+        ).wait()
 
     def copy_data(self):
         shutil.copy2(
