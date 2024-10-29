@@ -1,7 +1,4 @@
-#sunbather imports
-import .tools
-
-#other imports
+# other imports
 import pandas as pd
 import numpy as np
 import numpy.ma as ma
@@ -11,6 +8,8 @@ from scipy.integrate import trapezoid
 from scipy.ndimage import gaussian_filter1d
 import warnings
 
+# sunbather imports
+import sunbather.tools as tools
 
 sigt0 = 2.654e-2 #cm2 s-1 = cm2 Hz, from Axner et al. 2004
 

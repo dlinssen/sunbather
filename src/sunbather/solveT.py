@@ -1,5 +1,5 @@
 #sunbather imports
-import .tools
+import sunbather.tools
 
 #other imports
 import pandas as pd
@@ -44,7 +44,7 @@ def calc_expansion(r, rho, v, Te, mu):
 
 def calc_advection(r, rho, v, Te, mu):
     """
-    Calcules advection heating/cooling (Linssen et al. 2024 Eq. 3 first term).
+    Calculates advection heating/cooling (Linssen et al. 2024 Eq. 3 first term).
 
     Parameters
     ----------
