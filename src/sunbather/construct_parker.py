@@ -1,19 +1,19 @@
 # other imports
-import numpy as np
 import os
 import time
+import argparse
+import multiprocessing
+import traceback
+import warnings
 from shutil import copyfile
+import numpy as np
 import matplotlib.pyplot as plt
 import astropy.units as u
 from p_winds import tools as pw_tools
 from p_winds import parker as pw_parker
 from p_winds import hydrogen as pw_hydrogen
-from scipy.integrate import simpson, trapz
+from scipy.integrate import simpson, trapezoid
 from scipy.interpolate import interp1d
-import argparse
-import multiprocessing
-import traceback
-import warnings
 
 # sunbather imports
 import sunbather.tools as tools
@@ -530,11 +530,11 @@ def calc_mu_bar(sim):
 
     # Eq. A.3 of Lampón et al. 2020 is a combination of several integrals, which
     # we calculate here
-    int_1 = simpson(mu_r / r**2, r)
-    int_2 = simpson(mu_r * v_r, v_r)
-    int_3 = trapz(mu_r, 1 / mu_r)
-    int_4 = simpson(1 / r**2, r)
-    int_5 = simpson(v_r, v_r)
+    int_1 = simpson(mu_r / r**2, x=r)
+    int_2 = simpson(mu_r * v_r, x=v_r)
+    int_3 = trapezoid(mu_r, 1 / mu_r)
+    int_4 = simpson(1 / r**2, x=r)
+    int_5 = simpson(v_r, x=v_r)
     int_6 = 1 / mu_r[-1] - 1 / mu_r[0]
     term_1 = grav * m_planet * int_1 + int_2 + k_b * temperature * int_3
     term_2 = grav * m_planet * int_4 + int_5 + k_b * temperature * int_6

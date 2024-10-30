@@ -36,14 +36,18 @@ class GetCloudy:
         # Go to the v23 download page and download the "c23.01.tar.gz" file
         return
 
-    def compile(self):
+    def extract(self):
         """
-        Extracts and builds Cloudy.
+        Extracts Cloudy.
         """
         os.chdir(self.cloudypath)
         with tarfile.open(self.filename, "r:gz") as tar:
             tar.extractall(filter="data")
 
+    def compile(self):
+        """
+        Compiles Cloudy.
+        """
         os.chdir(f"{self.cloudypath}/c{self.version}/source/")
         subprocess.Popen(
             [

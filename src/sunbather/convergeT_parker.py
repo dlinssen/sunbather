@@ -1,6 +1,4 @@
 # other imports
-import pandas as pd
-import numpy as np
 import multiprocessing
 from shutil import copyfile
 import time
@@ -8,10 +6,11 @@ import os
 import re
 import argparse
 import traceback
+import pandas as pd
+import numpy as np
 
 # sunbather imports
-import sunbather.tools
-import sunbather.solveT
+from sunbather import tools, solveT
 
 
 def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):
