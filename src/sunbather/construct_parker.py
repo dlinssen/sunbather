@@ -7,16 +7,16 @@ import traceback
 import warnings
 from shutil import copyfile
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import astropy.units as u
-from p_winds import tools as pw_tools
+# from p_winds import tools as pw_tools
 from p_winds import parker as pw_parker
 from p_winds import hydrogen as pw_hydrogen
 from scipy.integrate import simpson, trapezoid
 from scipy.interpolate import interp1d
 
 # sunbather imports
-import sunbather.tools as tools
+from sunbather import tools
 
 
 def cloudy_spec_to_pwinds(SEDfilename, dist_SED, dist_planet):
@@ -45,7 +45,7 @@ def cloudy_spec_to_pwinds(SEDfilename, dist_SED, dist_planet):
         SED at the planet distance in the dictionary format that p-winds expects.
     """
 
-    with open(SEDfilename, "r") as f:
+    with open(SEDfilename, "r", encoding="utf-8") as f:
         for line in f:
             if not line.startswith("#"):  # skip through the comments at the top
                 assert ("angstrom" in line) or ("Angstrom" in line)  # verify the units
@@ -721,8 +721,7 @@ def save_cloudy_parker_profile(
                     f"This Parker wind profile is supersonic already at Rp: {save_name}"
                 )
             break
-        else:
-            previous_mu_bar = mu_bar
+        previous_mu_bar = mu_bar
 
     copyfile(filename, filename.split("temp/")[0] + filename.split("temp/")[1])
     tools.verbose_print(
@@ -816,7 +815,7 @@ def run_s(
         (p.a - altmax * p.R) / tools.AU,
     )  # assumes SED is at 1 AU
 
-    if fH != None:  # then run p_winds standalone
+    if fH is not None:  # then run p_winds standalone
         save_plain_parker_profile(
             p,
             Mdot,
@@ -970,7 +969,7 @@ def run_g(
     p.join()
 
 
-if __name__ == "__main__":
+def main():
 
     class OneOrThreeAction(argparse.Action):
         """
@@ -1096,12 +1095,12 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    if args.z != None:
+    if args.z is not None:
         zdict = tools.get_zdict(z=args.z, zelem=args.zelem)
     else:  # if z==None we should not pass that to the tools.get_zdict function
         zdict = tools.get_zdict(zelem=args.zelem)
 
-    if args.fH != None and (
+    if args.fH is not None and (
         args.zelem != {}
         or args.mu_conv != 0.01
         or args.mu_maxit != 7
@@ -1127,7 +1126,7 @@ if __name__ == "__main__":
             + args.pdir
             + "/"
         )
-    if (args.fH == None) and (
+    if (args.fH is None) and (
         not os.path.isdir(
             tools.projectpath
             + "/parker_profiles/"
@@ -1237,3 +1236,7 @@ if __name__ == "__main__":
         (int(time.time() - t0) % 60),
         "seconds.\n",
     )
+
+
+if __name__ == "__main__":
+    main()
