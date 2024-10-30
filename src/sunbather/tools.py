@@ -148,7 +148,7 @@ species_enlim = pd.read_csv(sunbatherpath + "/species_enlim.txt", index_col=0, h
 # ######################################
 
 
-def get_specieslist(max_ion=6, exclude_elements=[]):
+def get_specieslist(max_ion=6, exclude_elements=None):
     """
     Returns a list of atomic and ionic species names. Default returns all
     species up to 6+ ionization. Higher than 6+ ionization is rarely attained
@@ -170,6 +170,8 @@ def get_specieslist(max_ion=6, exclude_elements=[]):
         List of atomic and ionic species names in the string format expected by
         Cloudy.
     """
+    if exclude_elements is None:
+        exclude_elements = []
 
     if max_ion > 12:
         warnings.warn(
@@ -259,9 +261,9 @@ def get_mass(species):
     return mass
 
 
-#######################################
-###########   CLOUDY FILES   ##########
-#######################################
+# ######################################
+# ##########   CLOUDY FILES   ##########
+# ######################################
 
 
 def process_continuum(filename, nonzero=False):
@@ -327,7 +329,7 @@ def process_heating(filename, Rp=None, altmax=None, cloudy_version="17"):
     # determine max number of columns (otherwise pd.read_table assumes it is the number
     # of the first row)
     max_columns = 0
-    with open(filename, "r") as file:
+    with open(filename, "r", encoding="utf-8") as file:
         for line in file:
             num_columns = len(line.split("\t"))
             max_columns = max(max_columns, num_columns)
@@ -435,7 +437,7 @@ def process_cooling(filename, Rp=None, altmax=None, cloudy_version="17"):
     # determine max number of columns (otherwise pd.read_table assumes it is
     # the number of the first row)
     max_columns = 0
-    with open(filename, "r") as file:
+    with open(filename, "r", encoding="utf-8") as file:
         for line in file:
             num_columns = len(line.split("\t"))
             max_columns = max(max_columns, num_columns)
@@ -672,7 +674,7 @@ def process_energies(filename, rewrite=True, cloudy_version="17"):
         en.columns.values[0][0] == "#"
     ):  # condition checks whether it has already been rewritten, if not, we do all following stuff:
 
-        for col in range(len(en.columns)):  # check if all rows are the same
+        for i, col in enumerate(en.columns):  # check if all rows are the same
             if len(en.iloc[:, col].unique()) != 1:
                 raise ValueError(
                     "In reading .en file, found a column with not identical values!"
@@ -743,12 +745,12 @@ def process_energies(filename, rewrite=True, cloudy_version="17"):
             0
         ]  # iloc at which the species (e.g. He or Ca+3) starts.
         en_df.iloc[
-            first_iloc : first_iloc + n_matching, en_df.columns.get_loc("configuration")
+            first_iloc: first_iloc + n_matching, en_df.columns.get_loc("configuration")
         ] = species_levels.configuration.iloc[:n_matching].values
         en_df.iloc[
-            first_iloc : first_iloc + n_matching, en_df.columns.get_loc("term")
+            first_iloc: first_iloc + n_matching, en_df.columns.get_loc("term")
         ] = species_levels.term.iloc[:n_matching].values
-        en_df.iloc[first_iloc : first_iloc + n_matching, en_df.columns.get_loc("J")] = (
+        en_df.iloc[first_iloc: first_iloc + n_matching, en_df.columns.get_loc("J")] = (
             species_levels.J.iloc[:n_matching].values
         )
 
@@ -958,7 +960,7 @@ def get_SED_norm_1AU(SEDname):
         Energy where the monochromatic flux of the nuFnu output variable is specified.
     """
 
-    with open(cloudypath + "/data/SED/" + SEDname, "r") as f:
+    with open(cloudypath + "/data/SED/" + SEDname, "r", encoding="utf-8") as f:
         for line in f:
             if not line.startswith("#"):  # skip through the comments at the top
                 assert ("angstrom" in line) or ("Angstrom" in line)  # verify the units
@@ -1134,7 +1136,7 @@ def calc_mu(rho, ne, abundances=None, mass=False):
     return mu
 
 
-def get_zdict(z=1.0, zelem={}):
+def get_zdict(z=1.0, zelem=None):
     """
     Returns a dictionary of the scale factors of each element relative to solar.
 
@@ -1152,6 +1154,8 @@ def get_zdict(z=1.0, zelem={}):
         Dictionary with the scale factors of all elements relative
         to the default solar composition.
     """
+    if zelem is None:
+        zelem = {}
 
     assert (
         "H" not in zelem.keys()
@@ -1524,7 +1528,7 @@ def alt_array_to_Cloudy(alt, quantity, altmax, Rp, nmax, log=True):
     )  # reset these for potential log-numerical errors
     Clgridr1 = (Clgridr1[-1] - Clgridr1)[::-1]
     # sample the first 10 points better since Cloudy messes up with log-space interpolation there
-    Clgridr2 = np.logspace(-2, np.log10(Clgridr1[9]), num=(nmax - len(Clgridr1)))
+    Clgridr2 = np.logspace(-2, np.log10(Clgridr1[9]), num=nmax - len(Clgridr1))
     Clgridr = np.concatenate((Clgridr2, Clgridr1[10:]))
     Clgridr[0] = 1e-35
 
@@ -1670,8 +1674,8 @@ def copyadd_Cloudy_in(
     cextra=None,
     hextra=None,
     othercommands=None,
-    outfiles=[],
-    denspecies=[],
+    outfiles=None,
+    denspecies=None,
     selected_den_levels=False,
     constantT=None,
     double_tau=False,
@@ -1740,6 +1744,10 @@ def copyadd_Cloudy_in(
         Major Cloudy release version, used only in combination with the denspecies
         argument, by default "17".
     """
+    if outfiles is None:
+        outfiles = []
+    if denspecies is None:
+        denspecies = []
 
     if denspecies != []:
         assert ".den" in outfiles and ".en" in outfiles
@@ -1750,7 +1758,7 @@ def copyadd_Cloudy_in(
 
     copyfile(oldsimname + ".in", newsimname + ".in")
 
-    with open(newsimname + ".in", "a") as f:
+    with open(newsimname + ".in", "a", encoding="utf-8") as f:
         if set_thickness:
             f.write(
                 "\nstop thickness "
@@ -1864,8 +1872,8 @@ def write_Cloudy_in(
     overwrite=False,
     iterate="convergence",
     nend=3000,
-    outfiles=[".ovr", ".cool"],
-    denspecies=[],
+    outfiles=None,
+    denspecies=None,
     selected_den_levels=False,
     constantT=None,
     double_tau=False,
@@ -1958,6 +1966,11 @@ def write_Cloudy_in(
         Major Cloudy release version, used only in combination with the denspecies
         argument, by default "17".
     """
+    if outfiles is None:
+        outfiles = [".ovr", ".cool"]
+
+    if denspecies is None:
+        denspecies = []
 
     assert (
         flux_scaling is not None
@@ -1972,7 +1985,7 @@ def write_Cloudy_in(
     if constantT is not None:
         assert not np.any(tlaw is not None)
 
-    with open(simname + ".in", "w") as f:
+    with open(simname + ".in", "w", encoding="utf-8") as f:
         if comments is not None:
             f.write(comments + "\n")
         if title is not None:
@@ -2146,7 +2159,7 @@ def insertden_Cloudy_in(
         If there are multiple 'save species densities' commands in the Cloudy input file.
     """
 
-    with open(simname + ".in", "r") as f:
+    with open(simname + ".in", "r", encoding="utf-8") as f:
         oldcontent = f.readlines()
 
     newcontent = oldcontent
@@ -2212,16 +2225,16 @@ def insertden_Cloudy_in(
         )
 
     newcontent = "".join(newcontent)  # turn list into string
-    with open(simname + ".in", "w") as f:  # overwrite the old file
+    with open(simname + ".in", "w", encoding="utf-8") as f:  # overwrite the old file
         f.write(newcontent)
 
     if rerun:
         run_Cloudy(simname)
 
 
-#######################################
-###########     CLASSES     ###########
-#######################################
+# ######################################
+# ##########     CLASSES     ###########
+# ######################################
 
 
 class Parker:
@@ -2260,10 +2273,10 @@ class Parker:
 
         self.plname = plname
         self.T = int(T)
-        if type(Mdot) == str:
+        if isinstance(Mdot, str):
             self.Mdot = Mdot
             self.Mdotf = float(Mdot)
-        elif type(Mdot) == float or type(Mdot) == int:
+        elif isinstance(Mdot, (float, int)):
             self.Mdot = "%.3f" % Mdot
             self.Mdotf = Mdot
         if fH is not None:
@@ -2635,7 +2648,7 @@ class Sim:
         simname,
         altmax=None,
         proceedFail=False,
-        files=["all"],
+        files="all",
         planet=None,
         parker=None,
     ):
@@ -2675,6 +2688,8 @@ class Sim:
         TypeError
             If the altmax argument is not numeric.
         """
+        if isinstance(files, str):
+            files = [files]
 
         if not isinstance(simname, str):
             raise TypeError("simname must be set to a string")
@@ -2682,12 +2697,9 @@ class Sim:
 
         # check the Cloudy version, and if the simulation did not crash.
         _succesful = False
-        with open(simname + ".out", "r") as f:
+        with open(simname + ".out", "r", encoding="utf-8") as f:
             _outfile_content = f.read()
-            if "Cloudy exited OK" in _outfile_content:
-                _succesful = True
-            else:
-                _succesful = False
+            _succesful = "Cloudy exited OK" in _outfile_content
 
             if "Cloudy 17" in _outfile_content:
                 self.cloudy_version = "17"
@@ -2708,7 +2720,7 @@ class Sim:
         self.disabled_elements = []
         zelem = {}
         _parker_T, _parker_Mdot, _parker_dir = None, None, None  # temp variables
-        with open(simname + ".in", "r") as f:
+        with open(simname + ".in", "r", encoding="utf-8") as f:
             for line in f:
                 if (
                     line[0] == "#"
