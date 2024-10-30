@@ -1,4 +1,3 @@
-# other imports
 import multiprocessing
 from shutil import copyfile
 import time
@@ -16,15 +15,17 @@ from sunbather import tools, solveT
 def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):
     """
     Takes a parent folder where multiple 1D parker profiles have been ran,
-    and for given T and Mdot it looks for another model that is already finished and closest
-    to the given model, so that we can start our new simulation from that converged temperature
-    structure. It returns the T and Mdot
-    of the close converged folder, or None if there aren't any (within the tolerance).
+    and for given T and Mdot it looks for another model that is already
+    finished and closest to the given model, so that we can start our new
+    simulation from that converged temperature structure. It returns the T and
+    Mdot of the close converged folder, or None if there aren't any (within the
+    tolerance).
 
     Parameters
     ----------
     parentfolder : str
-        Parent folder containing sunbather simulations within folders with the parker_*T0*_*Mdot* name format.
+        Parent folder containing sunbather simulations within folders with the
+        parker_*T0*_*Mdot* name format.
     T : numeric
         Target isothermal temperature in units of K.
     Mdot : numeric
@@ -32,12 +33,14 @@ def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):
     tolT : numeric, optional
         Maximum T0 difference with the target temperature, by default 2000 K
     tolMdot : numeric, optional
-        Maximum log10(Mdot) difference with the target mass-loss rate, by default 1 dex
+        Maximum log10(Mdot) difference with the target mass-loss rate, by
+        default 1 dex
 
     Returns
     -------
     clconv : list
-        [T0, Mdot] of the closest found finished model, or [None, None] if none were found within the tolerance.
+        [T0, Mdot] of the closest found finished model, or [None, None] if none
+        were found within the tolerance.
     """
 
     pattern = re.compile(
@@ -64,7 +67,7 @@ def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):
     ] in convergedfolders:  # if the current folder is found, remove it
         convergedfolders.remove([int(T), float(Mdot)])
 
-    if convergedfolders == []:  # then we default to constant starting value
+    if not convergedfolders:  # then we default to constant starting value
         clconv = [None, None]
     else:  # find closest converged profile
         dist = (
@@ -87,24 +90,26 @@ def run_s(
     T,
     itno,
     fc,
-    dir,
+    workingdir,
     SEDname,
     overwrite,
     startT,
     pdir,
     zdict=None,
     altmax=8,
-    save_sp=[],
+    save_sp=None,
     constantT=False,
     maxit=16,
 ):
     """
-    Solves for a nonisothermal temperature profile of a single isothermal Parker wind (density and velocity) profile.
+    Solves for a nonisothermal temperature profile of a single isothermal
+    Parker wind (density and velocity) profile.
 
     Parameters
     ----------
     plname : str
-        Planet name (must have parameters stored in $SUNBATHER_PROJECT_PATH/planets.txt).
+        Planet name (must have parameters stored in
+        $SUNBATHER_PROJECT_PATH/planets.txt).
     Mdot : str or numeric
         log of the mass-loss rate in units of g s-1.
     T : str or int
@@ -116,8 +121,8 @@ def run_s(
         look for the highest iteration number to start from.
     fc : numeric
         H/C convergence factor, see Linssen et al. (2024). A sensible value is 1.1.
-    dir : str
-        Directory as $SUNBATHER_PROJECT_PATH/sims/1D/planetname/*dir*/
+    workingdir : str
+        Directory as $SUNBATHER_PROJECT_PATH/sims/1D/planetname/*workingdir*/
         where the temperature profile will be solved. A folder named
         parker_*T*_*Mdot*/ will be made there.
     SEDname : str
@@ -130,15 +135,16 @@ def run_s(
         Either 'constant', 'free' or 'nearby'. Sets the initial
         temperature profile guessed/used for the first iteration.
         'constant' sets it equal to the parker wind isothermal value.
-        'free' lets Cloudy solve it, so you will get the radiative equilibrium structure.
-        'nearby' looks in the dir folder for previously solved
-        Parker wind profiles and starts from a converged one. Then, if no converged
-        ones are available, uses 'free' instead.
+        'free' lets Cloudy solve it, so you will get the radiative equilibrium
+        structure.  'nearby' looks in the workingdir folder for previously solved
+        Parker wind profiles and starts from a converged one. Then, if no
+        converged ones are available, uses 'free' instead.
     pdir : str
         Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/planetname/*pdir*/
         where we take the isothermal parker wind density and velocity profiles from.
-        Different folders may exist there for a given planet, to separate for example profiles
-        with different assumptions such as stellar SED/semi-major axis/composition.
+        Different folders may exist there for a given planet, to separate for
+        example profiles with different assumptions such as stellar
+        SED/semi-major axis/composition.
     zdict : dict, optional
         Dictionary with the scale factors of all elements relative
         to the default solar composition. Can be easily created with tools.get_zdict().
@@ -156,8 +162,10 @@ def run_s(
     maxit : int, optional
         Maximum number of iterations, by default 16.
     """
+    if save_sp is None:
+        save_sp = []
 
-    Mdot = "%.3f" % float(Mdot)  # enforce this format to get standard file names.
+    Mdot = f"{float(Mdot):.3f}"  # enforce this format to get standard file names.
     T = str(T)
 
     # set up the planet object
@@ -166,7 +174,7 @@ def run_s(
         planet.set_var(SEDname=SEDname)
 
     # set up the folder structure
-    pathTstruc = tools.projectpath + "/sims/1D/" + planet.name + "/" + dir + "/"
+    pathTstruc = tools.projectpath + "/sims/1D/" + planet.name + "/" + workingdir + "/"
     path = pathTstruc + "parker_" + T + "_" + Mdot + "/"
 
     # check if this parker profile exists in the given pdir
@@ -194,9 +202,12 @@ def run_s(
     if os.path.isdir(path):  # the simulation exists already
         if not overwrite:
             print(
-                "Simulation already exists and overwrite = False:", plname, dir, Mdot, T
+                "Simulation already exists and overwrite = False:",
+                plname, workingdir, Mdot, T
             )
-            return  # this quits the function but if we're running a grid, it doesn't quit the whole Python code
+            # this quits the function but if we're running a grid, it doesn't
+            # quit the whole Python code
+            return
     else:
         os.mkdir(path[:-1])  # make the folder
 
@@ -223,9 +234,11 @@ def run_s(
         + str(altmax)
     )
 
+    # this will run the profile at the isothermal T value instead of converging
+    # a nonisothermal profile
     if (
         constantT
-    ):  # this will run the profile at the isothermal T value instead of converging a nonisothermal profile
+    ):
         if save_sp == []:
             tools.write_Cloudy_in(
                 path + "constantT",
@@ -269,8 +282,10 @@ def run_s(
         tools.run_Cloudy("constantT", folder=path)  # run the Cloudy simulation
         return
 
-    # if we got to here, we are not doing a constantT simulation, so we set up the convergence scheme files
-    # write Cloudy template input file - each iteration will add their current temperature structure to this template
+    # if we got to here, we are not doing a constantT simulation, so we set up
+    # the convergence scheme files
+    # write Cloudy template input file - each iteration will add their current
+    # temperature structure to this template
     tools.write_Cloudy_in(
         path + "template",
         title=planet.name
@@ -303,18 +318,17 @@ def run_s(
                     iteration_number = int(
                         re.search(pattern, filename).group(1)
                     )  # extract the iteration number
-                    if (
-                        iteration_number > max_iteration
-                    ):  # update highest found iteration number
-                        max_iteration = iteration_number
+                    max_iteration = max(max_iteration, iteration_number)
         if max_iteration == -1:  # this means no files were found
             print(
-                f"This folder does not contain any iteration files {path}, so I cannot resume from the highest one. Will instead start at itno = 1."
+                f"This folder does not contain any iteration files {path}, so I cannot "
+                f"resume from the highest one. Will instead start at itno = 1."
             )
             itno = 1
         else:
             print(
-                f"Found the highest iteration {path}iteration{max_iteration}, will resume at that same itno."
+                f"Found the highest iteration {path}iteration{max_iteration}, will "
+                f"resume at that same itno."
             )
             itno = max_iteration
 
@@ -331,18 +345,21 @@ def run_s(
         ):  # then we start in free (=radiative eq.) mode
             copyfile(path + "template.in", path + "iteration1.in")
 
+        # then clconv cannot be [None, None] and we start from a previous
+        # converged T(r)
         elif (
             startT == "nearby"
-        ):  # then clconv cannot be [None, None] and we start from a previous converged T(r)
+        ):
             print(
-                f"Model {path} starting from previously converged temperature profile: T0 = {clconv[0]}, Mdot = {clconv[1]}"
+                f"Model {path} starting from previously converged temperature profile: "
+                f"T0 = {clconv[0]}, Mdot = {clconv[1]}"
             )
             prev_conv_T = pd.read_table(
                 pathTstruc
                 + "parker_"
                 + str(clconv[0])
                 + "_"
-                + "{:.3f}".format(clconv[1])
+                + f"{clconv[1]:.3f}"
                 + "/converged.txt",
                 delimiter=" ",
             )
@@ -357,7 +374,8 @@ def run_s(
 
 def catch_errors_run_s(*args):
     """
-    Executes the run_s() function with provided arguments, while catching errors more gracefully.
+    Executes the run_s() function with provided arguments, while catching
+    errors more gracefully.
     """
 
     try:
@@ -376,7 +394,7 @@ def run_g(
     T_u,
     T_s,
     fc,
-    dir,
+    workingdir,
     SEDname,
     overwrite,
     startT,
@@ -388,13 +406,14 @@ def run_g(
     maxit,
 ):
     """
-    Solves for a nonisothermal temperature profile of a grid of isothermal Parker wind models,
-    by executing the run_s() function in parallel.
+    Solves for a nonisothermal temperature profile of a grid of isothermal
+    Parker wind models, by executing the run_s() function in parallel.
 
     Parameters
     ----------
     plname : str
-        Planet name (must have parameters stored in $SUNBATHER_PROJECT_PATH/planets.txt).
+        Planet name (must have parameters stored in
+        $SUNBATHER_PROJECT_PATH/planets.txt).
     cores : int
         Number of parallel processes to spawn (i.e., number of CPU cores).
     Mdot_l : str or numeric
@@ -411,8 +430,8 @@ def run_g(
         Step size of the temperature grid in units of K.
     fc : numeric
         H/C convergence factor, see Linssen et al. (2024). A sensible value is 1.1.
-    dir : str
-        Directory as $SUNBATHER_PROJECT_PATH/sims/1D/planetname/*dir*/
+    workingdir : str
+        Directory as $SUNBATHER_PROJECT_PATH/sims/1D/planetname/*workingdir*/
         where the temperature profile will be solved. A folder named
         parker_*T*_*Mdot*/ will be made there.
     SEDname : str
@@ -425,15 +444,17 @@ def run_g(
         Either 'constant', 'free' or 'nearby'. Sets the initial
         temperature profile guessed/used for the first iteration.
         'constant' sets it equal to the parker wind isothermal value.
-        'free' lets Cloudy solve it, so you will get the radiative equilibrium structure.
-        'nearby' looks in the dir folder for previously solved
+        'free' lets Cloudy solve it, so you will get the radiative equilibrium
+        structure.
+        'nearby' looks in the workingdir folder for previously solved
         Parker wind profiles and starts from a converged one. Then, if no converged
         ones are available, uses 'free' instead.
     pdir : str
         Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/planetname/*pdir*/
         where we take the isothermal parker wind density and velocity profiles from.
-        Different folders may exist there for a given planet, to separate for example profiles
-        with different assumptions such as stellar SED/semi-major axis/composition.
+        Different folders may exist there for a given planet, to separate for
+        example profiles with different assumptions such as stellar
+        SED/semi-major axis/composition.
     zdict : dict, optional
         Dictionary with the scale factors of all elements relative
         to the default solar composition. Can be easily created with tools.get_zdict().
@@ -466,7 +487,7 @@ def run_g(
                     T,
                     1,
                     fc,
-                    dir,
+                    workingdir,
                     SEDname,
                     overwrite,
                     startT,
@@ -484,7 +505,10 @@ def run_g(
     p.join()
 
 
-if __name__ == "__main__":
+def main():
+    """
+    Main function
+    """
 
     class OneOrThreeAction(argparse.Action):
         """
@@ -514,7 +538,8 @@ if __name__ == "__main__":
     t0 = time.time()
 
     parser = argparse.ArgumentParser(
-        description="Runs the temperature convergence for 1D Parker profile(s)."
+        description="Runs the temperature convergence for 1D Parker profile(s).",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     parser.add_argument(
@@ -524,7 +549,11 @@ if __name__ == "__main__":
         "-dir",
         required=True,
         type=str,
-        help="folder where the temperature structures are solved. e.g. Tstruc_fH_0.9 or Tstruc_z_100_3xEUV etc.",
+        dest="workingdir",
+        help=(
+            "folder where the temperature structures are solved. e.g. Tstruc_fH_0.9 or "
+            "Tstruc_z_100_3xEUV etc."
+        ),
     )
     parser.add_argument(
         "-pdir",
@@ -538,8 +567,11 @@ if __name__ == "__main__":
         type=float,
         nargs="+",
         action=OneOrThreeAction,
-        help="log10(mass-loss rate), or three values specifying a grid of "
-        "mass-loss rates: lowest, highest, stepsize. -Mdot will be rounded to three decimal places.",
+        help=(
+            "log10(mass-loss rate), or three values specifying a grid of "
+            "mass-loss rates: lowest, highest, stepsize. -Mdot will be rounded to "
+            "three decimal places."
+        ),
     )
     parser.add_argument(
         "-T",
@@ -547,89 +579,115 @@ if __name__ == "__main__":
         type=int,
         nargs="+",
         action=OneOrThreeAction,
-        help="temperature, or three values specifying a grid of temperatures: lowest, highest, stepsize.",
+        help=(
+            "temperature, or three values specifying a grid of temperatures: lowest, "
+            "highest, stepsize."
+        ),
     )
     parser.add_argument(
-        "-cores", type=int, default=1, help="number of parallel runs [default=1]"
+        "-cores", type=int, default=1, help="number of parallel runs"
     )
     parser.add_argument(
         "-fc",
         type=float,
         default=1.1,
-        help="convergence factor (heat/cool should be below this value) [default=1.1]",
+        help="convergence factor (heat/cool should be below this value)",
     )
     parser.add_argument(
         "-startT",
         choices=["nearby", "free", "constant"],
         default="nearby",
-        help="initial T structure, either 'constant', 'free' or 'nearby' [default=nearby]",
+        help=(
+            "initial T structure, either 'constant', 'free' or 'nearby'"
+        ),
     )
     parser.add_argument(
         "-itno",
         type=int,
         default=1,
-        help="starting iteration number (itno != 1 only works with -overwrite). As a special use, you can pass "
-        "-itno 0 which will automatically find the highest previously ran iteration number [default=1]",
+        help=(
+            "starting iteration number (itno != 1 only works with -overwrite). As a "
+            "special use, you can pass -itno 0 which will automatically find the "
+            "highest previously ran iteration number"
+        ),
     )
     parser.add_argument(
         "-maxit",
         type=int,
         default=20,
-        help="maximum number of iterations [default = 20]",
+        help="maximum number of iterations",
     )
     parser.add_argument(
         "-SEDname",
         type=str,
         default="real",
-        help="name of SED to use. Must be in Cloudy's data/SED/ folder [default=SEDname set in planet.txt file]",
+        help=(
+            "name of SED to use. Must be in Cloudy's data/SED/ folder"
+        ),
     )
     parser.add_argument(
         "-overwrite",
         action="store_true",
-        help="overwrite existing simulation if passed [default=False]",
+        help="overwrite existing simulation if passed",
     )
     parser.add_argument(
         "-z",
         type=float,
         default=1.0,
-        help="metallicity (=scale factor relative to solar for all elements except H and He) [default=1.]",
+        help=(
+            "metallicity (=scale factor relative to solar for all elements except H "
+            "and He)"
+        ),
     )
     parser.add_argument(
         "-zelem",
         action=AddDictAction,
         nargs="+",
         default={},
-        help="abundance scale factor for specific elements, e.g. -zelem Fe=10 -zelem He=0.01. "
-        "Can also be used to toggle elements off, e.g. -zelem Ca=0. Combines with -z argument. Using this "
-        "command results in running p_winds in an an iterative scheme where Cloudy updates the mu parameter.",
+        help=(
+            "abundance scale factor for specific elements, e.g. -zelem Fe=10 -zelem "
+            "He=0.01. Can also be used to toggle elements off, e.g. -zelem Ca=0. "
+            "Combines with -z argument. Using this command results in running p_winds "
+            "in an an iterative scheme where Cloudy updates the mu parameter."
+        ),
     )
     parser.add_argument(
         "-altmax",
         type=int,
         default=8,
-        help="maximum altitude of the simulation in units of Rp. [default=8]",
+        help="maximum altitude of the simulation in units of Rp.",
     )
     parser.add_argument(
         "-save_sp",
         type=str,
         nargs="+",
         default=["all"],
-        help="atomic or ionic species to save densities for (needed for radiative transfer). "
-        "You can add multiple as e.g. -save_sp He Ca+ Fe3+ Passing 'all' includes all species that weren't turned off. In that case, you can "
-        "set the maximum degree of ionization with the -save_sp_max_ion flag. default=[] i.e. none.",
+        help=(
+            "atomic or ionic species to save densities for (needed for radiative "
+            "transfer). You can add multiple as e.g. -save_sp He Ca+ Fe3+ Passing "
+            "'all' includes all species that weren't turned off. In that case, you can "
+            "set the maximum degree of ionization with the -save_sp_max_ion flag. "
+        ),
     )
     parser.add_argument(
         "-save_sp_max_ion",
         type=int,
         default=6,
-        help="only used when you set -save_sp all   This command sets the maximum degree of ionization "
-        "that will be saved. [default=6] but using lower values saves significant file size if high ions are not needed. The maximum number is 12, "
-        "but such highly ionized species only occur at very high XUV flux, such as in young systems.",
+        help=(
+            "only used when you set -save_sp all   This command sets the maximum "
+            "degree of ionization that will be saved. [default=6] but using lower "
+            "values saves significant file size if high ions are not needed. The "
+            "maximum number is 12, but such highly ionized species only occur at very "
+            "high XUV flux, such as in young systems."
+        ),
     )
     parser.add_argument(
         "-constantT",
         action="store_true",
-        help="run the profile at the isothermal temperature instead of converging upon the temperature structure. [default=False]",
+        help=(
+            "run the profile at the isothermal temperature instead of converging upon "
+            "the temperature structure."
+        ),
     )
 
     args = parser.parse_args()
@@ -661,7 +719,7 @@ if __name__ == "__main__":
             str(args.T[0]),
             args.itno,
             args.fc,
-            args.dir,
+            args.workingdir,
             args.SEDname,
             args.overwrite,
             args.startT,
@@ -685,7 +743,7 @@ if __name__ == "__main__":
             args.T[1],
             args.T[2],
             args.fc,
-            args.dir,
+            args.workingdir,
             args.SEDname,
             args.overwrite,
             args.startT,
@@ -707,7 +765,7 @@ if __name__ == "__main__":
             args.T[1],
             args.T[2],
             args.fc,
-            args.dir,
+            args.workingdir,
             args.SEDname,
             args.overwrite,
             args.startT,
@@ -729,7 +787,7 @@ if __name__ == "__main__":
             args.T[0],
             args.T[0],
             args.fc,
-            args.dir,
+            args.workingdir,
             args.SEDname,
             args.overwrite,
             args.startT,
@@ -750,3 +808,7 @@ if __name__ == "__main__":
         (int(time.time() - t0) % 60),
         "seconds.\n",
     )
+
+
+if __name__ == "__main__":
+    main()
