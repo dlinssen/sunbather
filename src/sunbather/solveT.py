@@ -1,5 +1,5 @@
-# sunbather imports
-import sunbather.tools as tools
+import os
+import warnings
 
 # other imports
 import pandas as pd
@@ -9,8 +9,9 @@ from matplotlib.lines import Line2D
 from scipy.optimize import minimize_scalar
 from scipy.interpolate import interp1d
 import scipy.stats as sps
-import os
-import warnings
+
+# sunbather imports
+from sunbather import tools
 
 
 def calc_expansion(r, rho, v, Te, mu):
@@ -291,7 +292,7 @@ def calc_cloc(radheat, radcool, expcool, advheat, advcool, HCratio):
     # check for regime where radiative cooling is weak. Usually this means that expansion cooling dominates, but advection cooling can contribute in some cases
     exp_cloc = len(HCratio)  # start by setting a 'too high' value
     expcool_dominates = radcool / (radcool + expcool + advcool) < 0.2
-    if True and False in expcool_dominates:
+    if True and False in expcool_dominates:  # FIXME True in expcool_dominates and False in expcool_dominates?? -SR
         exp_cloc = last_false_index(
             expcool_dominates
         )  # this way of evaluating it guarantees that all entries after this one are True
@@ -535,7 +536,7 @@ def make_rates_plot(
     HCrationeg[HCrationeg < 0] = 0.0
 
     fig, (ax1, ax2, ax3) = plt.subplots(3, figsize=(4, 7))
-    if title != None:
+    if title is not None:
         ax1.set_title(title)
     ax1.plot(altgrid, Te, color="#4CAF50", label="previous")
     ax1.plot(altgrid, newTe_relax, color="#FFA500", label="relaxation")
@@ -552,14 +553,14 @@ def make_rates_plot(
     ax2.plot(altgrid, advcool / rho, color="blue", linestyle="dotted")
     ax2.set_yscale("log")
     ax2.set_ylim(
-        0.1 * min(min(radheat / rho), min(radcool / rho)),
+        0.1 * min(radheat / rho, radcool / rho),
         2
         * max(
-            max(radheat / rho),
-            max(radcool / rho),
-            max(expcool / rho),
-            max(advheat / rho),
-            max(advcool / rho),
+            radheat / rho,
+            radcool / rho,
+            expcool / rho,
+            advheat / rho,
+            advcool / rho,
         ),
     )
     ax2.set_ylabel("Rate [erg/s/g]")
@@ -593,7 +594,7 @@ def make_rates_plot(
     tools.set_alt_ax(ax3, altmax=altmax, labels=True)
 
     fig.tight_layout()
-    if savename != None:
+    if savename is not None:
         plt.savefig(savename, bbox_inches="tight", dpi=200)
     plt.clf()
     plt.close()
@@ -641,14 +642,14 @@ def make_converged_plot(
     ax2.plot(altgrid, advcool / rho, color="blue", linestyle="dotted")
     ax2.set_yscale("log")
     ax2.set_ylim(
-        0.1 * min(min(radheat / rho), min(radcool / rho)),
+        0.1 * min(radheat / rho, radcool / rho),
         2
         * max(
-            max(radheat / rho),
-            max(radcool / rho),
-            max(expcool / rho),
-            max(advheat / rho),
-            max(advcool / rho),
+            radheat / rho,
+            radcool / rho,
+            expcool / rho,
+            advheat / rho,
+            advcool / rho,
         ),
     )
     ax2.set_ylabel("Rate [erg/s/g]")
@@ -724,14 +725,11 @@ def check_converged(fc, HCratio, newTe, prevTe, linthresh=50.0):
     )  # take element wise ratio
     diffTe = np.abs(newTe - prevTe)  # take element-wise absolute difference
 
-    if np.all(
+    converged = np.all(
         (np.abs(HCratio) < fc)
         | (ratioTe < (1 + 0.3 * np.log10(fc)))
         | (diffTe < linthresh)
-    ):
-        converged = True
-    else:
-        converged = False
+    )
 
     return converged
 
@@ -764,7 +762,7 @@ def clean_converged_folder(folder):
                 os.remove(os.path.join(folder, filename))
 
 
-def run_loop(path, itno, fc, save_sp=[], maxit=16):
+def run_loop(path, itno, fc, save_sp=None, maxit=16):
     """
     Solves for the nonisothermal temperature profile of a Parker wind
     profile through an iterative convergence scheme including Cloudy.
@@ -789,6 +787,8 @@ def run_loop(path, itno, fc, save_sp=[], maxit=16):
     maxit : int, optional
         Maximum number of iterations, by default 16.
     """
+    if save_sp is None:
+        save_sp = []
 
     if itno == 1:  # iteration1 is just running Cloudy. Then, we move on to iteration2
         tools.run_Cloudy("iteration1", folder=path)
@@ -922,19 +922,19 @@ def run_loop(path, itno, fc, save_sp=[], maxit=16):
 
             break
 
-        else:  # set up the next iteration
-            Cltlaw = tools.alt_array_to_Cloudy(
-                rgrid, newTe, altmax, Rp, 1000
-            )  # convert the temperature profile to a table format accepted by Cloudy
+        # set up the next iteration
+        Cltlaw = tools.alt_array_to_Cloudy(
+            rgrid, newTe, altmax, Rp, 1000
+        )  # convert the temperature profile to a table format accepted by Cloudy
 
-            tools.copyadd_Cloudy_in(
-                path + "template", path + "iteration" + str(itno), tlaw=Cltlaw
-            )  # add temperature profile to the template input file
-            if (
-                itno != maxit
-            ):  # no use running it if we are not entering the next while-loop iteration
-                tools.run_Cloudy(f"iteration{itno}", folder=path)
-            else:
-                print(f"Failed temperature convergence after {itno} iterations: {path}")
+        tools.copyadd_Cloudy_in(
+            path + "template", path + "iteration" + str(itno), tlaw=Cltlaw
+        )  # add temperature profile to the template input file
+        if (
+            itno != maxit
+        ):  # no use running it if we are not entering the next while-loop iteration
+            tools.run_Cloudy(f"iteration{itno}", folder=path)
+        else:
+            print(f"Failed temperature convergence after {itno} iterations: {path}")
 
-            itno += 1
+        itno += 1
