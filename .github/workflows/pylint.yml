@@ -21,4 +21,4 @@ jobs:
         pip install -e .
     - name: Analysing the code with pylint
       run: |
-        pylint -d C0301,C0103,C0209 --fail-under 7.4 $(git ls-files '*.py')
+        pylint -d C0301,C0103,C0209 --fail-under 8.5 $(git ls-files '*.py')
