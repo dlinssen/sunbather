@@ -1,13 +1,13 @@
 import warnings
 import pandas as pd
 import numpy as np
-import numpy.ma as ma
+from numpy import ma
 from scipy.interpolate import interp1d
 from scipy.special import voigt_profile
 from scipy.integrate import trapezoid
 from scipy.ndimage import gaussian_filter1d
 
-import sunbather.tools as tools
+from sunbather import tools
 
 sigt0 = 2.654e-2  # cm2 s-1 = cm2 Hz, from Axner et al. 2004
 
@@ -108,7 +108,7 @@ def project_1D_to_2D(
     if x_projection:
         q2 = q2 * xx / rr  # now q2 is the projection in the x-direction
 
-    if cut_at != None:  # set values to zero outside the cut_at boundary
+    if cut_at is not None:  # set values to zero outside the cut_at boundary
         q2[rr > cut_at] = 0.0
 
     # some options that were used in Linssen&Oklopcic (2023) to find where the line contribution comes from:
@@ -471,11 +471,9 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
     if spNIST.empty:
         warnings.warn(f"No lines with necessary coefficients found for {species}")
         return spNIST
-    if (
-        type(spNIST["Ei(Ry)"].iloc[0]) == str
-    ):  # if there are no [](), the datatype will be float already
+    if isinstance(spNIST["Ei(Ry)"].iloc[0], str):  # if there are no [](), the datatype will be float already
         spNIST["Ei(Ry)"] = (
-            spNIST["Ei(Ry)"].str.extract("(\d+)", expand=False).astype(float)
+            spNIST["Ei(Ry)"].str.extract(r"(\d+)", expand=False).astype(float)
         )  # remove non-numeric characters such as [] and ()
     spNIST["sig0"] = sigt0 * spNIST.fik
     spNIST["nu0"] = tools.c * 1e8 / (spNIST["ritz_wl_vac(A)"])  # speed of light to AA/s
@@ -483,11 +481,11 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
         4 * np.pi
     )  # lorentzian gamma is not function of depth or nu. Value in Hz
 
-    if wavlower != None:
+    if wavlower is not None:
         spNIST.drop(
             labels=spNIST.index[spNIST["ritz_wl_vac(A)"] <= wavlower], inplace=True
         )
-    if wavupper != None:
+    if wavupper is not None:
         spNIST.drop(
             labels=spNIST.index[spNIST["ritz_wl_vac(A)"] >= wavupper], inplace=True
         )
@@ -668,7 +666,7 @@ def FinFout(
             colname, lineweight = tools.find_line_lowerstate_in_en_df(
                 spec, spNIST.loc[lineno], sim.en
             )
-            if colname == None:  # we skip this line if the line energy is not found.
+            if colname is None:  # we skip this line if the line energy is not found.
                 notfound_lines.append(spNIST["ritz_wl_vac(A)"][lineno])
                 continue  # to next spectral line
 
@@ -756,9 +754,7 @@ def tau_1D(sim, wavAA, species, width_fac=1.0, v_turb=0.0):
         but which could not be calculated due to their excitation state not being reported by Cloudy.
     """
 
-    assert isinstance(wavAA, float) or isinstance(
-        wavAA, int
-    ), "Pass one wavelength in Å as a float or int"
+    assert isinstance(wavAA, (float, int)), "Pass one wavelength in Å as a float or int"
     assert hasattr(sim, "p"), "The sim must have an attributed Planet object"
     assert (
         "v" in sim.ovr.columns
@@ -812,7 +808,7 @@ def tau_1D(sim, wavAA, species, width_fac=1.0, v_turb=0.0):
             colname, lineweight = tools.find_line_lowerstate_in_en_df(
                 spec, spNIST.loc[lineno], sim.en
             )
-            if colname == None:  # we skip this line if the line energy is not found.
+            if colname is None:  # we skip this line if the line energy is not found.
                 notfound_lines.append(spNIST["ritz_wl_vac(A)"][lineno])
                 continue  # to next spectral line
 
@@ -891,9 +887,7 @@ def tau_12D(sim, wavAA, species, width_fac=1.0, v_turb=0.0, cut_at=None):
         but which could not be calculated due to their excitation state not being reported by Cloudy.
     """
 
-    assert isinstance(wavAA, float) or isinstance(
-        wavAA, int
-    ), "Pass one wavelength in Å as a float or int"
+    assert isinstance(wavAA, (float, int)), "Pass one wavelength in Å as a float or int"
     assert hasattr(sim, "p")
     assert (
         "v" in sim.ovr.columns
@@ -948,7 +942,7 @@ def tau_12D(sim, wavAA, species, width_fac=1.0, v_turb=0.0, cut_at=None):
             colname, lineweight = tools.find_line_lowerstate_in_en_df(
                 spec, spNIST.loc[lineno], sim.en
             )
-            if colname == None:  # we skip this line if the line energy is not found.
+            if colname is None:  # we skip this line if the line energy is not found.
                 notfound_lines.append(spNIST["ritz_wl_vac(A)"][lineno])
                 continue  # to next spectral line
 
