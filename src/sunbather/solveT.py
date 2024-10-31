@@ -290,14 +290,13 @@ def calc_cloc(radheat, radcool, expcool, advheat, advcool, HCratio):
             adv_cloc = advunimploc + first_true_index(almost_converged)
 
     # check for regime where radiative cooling is weak. Usually this means that expansion cooling dominates, but advection cooling can contribute in some cases
-    exp_cloc = len(HCratio)  # start by setting a 'too high' value
     expcool_dominates = radcool / (radcool + expcool + advcool) < 0.2
-    if True and False in expcool_dominates:  # FIXME True in expcool_dominates and False in expcool_dominates?? -SR
+    if False not in expcool_dominates:  # if they are all True
+        exp_cloc = 0
+    else:
         exp_cloc = last_false_index(
             expcool_dominates
         )  # this way of evaluating it guarantees that all entries after this one are True
-    elif False not in expcool_dominates:  # if they are all True
-        exp_cloc = 0
 
     cloc = min(adv_cloc, exp_cloc)  # use the lowest radius point
 
@@ -820,7 +819,7 @@ def run_loop(path, itno, fc, save_sp=None, maxit=16):
             radheat, radcool, expcool, advheat, advcool, HCratio
         )  # look for a point from where we could use construction
         newTe_construct = None
-        if cloc != len(rgrid):
+        if cloc < len(rgrid) - 1:
             newTe_construct = constructTstruc(
                 rgrid, newTe_relax, int(cloc), v, rho, mu, radheat, radcool
             )  # apply construction algorithm
