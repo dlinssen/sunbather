@@ -1,6 +1,8 @@
 .DS_Store
 __pycache__/
-.ipynb_checkpoints
+*.ipynb_checkpoints
+*.egg-info
+*.swp
 examples/WASP52b_dT.csv
 examples/WASP52b_sigmaT.csv
 examples/WASP52b_nsig_fit.csv
