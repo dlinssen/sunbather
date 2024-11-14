@@ -1,3 +1,6 @@
+"""
+Tools for sunbather
+"""
 import os
 import glob
 import re
@@ -38,18 +41,21 @@ try:
         "SUNBATHER_PROJECT_PATH"
     ]  # the path where you save your simulations and do analysis
 except KeyError as exc:
-    raise KeyError(
-        "The environment variable 'SUNBATHER_PROJECT_PATH' is not set. "
-        "Please set this variable in your .bashrc/.zshrc file "
-        "to the path where you want the sunbather models to be saved. "
-        "Make sure that the 'planets.txt' file is present in that folder."
-    ) from exc
+    projectpath = "./"
+    if not os.path.exists(f"{projectpath}/planets.txt"):
+        raise FileNotFoundError(
+            "The environment variable 'SUNBATHER_PROJECT_PATH' is not set, and no "
+            "planets.txt file found in current directory. Please set the "
+            "'SUNBATHER_PROJECT_PATH' variable in your .bashrc/.zshrc file "
+            "to the path where you want the sunbather models to be saved, "
+            "and make sure that the 'planets.txt' file is present in that folder."
+        ) from exc
 
-try:
+if os.path.exists(f"{projectpath}/planets.txt"):
     # read planet parameters globally instead of in the Planets class (so we do it only
     # once)
     planets_file = pd.read_csv(
-        projectpath + "/planets.txt",
+        f"{projectpath}/planets.txt",
         dtype={
             "name": str,
             "full name": str,
@@ -63,12 +69,12 @@ try:
         },
         comment="#",
     )
-except FileNotFoundError as exc:
+else:
     raise FileNotFoundError(
         "The $SUNBATHER_PROJECT_PATH/planets.txt file cannot be found. "
         "Please check if your $SUNBATHER_PROJECT_PATH actually exists on your machine. "
         "Then, copy /sunbather/planets.txt to your project path."
-    ) from exc
+    )
 
 # define constants:
 c = 2.99792458e10  # cm/s
