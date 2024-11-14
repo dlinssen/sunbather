@@ -1,3 +1,6 @@
+"""
+Functions to construct parker
+"""
 # other imports
 import os
 import time
