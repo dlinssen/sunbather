@@ -155,8 +155,9 @@ def save_plain_parker_profile(
     Mdot = float(Mdot)
     T = int(T)
 
+    projectpath = tools.get_sunbather_project_path()
     save_name = (
-        tools.projectpath
+        projectpath
         + "/parker_profiles/"
         + planet.name
         + "/"
@@ -418,7 +419,7 @@ def save_temp_parker_profile(
         (r * planet.R, rho_array * rhos, v_array * vs * 1e5, mu_array)
     )
     save_name = (
-        tools.projectpath
+        projectpath
         + "/parker_profiles/"
         + planet.name
         + "/"
@@ -614,8 +615,9 @@ def save_cloudy_parker_profile(
         Maximum altitude of the profile in units of the planet radius. By default 20.
     """
 
+    projectpath = tools.get_sunbather_project_path()    
     save_name = (
-        tools.projectpath
+        projectpath
         + "/parker_profiles/"
         + planet.name
         + "/"
@@ -813,7 +815,7 @@ def run_s(
         20, int((p.a - p.Rstar) / p.R)
     )  # solve profile up to 20 Rp, unless the star is closer than that
     spectrum = cloudy_spec_to_pwinds(
-        tools.cloudypath + "/data/SED/" + p.SEDname,
+        tools.get_cloudy_path() + "/data/SED/" + p.SEDname,
         1.0,
         (p.a - altmax * p.R) / tools.AU,
     )  # assumes SED is at 1 AU
@@ -1114,15 +1116,16 @@ def main():
         )
 
     # set up the folder structure if it doesn't exist yet
-    if not os.path.isdir(tools.projectpath + "/parker_profiles/"):
-        os.mkdir(tools.projectpath + "/parker_profiles")
-    if not os.path.isdir(tools.projectpath + "/parker_profiles/" + args.plname + "/"):
-        os.mkdir(tools.projectpath + "/parker_profiles/" + args.plname)
+    projectpath = tools.get_sunbather_project_path()    
+    if not os.path.isdir(projectpath + "/parker_profiles/"):
+        os.mkdir(projectpath + "/parker_profiles")
+    if not os.path.isdir(projectpath + "/parker_profiles/" + args.plname + "/"):
+        os.mkdir(projectpath + "/parker_profiles/" + args.plname)
     if not os.path.isdir(
-        tools.projectpath + "/parker_profiles/" + args.plname + "/" + args.pdir + "/"
+        projectpath + "/parker_profiles/" + args.plname + "/" + args.pdir + "/"
     ):
         os.mkdir(
-            tools.projectpath
+            projectpath
             + "/parker_profiles/"
             + args.plname
             + "/"
@@ -1131,7 +1134,7 @@ def main():
         )
     if (args.fH is None) and (
         not os.path.isdir(
-            tools.projectpath
+            projectpath
             + "/parker_profiles/"
             + args.plname
             + "/"
@@ -1140,7 +1143,7 @@ def main():
         )
     ):
         os.mkdir(
-            tools.projectpath
+            projectpath
             + "/parker_profiles/"
             + args.plname
             + "/"

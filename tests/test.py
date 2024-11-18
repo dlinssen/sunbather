@@ -23,26 +23,28 @@ print(
 # SETUP CHECKS
 
 # make sure projectpath exists
+projectpath = tools.get_sunbather_project_path()
+
 assert os.path.isdir(
-    tools.projectpath
+    projectpath
 ), "Please create the projectpath folder on your machine"
 # make sure the planets.txt file exists
 assert os.path.isfile(
-    tools.projectpath + "/planets.txt"
+    projectpath + "/planets.txt"
 ), "Please make sure the 'planets.txt' file is present in $SUNBATHER_PROJECT_PATH"
 # make sure the SED we need for this test has been copied to Cloudy
 assert os.path.isfile(
-    tools.cloudypath + "/data/SED/eps_Eri_binned.spec"
+    tools.get_cloudy_path() + "/data/SED/eps_Eri_binned.spec"
 ), "Please copy /sunbather/stellar_SEDs/eps_Eri_binned.spec into $CLOUDY_PATH/data/SED/"
 
 
 # ## CHECK IF test.py HAS BEEN RAN BEFORE ###
 
 parker_profile_file = (
-    tools.projectpath
+    projectpath
     + "/parker_profiles/WASP52b/test/pprof_WASP52b_T=9000_M=11.000.txt"
 )
-simulation_folder = tools.projectpath + "/sims/1D/WASP52b/test/parker_9000_11.000/"
+simulation_folder = projectpath + "/sims/1D/WASP52b/test/parker_9000_11.000/"
 
 if os.path.exists(parker_profile_file) or os.path.exists(simulation_folder):
     confirmation = input(
@@ -70,7 +72,7 @@ os.system(
 )
 # load the created profile
 pprof_created = pd.read_table(
-    tools.projectpath
+    projectpath
     + "/parker_profiles/WASP52b/test/pprof_WASP52b_T=9000_M=11.000.txt",
     names=["alt", "rho", "v", "mu"],
     dtype=np.float64,
@@ -111,7 +113,7 @@ os.system(
 )
 # load the created simulation
 sim_created = tools.Sim(
-    tools.projectpath + "/sims/1D/WASP52b/test/parker_9000_11.000/converged"
+    projectpath + "/sims/1D/WASP52b/test/parker_9000_11.000/converged"
 )
 # load the expected simulation
 sim_expected = tools.Sim(this_path + "/materials/converged")

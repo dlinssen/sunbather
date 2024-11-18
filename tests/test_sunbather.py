@@ -24,8 +24,9 @@ def test_projectdirs():
     Make sure projectpath exists
     """
     from sunbather import tools
+    projectpath = tools.get_sunbather_project_path()
     assert os.path.isdir(
-        tools.projectpath
+        projectpath
     ), "Please create the projectpath folder on your machine"
 
 
@@ -34,8 +35,9 @@ def test_planetstxt():
     Make sure the planets.txt file exists
     """
     from sunbather import tools
+    projectpath = tools.get_sunbather_project_path()    
     assert os.path.isfile(
-        tools.projectpath + "/planets.txt"
+        projectpath + "/planets.txt"
     ), "Please make sure the 'planets.txt' file is present in $SUNBATHER_PROJECT_PATH"
 
 
@@ -45,7 +47,7 @@ def test_seds():
     """
     from sunbather import tools
     assert os.path.isfile(
-        tools.cloudypath + "/data/SED/eps_Eri_binned.spec"
+        tools.get_cloudy_path() + "/data/SED/eps_Eri_binned.spec"
     ), (
         "Please copy /sunbather/stellar_SEDs/eps_Eri_binned.spec "
         "into $CLOUDY_PATH/data/SED/"
