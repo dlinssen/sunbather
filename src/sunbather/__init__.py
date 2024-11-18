@@ -73,5 +73,3 @@ def firstrun():
     """
     install_cloudy()
     make_workingdir()
-
-firstrun()
