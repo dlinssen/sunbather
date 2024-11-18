@@ -5,7 +5,9 @@ import os
 import pathlib
 import shutil
 
-def install_cloudy():
+import sunbather.tools
+
+def check_cloudy():
     """
     Checks if Cloudy executable exists, and if not, prompts to download and build it.
     """
@@ -69,7 +71,7 @@ def make_workingdir():
 
 def firstrun():
     """
-    Runs 'install_cloudy()' and 'make_workingdir()'.
+    Runs 'check_cloudy()' and 'make_workingdir()'.
     """
-    install_cloudy()
+    check_cloudy()
     make_workingdir()
