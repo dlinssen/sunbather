@@ -4,6 +4,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 import sys
+import os
 from pathlib import Path
 
 sys.path.insert(0, str(Path('..', 'src').resolve()))
