@@ -19,6 +19,7 @@ author = "Dion Linssen"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
+    "sphinx_rtd_theme",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "myst_parser",
@@ -34,3 +35,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 # html_theme = 'alabaster'
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
+
+
+# Configuration for Read the Docs
+html_baseurl = os.environ.get("READTHEDOCS_CANONICAL_URL", "/")
