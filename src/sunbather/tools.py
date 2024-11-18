@@ -10,6 +10,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
 import scipy.stats as sps
@@ -23,53 +24,62 @@ from scipy.ndimage import gaussian_filter1d
 sunbatherpath = os.path.dirname(
     os.path.abspath(__file__)
 )  # the absolute path where this code lives
-try:
-    # the path where Cloudy is installed
-    cloudypath = os.environ["CLOUDY_PATH"]
-except KeyError as exc:
-    cloudypath = f"{sunbatherpath}/cloudy/c23.01"
-    if not os.path.exists(f"{cloudypath}/source/cloudy.exe"):
-        raise KeyError(
-            "The environment variable 'CLOUDY_PATH' is not set. "
-            "Please set this variable in your .bashrc/.zshrc file "
-            "to the path where the Cloudy installation is located. "
-            "Do not point it to the /source/ subfolder, but to the main folder."
-        ) from exc
 
-try:
-    projectpath = os.environ[
-        "SUNBATHER_PROJECT_PATH"
-    ]  # the path where you save your simulations and do analysis
-except KeyError as exc:
-    projectpath = "./"
-    if not os.path.exists(f"{projectpath}/planets.txt"):
-        raise FileNotFoundError(
-            "The environment variable 'SUNBATHER_PROJECT_PATH' is not set, and no "
-            "planets.txt file found in current directory. Please set the "
-            "'SUNBATHER_PROJECT_PATH' variable in your .bashrc/.zshrc file "
-            "to the path where you want the sunbather models to be saved, "
-            "and make sure that the 'planets.txt' file is present in that folder."
-        ) from exc
 
-if os.path.exists(f"{projectpath}/planets.txt"):
-    # read planet parameters globally instead of in the Planets class (so we do it only
-    # once)
-    planets_file = pd.read_csv(
-        f"{projectpath}/planets.txt",
-        dtype={
-            "name": str,
-            "full name": str,
-            "R [RJ]": np.float64,
-            "Rstar [Rsun]": np.float64,
-            "a [AU]": np.float64,
-            "M [MJ]": np.float64,
-            "Mstar [Msun]": np.float64,
-            "transit impact parameter": np.float64,
-            "SEDname": str,
-        },
-        comment="#",
-    )
-else:
+def get_cloudy_path():
+    try:
+        # the path where Cloudy is installed
+        cloudypath = os.environ["CLOUDY_PATH"]
+    except KeyError as exc:
+        cloudypath = f"{sunbatherpath}/cloudy/c23.01"
+        if not os.path.exists(f"{cloudypath}/source/cloudy.exe"):
+            raise KeyError(
+                "The environment variable 'CLOUDY_PATH' is not set. "
+                "Please set this variable in your .bashrc/.zshrc file "
+                "to the path where the Cloudy installation is located. "
+                "Do not point it to the /source/ subfolder, but to the main folder."
+            ) from exc
+    return cloudypath
+
+
+def get_sunbather_project_path():
+    try:
+        projectpath = os.environ[
+            "SUNBATHER_PROJECT_PATH"
+        ]  # the path where you save your simulations and do analysis
+    except KeyError as exc:
+        projectpath = "./"
+        if not os.path.exists(f"{projectpath}/planets.txt"):
+            raise FileNotFoundError(
+                "The environment variable 'SUNBATHER_PROJECT_PATH' is not set, and no "
+                "planets.txt file found in current directory. Please set the "
+                "'SUNBATHER_PROJECT_PATH' variable in your .bashrc/.zshrc file "
+                "to the path where you want the sunbather models to be saved, "
+                "and make sure that the 'planets.txt' file is present in that folder."
+            ) from exc
+    return projectpath
+
+
+def get_planets_file():
+    if os.path.exists(f"{get_sunbather_project_path()}/planets.txt"):
+        # read planet parameters globally instead of in the Planets class (so we do it only
+        # once)
+        planets_file = pd.read_csv(
+            f"{get_sunbather_project_path()}/planets.txt",
+            dtype={
+                "name": str,
+                "full name": str,
+                "R [RJ]": np.float64,
+                "Rstar [Rsun]": np.float64,
+                "a [AU]": np.float64,
+                "M [MJ]": np.float64,
+                "Mstar [Msun]": np.float64,
+                "transit impact parameter": np.float64,
+                "SEDname": str,
+            },
+            comment="#",
+        )
+        return planets_file
     raise FileNotFoundError(
         "The $SUNBATHER_PROJECT_PATH/planets.txt file cannot be found. "
         "Please check if your $SUNBATHER_PROJECT_PATH actually exists on your machine. "
@@ -966,7 +976,7 @@ def get_SED_norm_1AU(SEDname):
         Energy where the monochromatic flux of the nuFnu output variable is specified.
     """
 
-    with open(cloudypath + "/data/SED/" + SEDname, "r", encoding="utf-8") as f:
+    with open(f"{get_cloudy_path()}/data/SED/{SEDname}", "r", encoding="utf-8") as f:
         for line in f:
             if not line.startswith("#"):  # skip through the comments at the top
                 assert ("angstrom" in line) or ("Angstrom" in line)  # verify the units
@@ -1072,18 +1082,8 @@ def read_parker(plname, T, Mdot, pdir, filename=None):
         Mdot = f"{float(Mdot):.3f}"
         T = str(int(T))
         filename = (
-            projectpath
-            + "/parker_profiles/"
-            + plname
-            + "/"
-            + pdir
-            + "/pprof_"
-            + plname
-            + "_T="
-            + T
-            + "_M="
-            + Mdot
-            + ".txt"
+            f"{get_sunbather_project_path()}/parker_profiles/{plname}/"
+            f"{pdir}/pprof_{plname}_T={T}_M={Mdot}.txt"
         )
 
     pprof = pd.read_table(
@@ -1630,7 +1630,7 @@ def run_Cloudy(filename, folder=None):
         filename = filename[:-3]  # filename should not contain the extension
 
     os.system(
-        "cd " + folder + " && " + cloudypath + "/source/cloudy.exe -p " + filename
+        f"cd {folder} && {get_cloudy_path()}/source/cloudy.exe -p {filename}"
     )
 
 
@@ -2340,6 +2340,7 @@ class Planet:
         """
 
         # check if we can fetch planet parameters from planets.txt:
+        planets_file = get_planets_file()
         if (
             name in planets_file["name"].values
             or name in planets_file["full name"].values
