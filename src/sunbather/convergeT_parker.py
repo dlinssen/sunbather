@@ -174,7 +174,8 @@ def run_s(
         planet.set_var(SEDname=SEDname)
 
     # set up the folder structure
-    pathTstruc = tools.projectpath + "/sims/1D/" + planet.name + "/" + workingdir + "/"
+    projectpath = tools.get_sunbather_project_path()
+    pathTstruc = projectpath + "/sims/1D/" + planet.name + "/" + workingdir + "/"
     path = pathTstruc + "parker_" + T + "_" + Mdot + "/"
 
     # check if this parker profile exists in the given pdir
@@ -183,7 +184,7 @@ def run_s(
     except FileNotFoundError:
         print(
             "This parker profile does not exist:",
-            tools.projectpath
+            projectpath
             + "/parker_profiles/"
             + planet.name
             + "/"
@@ -701,16 +702,17 @@ def main():
         )
 
     # set up the folder structure if it doesn't exist yet
-    if not os.path.isdir(tools.projectpath + "/sims/"):
-        os.mkdir(tools.projectpath + "/sims")
-    if not os.path.isdir(tools.projectpath + "/sims/1D/"):
-        os.mkdir(tools.projectpath + "/sims/1D")
-    if not os.path.isdir(tools.projectpath + "/sims/1D/" + args.plname + "/"):
-        os.mkdir(tools.projectpath + "/sims/1D/" + args.plname)
+    projectpath = tools.get_sunbather_project_path()
+    if not os.path.isdir(projectpath + "/sims/"):
+        os.mkdir(projectpath + "/sims")
+    if not os.path.isdir(projectpath + "/sims/1D/"):
+        os.mkdir(projectpath + "/sims/1D")
+    if not os.path.isdir(projectpath + "/sims/1D/" + args.plname + "/"):
+        os.mkdir(projectpath + "/sims/1D/" + args.plname)
     if not os.path.isdir(
-        tools.projectpath + "/sims/1D/" + args.plname + "/" + args.dir + "/"
+        projectpath + "/sims/1D/" + args.plname + "/" + args.dir + "/"
     ):
-        os.mkdir(tools.projectpath + "/sims/1D/" + args.plname + "/" + args.dir)
+        os.mkdir(projectpath + "/sims/1D/" + args.plname + "/" + args.dir)
 
     if len(args.T) == 1 and len(args.Mdot) == 1:  # then we run a single model
         run_s(
