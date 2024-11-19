@@ -1,7 +1,9 @@
 """
 Functions to construct parker
 """
+
 # other imports
+import sys
 import os
 import time
 import argparse
@@ -10,8 +12,10 @@ import traceback
 import warnings
 from shutil import copyfile
 import numpy as np
+
 # import matplotlib.pyplot as plt
 import astropy.units as u
+
 # from p_winds import tools as pw_tools
 from p_winds import parker as pw_parker
 from p_winds import hydrogen as pw_hydrogen
@@ -27,7 +31,8 @@ def cloudy_spec_to_pwinds(SEDfilename, dist_SED, dist_planet):
     Reads a spectrum file in the format that we give it to Cloudy, namely
     angstroms and monochromatic flux (i.e., nu*F_nu or lambda*F_lambda) units.
     and converts it to a spectrum dictionary that p-winds uses.
-    This is basically an equivalent of the p_winds.parker.make_spectrum_from_file() function.
+    This is basically an equivalent of the
+    p_winds.parker.make_spectrum_from_file() function.
 
     Parameters
     ----------
@@ -140,14 +145,15 @@ def save_plain_parker_profile(
     pdir : str, optional
         Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/planetname/*pdir*/
         where the isothermal parker wind density and velocity profiles are saved.
-        Different folders may exist there for a given planet, to separate for example profiles
-        with different assumptions such as stellar SED/semi-major axis/composition. By default 'fH_0.9'.
+        Different folders may exist there for a given planet, to separate for
+        example profiles with different assumptions such as stellar
+        SED/semi-major axis/composition. By default 'fH_0.9'.
     overwrite : bool, optional
         Whether to overwrite existing models, by default False.
     notidal : bool, optional
-        Whether to neglect tidal gravity - fourth term of Eq. 4 of Linssen et al. (2024).
-        See also Appendix D of Vissapragada et al. (2022) for the p-winds implementation.
-        Default is False, i.e. tidal gravity incluced.
+        Whether to neglect tidal gravity - fourth term of Eq. 4 of Linssen et
+        al. (2024).  See also Appendix D of Vissapragada et al. (2022) for the
+        p-winds implementation.  Default is False, i.e. tidal gravity included.
     altmax : int, optional
         Maximum altitude of the profile in units of the planet radius. By default 20.
     """
@@ -157,28 +163,20 @@ def save_plain_parker_profile(
 
     projectpath = tools.get_sunbather_project_path()
     save_name = (
-        projectpath
-        + "/parker_profiles/"
-        + planet.name
-        + "/"
-        + pdir
-        + "/pprof_"
-        + planet.name
-        + "_T="
-        + str(T)
-        + "_M="
-        + "%.3f" % Mdot
-        + ".txt"
+        f"{projectpath}/parker_profiles/{planet.name}/{pdir}/"
+        f"pprof_{planet.name}_T={str(T)}_M={Mdot:.3f}.txt"
     )
     if os.path.exists(save_name) and not overwrite:
         print(
             "Parker profile already exists and overwrite = False:",
             planet.name,
             pdir,
-            "%.3f" % Mdot,
+            f"{Mdot:.3f}",
             T,
         )
-        return  # this quits the function but if we're running a grid, it doesn't quit the whole Python code
+        # this quits the function but if we're running a grid, it doesn't quit
+        # the whole Python code
+        return  
 
     R_pl = planet.R / tools.RJ  # convert from cm to Rjup
     M_pl = planet.M / tools.MJ  # convert from g to Mjup
@@ -195,7 +193,8 @@ def save_plain_parker_profile(
         0.0  # Mean ionization fraction (will be self-consistently calculated later)
     )
     mu_0 = (1 + 4 * he_h_fraction) / (1 + he_h_fraction + mean_f_ion)
-    # mu_0 is the constant mean molecular weight (assumed for now, will be updated later)
+    # mu_0 is the constant mean molecular weight (assumed for now, will be
+    # updated later)
 
     initial_f_ion = 0.0
     f_r, mu_bar = pw_hydrogen.ion_fraction(
@@ -299,18 +298,20 @@ def save_temp_parker_profile(
     pdir : str
         Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/planetname/*pdir*/
         where the isothermal parker wind density and velocity profiles are saved.
-        Different folders may exist there for a given planet, to separate for example profiles
-        with different assumptions such as stellar SED/semi-major axis/composition.
+        Different folders may exist there for a given planet, to separate for
+        example profiles with different assumptions such as stellar
+        SED/semi-major axis/composition.
     mu_bar : float, optional
-        Weighted mean of the mean particle mass. Based on Eq. A.3 of Lampon et al. (2020).
-        If None, p-winds will calculate mu(r) and the associated mu_bar. By default None.
+        Weighted mean of the mean particle mass. Based on Eq. A.3 of Lampon et
+        al. (2020).  If None, p-winds will calculate mu(r) and the associated
+        mu_bar. By default None.
     mu_struc : numpy.ndarray, optional
         Mean particle mass profile, must be provided if mu_bar is None.
         Typically, this is a mu(r)-profile as given by Cloudy. By default None.
     no_tidal : bool, optional
-        Whether to neglect tidal gravity - fourth term of Eq. 4 of Linssen et al. (2024).
-        See also Appendix D of Vissapragada et al. (2022) for the p-winds implementation.
-        Default is False, i.e. tidal gravity included.
+        Whether to neglect tidal gravity - fourth term of Eq. 4 of Linssen et
+        al. (2024).  See also Appendix D of Vissapragada et al. (2022) for the
+        p-winds implementation.  Default is False, i.e. tidal gravity included.
     altmax : int, optional
         Maximum altitude of the profile in units of the planet radius. By default 20.
 
@@ -319,20 +320,23 @@ def save_temp_parker_profile(
     save_name : str
         Full path + filename of the saved Parker wind profile file.
     mu_bar : float
-        Weighted mean of the mean particle mass. Based on Eq. A.3 of Lampon et al. (2020).
-        If the input mu_bar was None, this will return the value as calculated by p-winds.
-        If the input mu_bar was not None, this will return that same value.
+        Weighted mean of the mean particle mass. Based on Eq. A.3 of Lampon et
+        al. (2020).  If the input mu_bar was None, this will return the value
+        as calculated by p-winds.  If the input mu_bar was not None, this will
+        return that same value.
     launch_velocity : float
-        Velocity at the planet radius in units of the sonic speed. If it is larger than 1,
-        the wind is "launched" already supersonic, and hence the assumption of a transonic
-        wind is not valid anymore.
+        Velocity at the planet radius in units of the sonic speed. If it is
+        larger than 1, the wind is "launched" already supersonic, and hence the
+        assumption of a transonic wind is not valid anymore.
     """
 
     Mdot = float(Mdot)
     T = int(T)
 
-    R_pl = planet.R / tools.RJ  # convert from cm to Rjup
-    M_pl = planet.M / tools.MJ  # convert from g to Mjup
+    # convert from cm to Rjup
+    R_pl = planet.R / tools.RJ
+    # convert from g to Mjup
+    M_pl = planet.M / tools.MJ
 
     m_dot = 10**Mdot  # Total atmospheric escape rate in g / s
     r = np.logspace(
@@ -341,8 +345,10 @@ def save_temp_parker_profile(
 
     if (
         mu_bar is None
-    ):  # if not given by a Cloudy run, let p-winds calculate it (used the first iteration)
-        # pretend that the metals don't exist and just calculate the h_fraction with only H and He abundances
+    ):
+        # if not given by a Cloudy run, let p-winds calculate it (used the
+        # first iteration) pretend that the metals don't exist and just
+        # calculate the h_fraction with only H and He abundances
         abundances = tools.get_abundances(zdict)  # solar abundances
         h_fraction = abundances["H"] / (
             abundances["H"] + abundances["He"]
@@ -355,7 +361,8 @@ def save_temp_parker_profile(
             0.0  # Mean ionization fraction (will be self-consistently calculated later)
         )
         mu_0 = (1 + 4 * he_h_fraction) / (1 + he_h_fraction + mean_f_ion)
-        # mu_0 is the constant mean molecular weight (assumed for now, will be updated later)
+        # mu_0 is the constant mean molecular weight (assumed for now, will be
+        # updated later)
 
         initial_f_ion = 0.0
 
@@ -419,22 +426,12 @@ def save_temp_parker_profile(
         (r * planet.R, rho_array * rhos, v_array * vs * 1e5, mu_array)
     )
     save_name = (
-        projectpath
-        + "/parker_profiles/"
-        + planet.name
-        + "/"
-        + pdir
-        + "/temp/pprof_"
-        + planet.name
-        + "_T="
-        + str(T)
-        + "_M="
-        + "%.3f" % Mdot
-        + ".txt"
+        f"{projectpath}/parker_profiles/{planet.name}/{pdir}/temp/"
+        f"pprof_{planet.name}_T={str(T)}_M={Mdot:.3f}.txt"
     )
     zdictstr = "abundance scale factors relative to solar:"
     for sp in zdict.keys():
-        zdictstr += " " + sp + "=" + "%.1f" % zdict[sp]
+        zdictstr += f" {sp}={zdict[sp]:.1f}"
     np.savetxt(
         save_name, save_array, delimiter="\t", header=zdictstr + "\nalt rho v mu"
     )
@@ -445,7 +442,9 @@ def save_temp_parker_profile(
 
 
 def run_parker_with_cloudy(filename, T, planet, zdict):
-    """Runs an isothermal Parker wind profile through Cloudy, using the isothermal temperature profile.
+    """
+    Runs an isothermal Parker wind profile through Cloudy, using the isothermal
+    temperature profile.
 
     Parameters
     ----------
@@ -465,7 +464,8 @@ def run_parker_with_cloudy(filename, T, planet, zdict):
     simname : str
         Full path + name of the Cloudy simulation file without file extension.
     pprof : pandas.DataFrame
-        Radial density, velocity and mean particle mass profiles of the isothermal Parker wind profile.
+        Radial density, velocity and mean particle mass profiles of the
+        isothermal Parker wind profile.
     """
 
     pprof = tools.read_parker("", "", "", "", filename=filename)
@@ -565,12 +565,13 @@ def save_cloudy_parker_profile(
 ):
     """
     Calculates an isothermal Parker wind profile with any composition by iteratively
-    running the p-winds code (dos Santos et al. 2022) and Cloudy (Ferland et al. 1998; 2017,
-    Chatziokos et al. 2023). This function works iteratively as follows:
-    p_winds calculates a density profile, Cloudy calculates the mean particle mass profile,
-    we calculate the associated mu_bar value, which is passed to p-winds to calculate a new
-    density profile, until mu_bar has converged to a stable value.
-    Saves a 'pprof' txt file with the r, rho, v, mu structure.
+    running the p-winds code (dos Santos et al. 2022) and Cloudy (Ferland et
+    al. 1998; 2017, Chatziokos et al. 2023). This function works iteratively as
+    follows:
+    p_winds calculates a density profile, Cloudy calculates the mean particle
+    mass profile, we calculate the associated mu_bar value, which is passed to
+    p-winds to calculate a new density profile, until mu_bar has converged to a
+    stable value.  Saves a 'pprof' txt file with the r, rho, v, mu structure.
 
     Parameters
     ----------
@@ -589,33 +590,37 @@ def save_cloudy_parker_profile(
     pdir : str
         Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/planetname/*pdir*/
         where the isothermal parker wind density and velocity profiles are saved.
-        Different folders may exist there for a given planet, to separate for example profiles
-        with different assumptions such as stellar SED/semi-major axis/composition.
+        Different folders may exist there for a given planet, to separate for
+        example profiles with different assumptions such as stellar
+        SED/semi-major axis/composition.
     convergence : float, optional
-        Convergence threshold expressed as the relative change in mu_bar between iterations, by default 0.01
+        Convergence threshold expressed as the relative change in mu_bar
+        between iterations, by default 0.01
     maxit : int, optional
         Maximum number of iterations, by default 7
     cleantemp : bool, optional
         Whether to remove the temporary files in the /temp folder. These files store
-        the intermediate profiles during the iterative process to find mu_bar. By default False.
+        the intermediate profiles during the iterative process to find mu_bar.
+        By default False.
     overwrite : bool, optional
         Whether to overwrite existing models, by default False.
     verbose : bool, optional
         Whether to print diagnostics about the convergence of mu_bar, by default False
     avoid_pwinds_mubar : bool, optional
-        Whether to avoid using p-winds to calculate mu_bar during the first iteration.
-        If True, we guess the mu_bar of the first iteration based on a completely neutral
-        atmosphere. This can be helpful in cases where p-winds solver cannot find a solution,
-        but Cloudy typically can. By default False.
+        Whether to avoid using p-winds to calculate mu_bar during the first
+        iteration.  If True, we guess the mu_bar of the first iteration based
+        on a completely neutral atmosphere. This can be helpful in cases where
+        p-winds solver cannot find a solution, but Cloudy typically can. By
+        default False.
     no_tidal : bool, optional
-        Whether to neglect tidal gravity - fourth term of Eq. 4 of Linssen et al. (2024).
-        See also Appendix D of Vissapragada et al. (2022) for the p-winds implementation.
-        Default is False, i.e. tidal gravity included.
+        Whether to neglect tidal gravity - fourth term of Eq. 4 of Linssen et
+        al. (2024).  See also Appendix D of Vissapragada et al. (2022) for the
+        p-winds implementation.  Default is False, i.e. tidal gravity included.
     altmax : int, optional
         Maximum altitude of the profile in units of the planet radius. By default 20.
     """
 
-    projectpath = tools.get_sunbather_project_path()    
+    projectpath = tools.get_sunbather_project_path()
     save_name = (
         projectpath
         + "/parker_profiles/"
@@ -699,7 +704,8 @@ def save_cloudy_parker_profile(
 
         mu_bar = calc_mu_bar(sim)
         tools.verbose_print(
-            f"Making new parker profile with p-winds based on Cloudy's reported mu_bar: {mu_bar}",
+            f"Making new parker profile with p-winds based on Cloudy's reported "
+            f"mu_bar: {mu_bar}",
             verbose=verbose,
         )
         mu_struc = np.column_stack(
@@ -762,12 +768,14 @@ def run_s(
     Parameters
     ----------
     plname : str
-        Planet name (must have parameters stored in $SUNBATHER_PROJECT_PATH/planets.txt).
+        Planet name (must have parameters stored in
+        $SUNBATHER_PROJECT_PATH/planets.txt).
     pdir : str
         Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/*plname*/*pdir*/
         where the isothermal parker wind density and velocity profiles are saved.
-        Different folders may exist there for a given planet, to separate for example profiles
-        with different assumptions such as stellar SED/semi-major axis/composition.
+        Different folders may exist there for a given planet, to separate for
+        example profiles with different assumptions such as stellar
+        SED/semi-major axis/composition.
     Mdot : str or numeric
         log of the mass-loss rate in units of g s-1.
     T : str or numeric
@@ -779,17 +787,18 @@ def run_s(
     fH : float or None
         Hydrogen abundance expressed as a fraction of the total. If a value is given,
         Parker wind profiles will be calculated using p-winds standalone with a H/He
-        composition. If None is given, Parker wind profiles will be calculated using the
-        p-winds/Cloudy iterative method and the composition is specified via the zdict argument.
+        composition. If None is given, Parker wind profiles will be calculated
+        using the p-winds/Cloudy iterative method and the composition is
+        specified via the zdict argument.
     zdict : dict
         Dictionary with the scale factors of all elements relative
         to the default solar composition. Can be easily created with tools.get_zdict().
-        Will only be used if fH is None, in which case the p-winds/Cloudy iterative method
-        is applied.
+        Will only be used if fH is None, in which case the p-winds/Cloudy
+        iterative method is applied.
     mu_conv : float
-        Convergence threshold expressed as the relative change in mu_bar between iterations.
-        Will only be used if fH is None, in which case the p-winds/Cloudy iterative method
-        is applied.
+        Convergence threshold expressed as the relative change in mu_bar
+        between iterations.  Will only be used if fH is None, in which case the
+        p-winds/Cloudy iterative method is applied.
     mu_maxit : int
         Maximum number of iterations for the p-winds/Cloudy iterative method. Will only
         be used if fH is None.
@@ -799,13 +808,14 @@ def run_s(
         Whether to print diagnostics about the convergence of mu_bar.
     avoid_pwinds_mubar : bool
         Whether to avoid using p-winds to calculate mu_bar during the first iteration,
-        when using the p-winds/Cloudy iterative method. Will only be used if fH is None.
-        If True, we guess the mu_bar of the first iteration based on a completely neutral
-        atmosphere. This can be helpful in cases where p-winds solver cannot find a solution,
-        but Cloudy typically can.
+        when using the p-winds/Cloudy iterative method. Will only be used if fH
+        is None.  If True, we guess the mu_bar of the first iteration based on
+        a completely neutral atmosphere. This can be helpful in cases where
+        p-winds solver cannot find a solution, but Cloudy typically can.
     no_tidal : bool
-        Whether to neglect tidal gravity - fourth term of Eq. 4 of Linssen et al. (2024).
-        See also Appendix D of Vissapragada et al. (2022) for the p-winds implementation.
+        Whether to neglect tidal gravity - fourth term of Eq. 4 of Linssen et
+        al. (2024).  See also Appendix D of Vissapragada et al. (2022) for the
+        p-winds implementation.
     """
 
     p = tools.Planet(plname)
@@ -853,7 +863,8 @@ def run_s(
 
 def catch_errors_run_s(*args):
     """
-    Executes the run_s() function with provided arguments, while catching errors more gracefully.
+    Executes the run_s() function with provided arguments, while catching
+    errors more gracefully.
     """
 
     try:
@@ -883,17 +894,20 @@ def run_g(
     no_tidal,
 ):
     """
-    Calculates a grid of isothermal Parker wind models, by executing the run_s() function in parallel.
+    Calculates a grid of isothermal Parker wind models, by executing the
+    run_s() function in parallel.
 
     Parameters
     ----------
     plname : str
-        Planet name (must have parameters stored in $SUNBATHER_PROJECT_PATH/planets.txt).
+        Planet name (must have parameters stored in
+        $SUNBATHER_PROJECT_PATH/planets.txt).
     pdir : str
         Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/*plname*/*pdir*/
         where the isothermal parker wind density and velocity profiles are saved.
-        Different folders may exist there for a given planet, to separate for example profiles
-        with different assumptions such as stellar SED/semi-major axis/composition.
+        Different folders may exist there for a given planet, to separate for
+        example profiles with different assumptions such as stellar
+        SED/semi-major axis/composition.
     cores : int
         Number of parallel processes to spawn (i.e., number of CPU cores).
     Mdot_l : str or numeric
@@ -915,17 +929,18 @@ def run_g(
     fH : float or None
         Hydrogen abundance expressed as a fraction of the total. If a value is given,
         Parker wind profiles will be calculated using p-winds standalone with a H/He
-        composition. If None is given, Parker wind profiles will be calculated using the
-        p-winds/Cloudy iterative method and the composition is specified via the zdict argument.
+        composition. If None is given, Parker wind profiles will be calculated
+        using the p-winds/Cloudy iterative method and the composition is
+        specified via the zdict argument.
     zdict : dict
         Dictionary with the scale factors of all elements relative
         to the default solar composition. Can be easily created with tools.get_zdict().
-        Will only be used if fH is None, in which case the p-winds/Cloudy iterative method
-        is applied.
+        Will only be used if fH is None, in which case the p-winds/Cloudy
+        iterative method is applied.
     mu_conv : float
-        Convergence threshold expressed as the relative change in mu_bar between iterations.
-        Will only be used if fH is None, in which case the p-winds/Cloudy iterative method
-        is applied.
+        Convergence threshold expressed as the relative change in mu_bar
+        between iterations.  Will only be used if fH is None, in which case the
+        p-winds/Cloudy iterative method is applied.
     mu_maxit : int
         Maximum number of iterations for the p-winds/Cloudy iterative method. Will only
         be used if fH is None.
@@ -936,12 +951,13 @@ def run_g(
     avoid_pwinds_mubar : bool
         Whether to avoid using p-winds to calculate mu_bar during the first iteration,
         when using the p-winds/Cloudy iterative method. Will only be used if fH is None.
-        If True, we guess the mu_bar of the first iteration based on a completely neutral
-        atmosphere. This can be helpful in cases where p-winds solver cannot find a solution,
-        but Cloudy typically can.
+        If True, we guess the mu_bar of the first iteration based on a
+        completely neutral atmosphere. This can be helpful in cases where
+        p-winds solver cannot find a solution, but Cloudy typically can.
     no_tidal : bool
-        Whether to neglect tidal gravity - fourth term of Eq. 4 of Linssen et al. (2024).
-        See also Appendix D of Vissapragada et al. (2022) for the p-winds implementation.
+        Whether to neglect tidal gravity - fourth term of Eq. 4 of Linssen et
+        al. (2024).  See also Appendix D of Vissapragada et al. (2022) for the
+        p-winds implementation.
     """
 
     p = multiprocessing.Pool(cores)
@@ -974,7 +990,11 @@ def run_g(
     p.join()
 
 
-def main():
+def new_argument_parser(args, **kwargs):
+    parser = argparse.ArgumentParser(
+        description="Creates 1D Parker profile(s) using the p_winds code and Cloudy.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     class OneOrThreeAction(argparse.Action):
         """
@@ -1001,20 +1021,17 @@ def main():
                 key, val = value.split("=")
                 getattr(namespace, self.dest)[key] = float(val)
 
-    t0 = time.time()
-
-    parser = argparse.ArgumentParser(
-        description="Creates 1D Parker profile(s) using the p_winds code and Cloudy."
-    )
-
     parser.add_argument(
         "-plname", required=True, help="planet name (must be in planets.txt)"
     )
     parser.add_argument(
         "-pdir",
         required=True,
-        help="directory where the profiles are saved. It is adviced to choose a name that "
-        "somehow represents the chosen parameters, e.g. 'fH_0.9' or 'z=10'. The path will be $SUNBATHER_PROJECT_PATH/parker_profiles/pdir/",
+        help=(
+            "directory where the profiles are saved. It is advised to choose a name "
+            "that somehow represents the chosen parameters, e.g. 'fH_0.9' or 'z=10'. "
+            "The path will be $SUNBATHER_PROJECT_PATH/parker_profiles/pdir/"
+        ),
     )
     parser.add_argument(
         "-Mdot",
@@ -1022,8 +1039,11 @@ def main():
         type=float,
         nargs="+",
         action=OneOrThreeAction,
-        help="log10(mass-loss rate), or three values specifying a grid of "
-        "mass-loss rates: lowest, highest, stepsize. -Mdot will be rounded to three decimal places.",
+        help=(
+            "log10(mass-loss rate), or three values specifying a grid of "
+            "mass-loss rates: lowest, highest, stepsize. -Mdot will be rounded to "
+            "three decimal places."
+        ),
     )
     parser.add_argument(
         "-T",
@@ -1031,13 +1051,19 @@ def main():
         type=int,
         nargs="+",
         action=OneOrThreeAction,
-        help="temperature, or three values specifying a grid of temperatures: lowest, highest, stepsize.",
+        help=(
+            "temperature, or three values specifying a grid of temperatures: lowest, "
+            "highest, stepsize."
+        ),
     )
     parser.add_argument(
         "-SEDname",
         type=str,
         default="real",
-        help="name of SED to use. Must be in Cloudy's data/SED/ folder [default=SEDname set in planet.txt file]",
+        help=(
+            "name of SED to use. Must be in Cloudy's data/SED/ folder "
+            "[default=SEDname set in planet.txt file]"
+        ),
     )
     parser.add_argument(
         "-overwrite",
@@ -1048,22 +1074,31 @@ def main():
     composition_group.add_argument(
         "-fH",
         type=float,
-        help="hydrogen fraction by number. Using this command results in running standalone p_winds without invoking Cloudy.",
+        help=(
+            "hydrogen fraction by number. Using this command results in running "
+            "standalone p_winds without invoking Cloudy."
+        ),
     )
     composition_group.add_argument(
         "-z",
         type=float,
-        help="metallicity (=scale factor relative to solar for all elements except H and He). Using this "
-        "command results in running p_winds in an an iterative scheme where Cloudy updates the mu parameter.",
+        help=(
+            "metallicity (=scale factor relative to solar for all elements except H "
+            "and He). Using this command results in running p_winds in an iterative "
+            "scheme where Cloudy updates the mu parameter."
+        ),
     )
     parser.add_argument(
         "-zelem",
         action=AddDictAction,
         nargs="+",
         default={},
-        help="abundance scale factor for specific elements, e.g. -zelem Fe=10 -zelem He=0.01. "
-        "Can also be used to toggle elements off, e.g. -zelem Ca=0. Combines with -z argument. Using this "
-        "command results in running p_winds in an an iterative scheme where Cloudy updates the mu parameter.",
+        help=(
+            "abundance scale factor for specific elements, e.g. -zelem Fe=10 -zelem "
+            "He=0.01. Can also be used to toggle elements off, e.g. -zelem Ca=0. "
+            "Combines with -z argument. Using this command results in running p_winds "
+            "in an iterative scheme where Cloudy updates the mu parameter."
+        ),
     )
     parser.add_argument(
         "-cores", type=int, default=1, help="number of parallel runs [default=1]"
@@ -1072,33 +1107,49 @@ def main():
         "-mu_conv",
         type=float,
         default=0.01,
-        help="relative change in mu allowed for convergence, when using p_winds/Cloudy iterative scheme [default=0.01]",
+        help=(
+            "relative change in mu allowed for convergence, when using p_winds/Cloudy "
+            "iterative scheme"
+        ),
     )
     parser.add_argument(
         "-mu_maxit",
         type=int,
         default=7,
-        help="maximum number of iterations the p_winds/Cloudy iterative scheme is ran "
-        "if convergence is not reached [default =7]",
+        help=(
+            "maximum number of iterations the p_winds/Cloudy iterative scheme is ran "
+            "if convergence is not reached"
+        ),
     )
     parser.add_argument(
         "-verbose",
         action="store_true",
-        help="print out mu-bar values of each iteration [default=False]",
+        help="print out mu-bar values of each iteration",
     )
     parser.add_argument(
         "-avoid_pwinds_mubar",
         action="store_true",
-        help="avoid using the mu-bar value predicted by p-winds for the first iteration. Instead, "
-        "start with a mu_bar of a completely neutral atmosphere. Helps to avoid the p-winds 'solve_ivp' errors. You may need to "
-        "use a -mu_maxit higher than 7 when toggling this on. [default=False]",
+        help=(
+            "avoid using the mu-bar value predicted by p-winds for the first "
+            "iteration. Instead, start with a mu_bar of a completely neutral "
+            "atmosphere. Helps to avoid the p-winds 'solve_ivp' errors. You may need "
+            "to use a -mu_maxit higher than 7 when toggling this on."
+        ),
     )
     parser.add_argument(
         "-no_tidal",
         action="store_true",
-        help="neglect the stellar tidal gravity term [default=False, i.e. tidal term included]",
+        help="neglect the stellar tidal gravity term",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(args, **kwargs)
+
+    return args
+
+
+def main(args, **kwargs):
+    t0 = time.time()
+
+    args = new_argument_parser(args, **kwargs)
 
     if args.z is not None:
         zdict = tools.get_zdict(z=args.z, zelem=args.zelem)
@@ -1112,11 +1163,12 @@ def main():
         or args.avoid_pwinds_mubar
     ):
         warnings.warn(
-            "The -zelem, -mu_conv -mu_maxit, and -avoid_pwinds_mubar commands only combine with -z, not with -fH, so I will ignore their input."
+            "The 'zelem', 'mu_conv', 'mu_maxit', and 'avoid_pwinds_mubar' arguments "
+            "only combine with 'z', not with 'fH', so I will ignore their input."
         )
 
     # set up the folder structure if it doesn't exist yet
-    projectpath = tools.get_sunbather_project_path()    
+    projectpath = tools.get_sunbather_project_path()
     if not os.path.isdir(projectpath + "/parker_profiles/"):
         os.mkdir(projectpath + "/parker_profiles")
     if not os.path.isdir(projectpath + "/parker_profiles/" + args.plname + "/"):
@@ -1125,30 +1177,15 @@ def main():
         projectpath + "/parker_profiles/" + args.plname + "/" + args.pdir + "/"
     ):
         os.mkdir(
-            projectpath
-            + "/parker_profiles/"
-            + args.plname
-            + "/"
-            + args.pdir
-            + "/"
+            projectpath + "/parker_profiles/" + args.plname + "/" + args.pdir + "/"
         )
     if (args.fH is None) and (
         not os.path.isdir(
-            projectpath
-            + "/parker_profiles/"
-            + args.plname
-            + "/"
-            + args.pdir
-            + "/temp/"
+            projectpath + "/parker_profiles/" + args.plname + "/" + args.pdir + "/temp/"
         )
     ):
         os.mkdir(
-            projectpath
-            + "/parker_profiles/"
-            + args.plname
-            + "/"
-            + args.pdir
-            + "/temp"
+            projectpath + "/parker_profiles/" + args.plname + "/" + args.pdir + "/temp"
         )
 
     if len(args.T) == 1 and len(args.Mdot) == 1:  # then we run a single model
@@ -1245,4 +1282,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
