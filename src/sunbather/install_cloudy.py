@@ -1,3 +1,6 @@
+"""
+Functions to download and compile Cloudy
+"""
 import os
 import pathlib
 from urllib.error import HTTPError
@@ -37,7 +40,7 @@ class GetCloudy:
             with urllib.request.urlopen(f"{self.url}{self.filename}") as g:
                 with open(self.filename, "b+w") as f:
                     f.write(g.read())
-        except HTTPError as exc:
+        except HTTPError:
             print(f"Could not download Cloudy from {self.url}{self.filename}...")
             return
         # Go to the v23 download page and download the "c23.01.tar.gz" file
@@ -56,26 +59,35 @@ class GetCloudy:
         Compiles Cloudy.
         """
         os.chdir(f"{self.cloudypath}/c{self.version}/source/")
-        subprocess.Popen(
+        with subprocess.Popen(
             [
                 "make",
             ]
-        ).wait()
+        ) as p:
+            p.wait()
 
     def test(self):
-        # Quickly test the Cloudy installation: in the source folder, run ./cloudy.exe, type "test" and hit return twice. It should print "Cloudy exited OK" at the end.
+        """
+        Quickly test the Cloudy installation: in the source folder, run
+        ./cloudy.exe, type "test" and hit return twice. It should print "Cloudy
+        exited OK" at the end.
+        """
         os.chdir(f"{self.cloudypath}/c{self.version}/source/")
         print(
             'Type "test" and hit return twice. '
             'It should print "Cloudy exited OK" at the end.'
         )
-        subprocess.Popen(
+        with subprocess.Popen(
             [
                 "./cloudy.exe",
             ]
-        ).wait()
+        ) as p:
+            p.wait()
 
     def copy_data(self):
+        """
+        Copy the stellar SEDs to the Cloudy data folder
+        """
         shutil.copytree(
             f"{self.sunbatherpath}/data/stellar_SEDs/",
             f"{self.cloudypath}/c{self.version}/data/SED/",

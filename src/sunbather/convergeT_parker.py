@@ -1,3 +1,7 @@
+"""
+ConvergeT_parker module of sunbather
+"""
+import sys
 import multiprocessing
 from shutil import copyfile
 import time
@@ -474,42 +478,44 @@ def run_g(
         Maximum number of iterations, by default 16.
     """
 
-    p = multiprocessing.Pool(cores)
-
-    pars = []
-    for Mdot in np.arange(
-        float(Mdot_l), float(Mdot_u) + 1e-6, float(Mdot_s)
-    ):  # 1e-6 so that upper bound is inclusive
-        for T in np.arange(int(T_l), int(T_u) + 1e-6, int(T_s)).astype(int):
-            pars.append(
-                (
-                    plname,
-                    Mdot,
-                    T,
-                    1,
-                    fc,
-                    workingdir,
-                    SEDname,
-                    overwrite,
-                    startT,
-                    pdir,
-                    zdict,
-                    altmax,
-                    save_sp,
-                    constantT,
-                    maxit,
+    with multiprocessing.Pool(processes=cores) as pool:
+        pars = []
+        for Mdot in np.arange(
+            float(Mdot_l), float(Mdot_u) + 1e-6, float(Mdot_s)
+        ):  # 1e-6 so that upper bound is inclusive
+            for T in np.arange(int(T_l), int(T_u) + 1e-6, int(T_s)).astype(int):
+                pars.append(
+                    (
+                        plname,
+                        Mdot,
+                        T,
+                        1,
+                        fc,
+                        workingdir,
+                        SEDname,
+                        overwrite,
+                        startT,
+                        pdir,
+                        zdict,
+                        altmax,
+                        save_sp,
+                        constantT,
+                        maxit,
+                    )
                 )
-            )
-
-    p.starmap(catch_errors_run_s, pars)
-    p.close()
-    p.join()
+        pool.starmap(catch_errors_run_s, pars)
+        pool.close()
+        pool.join()
 
 
-def main():
+def new_argument_parser():
     """
-    Main function
+    Creates a new argument parser.
     """
+    parser = argparse.ArgumentParser(
+        description="Runs the temperature convergence for 1D Parker profile(s).",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     class OneOrThreeAction(argparse.Action):
         """
@@ -535,13 +541,6 @@ def main():
             for value in values:
                 key, val = value.split("=")
                 getattr(namespace, self.dest)[key] = float(val)
-
-    t0 = time.time()
-
-    parser = argparse.ArgumentParser(
-        description="Runs the temperature convergence for 1D Parker profile(s).",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
 
     parser.add_argument(
         "-plname", required=True, help="planet name (must be in planets.txt)"
@@ -691,7 +690,18 @@ def main():
         ),
     )
 
-    args = parser.parse_args()
+    return parser
+
+
+def main(*args, **kwargs):
+    """
+    Main function
+    """
+
+    t0 = time.time()
+
+    parser = new_argument_parser()
+    args = parser.parse_args(*args, **kwargs)
 
     zdict = tools.get_zdict(z=args.z, zelem=args.zelem)
 
@@ -813,4 +823,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
