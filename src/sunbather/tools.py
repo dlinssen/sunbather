@@ -16,6 +16,8 @@ from scipy.signal import savgol_filter
 import scipy.stats as sps
 from scipy.ndimage import gaussian_filter1d
 
+import astropy.units
+import astropy.constants
 
 # ######################################
 # ########## GLOBAL CONSTANTS ##########
@@ -87,19 +89,32 @@ def get_planets_file():
     )
 
 # define constants:
-c = 2.99792458e10  # cm/s
-h = 4.135667696e-15  # eV s, used to plot wavelengths in keV units
-mH = 1.674e-24  # g
-k = 1.381e-16  # erg/K
-AU = 1.49597871e13  # cm
-pc = 3.08567758e18  # cm
-RJ = 7.1492e9  # cm
-RE = 6.371e8  # cm
-Rsun = 69634000000  # cm
-Msun = 1.9891e33  # g
-MJ = 1.898e30  # g
-ME = 5.9722e27  # g
-G = 6.6743e-8  # cm3/g/s2
+# c = 2.99792458e10  # cm/s
+c = astropy.constants.c.to("cm/s").value
+# h = 4.135667696e-15  # eV s, used to plot wavelengths in keV units
+h = astropy.constants.h.to("eV*s").value
+# mH = 1.674e-24  # g  - intended: atomic mass unit
+mH = (1 * astropy.units.u).to("g").value
+# k = 1.381e-16  # erg/K
+k = astropy.constants.k_B.to("erg/K").value
+# AU = 1.49597871e13  # cm
+AU = astropy.units.au.to("cm")
+# pc = 3.08567758e18  # cm
+pc = astropy.units.pc.to("cm")
+# RJ = 7.1492e9  # cm
+RJ = astropy.units.R_jup.to("cm")
+# RE = 6.371e8  # cm
+RE = astropy.units.R_earth.to("cm")
+# Rsun = 69634000000  # cm
+Rsun = astropy.units.R_sun.to("cm")
+# Msun = 1.9891e33  # g
+Msun = astropy.constants.M_sun.to("g").value
+# MJ = 1.898e30  # g
+MJ = astropy.constants.M_jup.to("g").value
+# ME = 5.9722e27  # g
+ME = astropy.constants.M_earth.to("g").value
+# G = 6.6743e-8  # cm3/g/s2
+G = astropy.constants.G.to("cm**3 * g**-1 * s**-2").value
 Ldict = {
     "S": 0,
     "P": 1,
