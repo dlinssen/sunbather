@@ -1,3 +1,5 @@
+# FAQ
+
 ## How do I create Parker wind profiles?
 
 Add the parameters of the planet/star system to the *$SUNBATHER_PROJECT_PATH/planets.txt* file. Make sure the SED you specify in _planets.txt_ is present in the _$CLOUDY_PATH/data/SED/_ folder in the right format. Then run the `construct_parker.py` module in your terminal (use `-help` to see the arguments). 

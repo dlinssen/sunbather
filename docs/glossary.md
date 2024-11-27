@@ -1,3 +1,4 @@
+# Glossary
 This wiki page is a glossary that provides additional information on various modules/classes/functionalities included in _sunbather_. We also refer to "Hazy", which is the official documentation of _Cloudy_ and can be found in your _$CLOUDY_PATH/docs/_ folder. 
 
 
