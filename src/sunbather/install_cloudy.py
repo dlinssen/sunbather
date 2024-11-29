@@ -73,16 +73,22 @@ class GetCloudy:
         exited OK" at the end.
         """
         os.chdir(f"{self.cloudypath}/c{self.version}/source/")
-        print(
-            'Type "test" and hit return twice. '
-            'It should print "Cloudy exited OK" at the end.'
-        )
         with subprocess.Popen(
             [
                 "./cloudy.exe",
-            ]
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         ) as p:
+            cloudy_output = p.communicate(input=b"test\n\n")[0]
             p.wait()
+            try:
+                assert b"Cloudy exited OK" in cloudy_output
+            except AssertionError:
+                print("Cloudy did not test OK...")
+            else:
+                print("Cloudy tested OK.")
 
     def copy_data(self):
         """

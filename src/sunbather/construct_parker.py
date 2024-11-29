@@ -990,7 +990,7 @@ def run_g(
     p.join()
 
 
-def new_argument_parser(args, **kwargs):
+def new_argument_parser():
     parser = argparse.ArgumentParser(
         description="Creates 1D Parker profile(s) using the p_winds code and Cloudy.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -1141,15 +1141,22 @@ def new_argument_parser(args, **kwargs):
         action="store_true",
         help="neglect the stellar tidal gravity term",
     )
-    args = parser.parse_args(args, **kwargs)
-
-    return args
+    return parser
 
 
-def main(args, **kwargs):
+def main(**kwargs):
+    """
+    Main function to construct a Parker profile.
+    """
     t0 = time.time()
-
-    args = new_argument_parser(args, **kwargs)
+    parser = new_argument_parser()
+    if not kwargs:
+        args = parser.parse_args(sys.argv[1:])
+    else:
+        # This is a bit ugly, but it allows us to either call main directly or
+        # to call the script with command line arguments
+        print(f"-{key}={value}" for key, value in kwargs.items())
+        args = parser.parse_args([f'-{key}={value}' for key, value in kwargs.items()])
 
     if args.z is not None:
         zdict = tools.get_zdict(z=args.z, zelem=args.zelem)
@@ -1174,18 +1181,18 @@ def main(args, **kwargs):
     if not os.path.isdir(projectpath + "/parker_profiles/" + args.plname + "/"):
         os.mkdir(projectpath + "/parker_profiles/" + args.plname)
     if not os.path.isdir(
-        projectpath + "/parker_profiles/" + args.plname + "/" + args.pdir + "/"
+        f"{projectpath}/parker_profiles/{args.plname}/{args.pdir}/"
     ):
         os.mkdir(
-            projectpath + "/parker_profiles/" + args.plname + "/" + args.pdir + "/"
+            f"{projectpath}/parker_profiles/{args.plname}/{args.pdir}/"
         )
     if (args.fH is None) and (
         not os.path.isdir(
-            projectpath + "/parker_profiles/" + args.plname + "/" + args.pdir + "/temp/"
+            f"{projectpath}/parker_profiles/{args.plname}/{args.pdir}/temp/"
         )
     ):
         os.mkdir(
-            projectpath + "/parker_profiles/" + args.plname + "/" + args.pdir + "/temp"
+            f"{projectpath}/parker_profiles/{args.plname}/{args.pdir}/temp"
         )
 
     if len(args.T) == 1 and len(args.Mdot) == 1:  # then we run a single model
