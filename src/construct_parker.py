@@ -188,7 +188,7 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9,
         warnings.warn(f"This Parker wind profile is supersonic already at Rp: {save_name}")
 
 
-def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
+def save_temp_parker_profile(planet, Mdot, T, zdict, pdir, 
                              mu_bar, mu_struc=None, no_tidal=False, altmax=20):
     """
     Uses the p-winds code (dos Santos et al. 2022)
@@ -207,9 +207,6 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir,
         log of the mass-loss rate in units of g s-1.
     T : str or numeric
         Temperature in units of K.
-    spectrum : dict
-        SED at the planet distance in the dictionary format that p-winds expects.
-        Can be made with cloudy_spec_to_pwinds().
     zdict : dict
         Dictionary with the scale factors of all elements relative
         to the default solar composition. Can be easily created with tools.get_zdict().
@@ -367,7 +364,7 @@ def calc_mu_bar(sim):
     return mu_bar
 
 
-def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
+def save_cloudy_parker_profile(planet, Mdot, T, zdict, pdir, 
                                convergence=0.01, maxit=7, cleantemp=False, 
                                overwrite=False, verbose=False,
                                no_tidal=False, altmax=20):
@@ -388,9 +385,6 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, pdir,
         log of the mass-loss rate in units of g s-1.
     T : str or numeric
         Temperature in units of K.
-    spectrum : dict
-        SED at the planet distance in the dictionary format that p-winds expects.
-        Can be made with cloudy_spec_to_pwinds().
     zdict : dict
         Dictionary with the scale factors of all elements relative
         to the default solar composition. Can be easily created with tools.get_zdict().
@@ -427,7 +421,7 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, pdir,
     tools.verbose_print("Making initial parker profile while assuming a completely neutral mu_bar...", verbose=verbose)
     neutral_mu_bar = calc_neutral_mu(zdict)
     neutral_mu_struc = np.array([[1., neutral_mu_bar], [altmax, neutral_mu_bar]]) #set up an array with constant mu(r) at the neutral value
-    filename, launch_velocity = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
+    filename, launch_velocity = save_temp_parker_profile(planet, Mdot, T, zdict, pdir, 
                                                             neutral_mu_bar, mu_struc=neutral_mu_struc, no_tidal=no_tidal, altmax=altmax)
     tools.verbose_print(f"Saved temp parker profile with neutral mu_bar: {neutral_mu_bar}" , verbose=verbose)
     previous_mu_bar = neutral_mu_bar
@@ -445,7 +439,7 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, pdir,
         mu_bar = calc_mu_bar(sim)
         tools.verbose_print(f"Making new parker profile with p-winds based on Cloudy's reported mu_bar: {mu_bar}", verbose=verbose)
         mu_struc = np.column_stack((sim.ovr.alt.values[::-1]/planet.R, sim.ovr.mu[::-1].values)) #pass Cloudy's mu structure to save in the pprof
-        filename, launch_velocity = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
+        filename, launch_velocity = save_temp_parker_profile(planet, Mdot, T, zdict, pdir, 
                                                     mu_bar, mu_struc=mu_struc, no_tidal=no_tidal, altmax=altmax)
         tools.verbose_print("Saved temp parker profile.", verbose=verbose)
 
@@ -520,12 +514,12 @@ def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv,
     if SEDname != 'real':
         p.set_var(SEDname=SEDname)
     altmax = min(20, int((p.a - p.Rstar) / p.R)) #solve profile up to 20 Rp, unless the star is closer than that
-    spectrum = cloudy_spec_to_pwinds(tools.cloudypath+'/data/SED/'+p.SEDname, 1., (p.a - altmax*p.R)/tools.AU) #assumes SED is at 1 AU
 
     if fH != None: #then run p_winds standalone
+        spectrum = cloudy_spec_to_pwinds(tools.cloudypath+'/data/SED/'+p.SEDname, 1., (p.a - altmax*p.R)/tools.AU) #assumes SED is at 1 AU
         save_plain_parker_profile(p, Mdot, T, spectrum, h_fraction=fH, pdir=pdir, overwrite=overwrite, no_tidal=no_tidal, altmax=altmax)
     else: #then run p_winds/Cloudy iterative scheme
-        save_cloudy_parker_profile(p, Mdot, T, spectrum, zdict, pdir, 
+        save_cloudy_parker_profile(p, Mdot, T, zdict, pdir, 
                                    convergence=mu_conv, maxit=mu_maxit, cleantemp=True, 
                                    overwrite=overwrite, verbose=verbose,
                                    no_tidal=no_tidal, altmax=altmax)
