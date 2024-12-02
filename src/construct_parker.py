@@ -189,7 +189,7 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9,
 
 
 def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
-                             mu_bar=None, mu_struc=None, no_tidal=False, altmax=20):
+                             mu_bar, mu_struc=None, no_tidal=False, altmax=20):
     """
     Uses the p-winds code (dos Santos et al. 2022)
     Runs p_winds and saves a 'pprof' txt file with the r, rho, v, mu structure.
@@ -218,9 +218,8 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir,
         where the isothermal parker wind density and velocity profiles are saved.
         Different folders may exist there for a given planet, to separate for example profiles
         with different assumptions such as stellar SED/semi-major axis/composition.
-    mu_bar : float, optional
+    mu_bar : float
         Weighted mean of the mean particle mass. Based on Eq. A.3 of Lampon et al. (2020).
-        If None, p-winds will calculate mu(r) and the associated mu_bar. By default None.
     mu_struc : numpy.ndarray, optional
         Mean particle mass profile, must be provided if mu_bar is None.
         Typically, this is a mu(r)-profile as given by Cloudy. By default None.
@@ -235,10 +234,6 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir,
     -------
     save_name : str
         Full path + filename of the saved Parker wind profile file.
-    mu_bar : float
-        Weighted mean of the mean particle mass. Based on Eq. A.3 of Lampon et al. (2020).
-        If the input mu_bar was None, this will return the value as calculated by p-winds.
-        If the input mu_bar was not None, this will return that same value.
     launch_velocity : float
         Velocity at the planet radius in units of the sonic speed. If it is larger than 1,
         the wind is "launched" already supersonic, and hence the assumption of a transonic
@@ -254,33 +249,8 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir,
     m_dot = 10 ** Mdot  # Total atmospheric escape rate in g / s
     r = np.logspace(0, np.log10(altmax), 1000)  # Radial distance profile in unit of planetary radii
 
-
-    if mu_bar is None: #if not given by a Cloudy run, let p-winds calculate it (used the first iteration)
-        #pretend that the metals don't exist and just calculate the h_fraction with only H and He abundances
-        abundances = tools.get_abundances(zdict) #solar abundances
-        h_fraction = abundances['H'] / (abundances['H'] + abundances['He']) #approximate it by this for now, later Cloudy will give mu
-
-        # A few assumptions about the planet's atmosphere
-        he_fraction = 1 - h_fraction  # He number fraction
-        he_h_fraction = he_fraction / h_fraction
-        mean_f_ion = 0.0  # Mean ionization fraction (will be self-consistently calculated later)
-        mu_0 = (1 + 4 * he_h_fraction) / (1 + he_h_fraction + mean_f_ion)
-        # mu_0 is the constant mean molecular weight (assumed for now, will be updated later)
-
-        initial_f_ion = 0.
-
-        f_r, mu_bar = pw_hydrogen.ion_fraction(r, R_pl, T, h_fraction,
-                                    m_dot, M_pl, mu_0,
-                                    spectrum_at_planet=spectrum, exact_phi=True,
-                                    initial_f_ion=initial_f_ion, relax_solution=True,
-                                    return_mu=True, atol=1e-8, rtol=1e-5,
-                                    convergence=0.0001, max_n_relax=30) #I personally think we can use more than 0.01 convergence
-
-        mu_array = ((1-h_fraction)*4.0 + h_fraction)/(h_fraction*(1+f_r)+(1-h_fraction)) #this assumes no Helium ionization
-
-    else: #used later iterations
-        assert np.abs(mu_struc[0,0] - 1.) < 0.03 and np.abs(mu_struc[-1,0] - altmax) < 0.0001, "Looks like Cloudy didn't simulate to 1Rp: "+str(mu_struc[0,0]) #ensure safe extrapolation
-        mu_array = interp1d(mu_struc[:,0], mu_struc[:,1], fill_value='extrapolate')(r)
+    assert np.abs(mu_struc[0,0] - 1.) < 0.03 and np.abs(mu_struc[-1,0] - altmax) < 0.0001, "Looks like Cloudy didn't simulate to 1Rp: "+str(mu_struc[0,0]) #ensure safe extrapolation
+    mu_array = interp1d(mu_struc[:,0], mu_struc[:,1], fill_value='extrapolate')(r)
 
     vs = pw_parker.sound_speed(T, mu_bar)  # Speed of sound (km/s, assumed to be constant)
     if no_tidal:
@@ -305,7 +275,7 @@ def save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir,
 
     launch_velocity = v_array[0] #velocity at Rp in units of sonic speed
 
-    return save_name, mu_bar, launch_velocity
+    return save_name, launch_velocity
 
 
 def run_parker_with_cloudy(filename, T, planet, zdict):
@@ -457,9 +427,10 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, pdir,
     tools.verbose_print("Making initial parker profile while assuming a completely neutral mu_bar...", verbose=verbose)
     neutral_mu_bar = calc_neutral_mu(zdict)
     neutral_mu_struc = np.array([[1., neutral_mu_bar], [altmax, neutral_mu_bar]]) #set up an array with constant mu(r) at the neutral value
-    filename, previous_mu_bar, launch_velocity = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
-                                                            mu_bar=neutral_mu_bar, mu_struc=neutral_mu_struc, no_tidal=no_tidal, altmax=altmax)
-    tools.verbose_print(f"Saved temp parker profile with neutral mu_bar: {previous_mu_bar}" , verbose=verbose)
+    filename, launch_velocity = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
+                                                            neutral_mu_bar, mu_struc=neutral_mu_struc, no_tidal=no_tidal, altmax=altmax)
+    tools.verbose_print(f"Saved temp parker profile with neutral mu_bar: {neutral_mu_bar}" , verbose=verbose)
+    previous_mu_bar = neutral_mu_bar
 
     for itno in range(maxit):
         tools.verbose_print(f"Iteration number: {itno+1}", verbose=verbose)
@@ -474,8 +445,8 @@ def save_cloudy_parker_profile(planet, Mdot, T, spectrum, zdict, pdir,
         mu_bar = calc_mu_bar(sim)
         tools.verbose_print(f"Making new parker profile with p-winds based on Cloudy's reported mu_bar: {mu_bar}", verbose=verbose)
         mu_struc = np.column_stack((sim.ovr.alt.values[::-1]/planet.R, sim.ovr.mu[::-1].values)) #pass Cloudy's mu structure to save in the pprof
-        filename, mu_bar, launch_velocity = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
-                                                    mu_bar=mu_bar, mu_struc=mu_struc, no_tidal=no_tidal, altmax=altmax)
+        filename, launch_velocity = save_temp_parker_profile(planet, Mdot, T, spectrum, zdict, pdir, 
+                                                    mu_bar, mu_struc=mu_struc, no_tidal=no_tidal, altmax=altmax)
         tools.verbose_print("Saved temp parker profile.", verbose=verbose)
 
         if np.abs(mu_bar - previous_mu_bar)/previous_mu_bar < convergence:
