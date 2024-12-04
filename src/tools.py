@@ -958,12 +958,11 @@ class Abundances:
         pass
 
     def set_metallicity(self, metallicity=1., scale_factor_dictionary={}):
-        self.set_solar() # revert to solar
+        self.set_solar() # revert to constant solar
         
         for element in self.elements:
             if element not in ['H', 'He']:
                 self.abundance_profiles[element] *= metallicity # Multiply with metallicity at all radii
-                self.abundance_types[element] = "constant"
                 # NOT NORMALIZED YET
         
         for element in scale_factor_dictionary:
@@ -973,7 +972,6 @@ class Abundances:
                 assert isinstance(scale_factor_dictionary[element], (int, float)), "Use single numeric values for the element scale factors."
                 
                 self.abundance_profiles[element] *= scale_factor_dictionary[element]
-                self.abundance_types[element] = "constant"
                 # NOT NORMALIZED YET!
 
         self.__normalize_abundances() # Normalize to 1 at every radius
