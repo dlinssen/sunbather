@@ -924,11 +924,6 @@ def get_abundances(zdict=None):
 class Abundances:
 
     def __init__(self):
-        self.Rgrid = np.linspace(1, 20, num=500) # Fixed grid of abundance profiles in units of Rp
-
-        self.set_solar() # Start with solar constant composition
-
-    def set_solar(self):
         #from Hazy Table 7.1:
         self.__solar_abundances_relH = {'H': 1., 'He': 0.1, 'Li': 2.04e-9, 'Be': 2.63e-11, 'B': 6.17e-10,
                                 'C': 2.45e-4, 'N': 8.51e-5, 'O': 4.9e-4, 'F': 3.02e-8, 'Ne': 1e-4,
@@ -936,23 +931,26 @@ class Abundances:
                                 'S': 1.84e-5, 'Cl': 1.91e-7, 'Ar': 2.51e-6, 'K': 1.32e-7, 'Ca': 2.29e-6,
                                 'Sc': 1.48e-9, 'Ti': 1.05e-7, 'V': 1e-8, 'Cr': 4.68e-7, 'Mn': 2.88e-7,
                                 'Fe': 2.82e-5, 'Co': 8.32e-8, 'Ni': 1.78e-6, 'Cu': 1.62e-8, 'Zn': 3.98e-8}
-        
         # Normalize abundances to 1: (This should eventually be replaced with self.__normalize_abundances() as well at the end of __init__) 
         # (I think we can do this now)
         self.__solar_abundances = {k: v / sum(list(self.__solar_abundances_relH.values())) 
                                 for k, v in self.__solar_abundances_relH.items()}
-    
         self.elements = list(self.__solar_abundances.keys()) # List of all 30 elements
 
+        self.abundance_profiles = pd.DataFrame(index=np.linspace(1, 20, num=500), 
+                                                columns=self.elements, dtype=float)
+
+        self.set_solar() # Start with solar constant composition
+
+    def set_solar(self):
         # Set all abundances types to constant w.r.t. hydrogen
         self.abundance_types = {}
         for element in self.elements:
             self.abundance_types[element] = "constant"
 
         # Initially at constant solar composition:
-        self.abundance_profiles = {}
         for element in self.elements:
-            self.abundance_profiles[element] = np.repeat(self.__solar_abundances[element], len(self.Rgrid))
+            self.abundance_profiles[element] = self.__solar_abundances[element]
 
     def __normalize_abundances(self):
         
@@ -961,7 +959,7 @@ class Abundances:
 
             __total__ = sum(list(self.abundance_profiles[element][0] for element in self.elements))
             for element in self.elements:
-                self.abundance_profiles[element] =  np.repeat(self.abundance_profiles[element][0]/__total__, len(self.Rgrid))
+                self.abundance_profiles[element] =  np.repeat(self.abundance_profiles[element][0]/__total__, len(self.abundance_profiles))
         
         #self.abundance_profiles should have all elements w.r.t hydrogen (take care not to normalize hydrogen with itself)
         else:
@@ -971,7 +969,7 @@ class Abundances:
                     __scale_factor_dict[element]= self.abundance_profiles[element][0]
 
             __constant_sum__ = 1 + sum(__scale_factor_dict.values())
-            for i in range(len(self.Rgrid)):
+            for i in range(len(self.abundance_profiles)):
                 __fractionated_sum__ = sum(list(self.abundance_profiles[element][i] for element in self.elements if self.abundance_types[element]=='fractionated'))
                 for element in self.elements:
                     if element=='H':
@@ -1009,7 +1007,7 @@ class Abundances:
                 warnings.warn(f"You're trying to set a powerlaw fractionation profile for {element}, but this element already " \
                                 "has a fractionated profile. We will use the current abundance at 1 Rp and construct a powerlaw from that point.")
                 
-            self.abundance_profiles[element] = self.abundance_profiles[element][0] * (self.Rgrid ** powerlaw_index_dictionary[element])
+            self.abundance_profiles[element] = self.abundance_profiles[element][0] * (self.abundance_profiles.index.values ** powerlaw_index_dictionary[element])
             self.abundance_types[element] = "fractionated"
 
         #self.__normalize_abundances() # Normalize to 1 at every radius (Commented this out because it's not relative to hydrogen yet so normalizing doesn't work)
@@ -1026,11 +1024,11 @@ class Abundances:
         Returns the abundance profile or interpolates from Rgrid to Cloudy output grid
         '''
         if grid is None: # Then we return it on the standard (1,20) Rp grid:
-            return np.column_stack((self.Rgrid, self.abundance_profiles[element]))
+            return np.column_stack((self.abundance_profiles.index.values, self.abundance_profiles[element]))
         else:
             assert isinstance(grid, np.ndarray), "Please pass a numpy 1D array as a grid"
             
-            abundance_profile_ongrid = interp1d(self.Rgrid, self.abundance_profiles[element])(grid)
+            abundance_profile_ongrid = interp1d(self.abundance_profiles.index.values, self.abundance_profiles[element])(grid)
             return abundance_profile_ongrid
 
     def get_abundance_dictionary(self):
@@ -1060,7 +1058,7 @@ class Abundances:
         __constant_sum = sum(list(self.abundance_profiles[element][0]/self.abundance_profiles['H'][0] for element in self.elements if self.abundance_types[element]=='constant')) 
         #maybe I could get hydrogen normalized profiles for constant elements beforehand?
 
-        for i in range(len(self.Rgrid)):
+        for i in range(len(self.abundance_profiles)):
             __fractionated_sum = sum(list(self.abundance_profiles[element][i] for element in self.elements if self.abundance_types[element]=='fractionated'))
             self.abundance_profiles['H'][i] = (1-__fractionated_sum)/__constant_sum
         
@@ -1070,7 +1068,7 @@ class Abundances:
             if element!='H':
                 self.abundance_profiles[element]/= self.abundance_profiles['H']
             if(self.abundance_types[element]=='fractionated'):
-                abundances_relH_on_Rgrid.append(interp1d(self.Rgrid * Rp, self.abundance_profiles[element])(corresponding_Rgrid))    
+                abundances_relH_on_Rgrid.append(interp1d(self.abundance_profiles.index.values * Rp, self.abundance_profiles[element])(corresponding_Rgrid))    
             
                             
         # normalize it to Hydrogen, because that is how Cloudy expects abundances:
@@ -1105,9 +1103,9 @@ class Abundances:
         __depths = 10**log_depths
         for element,log_abundance in zip(element_list,log_abundances_list):
             if(self.abundance_types[element]=='constant'):
-                self.abundance_profiles[element]= np.repeat(10**log_abundance,len(self.Rgrid))
+                self.abundance_profiles[element]= np.repeat(10**log_abundance,len(self.abundance_profiles))
             else:
-                self.abundance_profiles[element]= interp1d(__depths,10**log_abundance)(self.Rgrid)
+                self.abundance_profiles[element]= interp1d(__depths,10**log_abundance)(self.abundance_profiles.index.values)
         #Above this point, abundances are relative to hydrogen and not normalized
         self.__normalize_abundances() 
 
