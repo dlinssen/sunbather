@@ -954,30 +954,42 @@ class Abundances:
 
     def __normalize_abundances(self):
         
-        #Cannot give this values relative to hydrogen
-        if("fractionated" not in self.abundance_types.values()):
+        __columns_exclude = [element for element in self.elements if self.abundance_types[element]=='fractionated']
+        __constant_df = self.abundance_profiles.loc[:,~self.abundance_profiles.columns.isin(__columns_exclude)]
+        #__constant_df = __constant_df.div(__constant_df['H'],axis=0)
+        __fractionated_df = self.abundance_profiles.loc[:,self.abundance_profiles.columns.isin(__columns_exclude)]
+        __constant_sum = (__constant_df.sum(axis=1)).values
+        __fractionated_sum = (__fractionated_df.sum(axis=1)).values
+        self.abundance_profiles.loc[:, ~self.abundance_profiles.columns.isin(__columns_exclude)] = self.abundance_profiles.loc[:, ~self.abundance_profiles.columns.isin(__columns_exclude)].multiply((1-__fractionated_sum)/__constant_sum, axis=0)
 
-            __total__ = sum(list(self.abundance_profiles[element][0] for element in self.elements))
-            for element in self.elements:
-                self.abundance_profiles[element] =  np.repeat(self.abundance_profiles[element][0]/__total__, len(self.abundance_profiles))
+
+    
+    # def __normalize_abundances(self):
         
-        #self.abundance_profiles should have all elements w.r.t hydrogen (take care not to normalize hydrogen with itself)
-        else:
-            __scale_factor_dict ={}
-            for element in self.elements:
-                if self.abundance_types[element]=='constant' and element!='H':
-                    __scale_factor_dict[element]= self.abundance_profiles[element][0]
+    #     #Cannot give this values relative to hydrogen
+    #     if("fractionated" not in self.abundance_types.values()):
 
-            __constant_sum__ = 1 + sum(__scale_factor_dict.values())
-            for i in range(len(self.abundance_profiles)):
-                __fractionated_sum__ = sum(list(self.abundance_profiles[element][i] for element in self.elements if self.abundance_types[element]=='fractionated'))
-                for element in self.elements:
-                    if element=='H':
-                        self.abundance_profiles[element][i] = 1/(__constant_sum__+__fractionated_sum__)
-                    elif self.abundance_types[element]=='constant':
-                        self.abundance_profiles[element][i] = __scale_factor_dict[element] * self.abundance_profiles['H'][i]
-                    else:
-                        self.abundance_profiles[element][i]*= self.abundance_profiles['H'][i]
+    #         __total__ = sum(list(self.abundance_profiles[element][0] for element in self.elements))
+    #         for element in self.elements:
+    #             self.abundance_profiles[element] =  np.repeat(self.abundance_profiles[element][0]/__total__, len(self.abundance_profiles))
+        
+    #     #self.abundance_profiles should have all elements w.r.t hydrogen (take care not to normalize hydrogen with itself)
+    #     else:
+    #         __scale_factor_dict ={}
+    #         for element in self.elements:
+    #             if self.abundance_types[element]=='constant' and element!='H':
+    #                 __scale_factor_dict[element]= self.abundance_profiles[element][0]
+
+    #         __constant_sum__ = 1 + sum(__scale_factor_dict.values())
+    #         for i in range(len(self.abundance_profiles)):
+    #             __fractionated_sum__ = sum(list(self.abundance_profiles[element][i] for element in self.elements if self.abundance_types[element]=='fractionated'))
+    #             for element in self.elements:
+    #                 if element=='H':
+    #                     self.abundance_profiles[element][i] = 1/(__constant_sum__+__fractionated_sum__)
+    #                 elif self.abundance_types[element]=='constant':
+    #                     self.abundance_profiles[element][i] = __scale_factor_dict[element] * self.abundance_profiles['H'][i]
+    #                 else:
+    #                     self.abundance_profiles[element][i]*= self.abundance_profiles['H'][i]
 
 
 
@@ -994,7 +1006,7 @@ class Abundances:
             assert isinstance(scale_factor_dictionary[element], (int, float)), "Use single numeric values for the element scale factors."
             self.abundance_profiles[element] *= scale_factor_dictionary[element]
                 # NOT NORMALIZED YET!
-
+        #print(self.abundance_profiles)
         self.__normalize_abundances() # Normalize to 1 at every radius
 
     
@@ -1007,16 +1019,16 @@ class Abundances:
                 warnings.warn(f"You're trying to set a powerlaw fractionation profile for {element}, but this element already " \
                                 "has a fractionated profile. We will use the current abundance at 1 Rp and construct a powerlaw from that point.")
                 
-            self.abundance_profiles[element] = self.abundance_profiles[element][0] * (self.abundance_profiles.index.values ** powerlaw_index_dictionary[element])
+            self.abundance_profiles[element] = self.abundance_profiles[element] * (self.abundance_profiles.index.values ** powerlaw_index_dictionary[element])
             self.abundance_types[element] = "fractionated"
 
-        #self.__normalize_abundances() # Normalize to 1 at every radius (Commented this out because it's not relative to hydrogen yet so normalizing doesn't work)
+        self.__normalize_abundances() # Normalize to 1 at every radius 
 
     def get_abundance_constant(self, element):
         assert "fractionated" not in self.abundance_types.values(), "At least one element is fractionated. This "\
             "automatically results in non-constant abundance profiles for every element. Use the get_abundance_profile() method instead."
         
-        abundance = self.abundance_profiles[element][0] # Return first value as it is constant anyway
+        abundance = self.abundance_profiles[element].iloc[0] # Return first value as it is constant anyway
         return abundance
 
     def get_abundance_profile(self, element, grid=None):
@@ -1035,48 +1047,76 @@ class Abundances:
         '''
             Returns dictionary in the form {'H':[0.904,0.903,....],'He':[0.092,0.093....],etc.}
         '''
-        return dict((element,self.abundance_profiles[element]) for element in self.elements)
+        return dict((element,self.abundance_profiles[element].values) for element in self.elements)
 
     def get_abundance_constant_Cloudy(self, element):
+        '''
+        Used to write constant abundances into Cloudy
+        '''
         assert self.abundance_types[element] == "constant", "This element does not have a constant abundance but is fractionated."
-        __abundance = self.abundance_profiles[element][0]
-        
-        abundance_relH = __abundance / self.abundance_profiles['H'][0] # convert relative to Hydrogen because that's what Cloudy expects
+    
+        abundance_relH = self.abundance_profiles[element].iloc[0] / self.abundance_profiles['H'].iloc[0] # convert relative to Hydrogen because that's what Cloudy expects
         return np.log10(abundance_relH) # Returns the log of the value!
     
     
-    def get_abundance_profile_Cloudy(self, element_list, altmax, Rp, Npoints=50):
+    def get_abundance_profile_Cloudy(self,altmax,Rp,element=None,Npoints=50):
         '''
-        Used to write abundance profiles into Cloudy. Interpolates from Rgrid to Cloudy input grid. 
-        All elements being fractionated need to be given at once as otherwise getting relative to hydrogen is difficult(?).
-        We could remove the element_list argument because the fractionated elements should be accessible via abundance_types
+        Used to write abundance profiles for fractionted elements. Can pass a single element or a list. However, if calling multiple times, Npoints should be the same (Cloudy bug)
+        If element is None and there are some fractionated elements, we return for all fractionated. If not, it gives an error (constant abundance atmosphere)
         '''
+        if element!=None:
+            #Need to add code to convert element to list if needed
+            for ele in element:
+                assert self.abundance_types[ele] == "fractionated", "This element is not fractionated"
+        else:
+            element = [ele for ele in self.elements if self.abundance_types[ele]=='fractionated']
+            assert element!=[], "No element is fractionated"
+            
+        
         depth_grid = np.linspace(0, (altmax-1)*Rp, Npoints)
         corresponding_Rgrid = altmax*Rp - depth_grid
         depth_grid[0] = 10**-35
 
-        __constant_sum = sum(list(self.abundance_profiles[element][0]/self.abundance_profiles['H'][0] for element in self.elements if self.abundance_types[element]=='constant')) 
-        #maybe I could get hydrogen normalized profiles for constant elements beforehand?
-
-        for i in range(len(self.abundance_profiles)):
-            __fractionated_sum = sum(list(self.abundance_profiles[element][i] for element in self.elements if self.abundance_types[element]=='fractionated'))
-            self.abundance_profiles['H'][i] = (1-__fractionated_sum)/__constant_sum
+        abundances_relH = self.abundance_profiles[element].div(self.abundance_profiles['H'],axis=0)
+        abundances_relH_reindexed = pd.DataFrame(index=np.log10(depth_grid),columns=element)
+        for col in abundances_relH.columns:
+            abundances_relH_reindexed[col] = interp1d(self.abundance_profiles.index.values * Rp,abundances_relH[col])(corresponding_Rgrid) #Is there a way to do this without a loop? df.interpolate gives NANs
         
-        #__count_fracelements = sum(1 for value in self.abundance_types.values() if value=='fractionated')
-        abundances_relH_on_Rgrid = []
-        for element in element_list:
-            if element!='H':
-                self.abundance_profiles[element]/= self.abundance_profiles['H']
-            if(self.abundance_types[element]=='fractionated'):
-                abundances_relH_on_Rgrid.append(interp1d(self.abundance_profiles.index.values * Rp, self.abundance_profiles[element])(corresponding_Rgrid))    
+        return np.log10(abundances_relH_reindexed)
+
+
+    # def get_abundance_profile_Cloudy(self, element_list, altmax, Rp, Npoints=50):
+    #     '''
+    #     Used to write abundance profiles into Cloudy. Interpolates from Rgrid to Cloudy input grid. 
+    #     All elements being fractionated need to be given at once as otherwise getting relative to hydrogen is difficult(?).
+    #     We could remove the element_list argument because the fractionated elements should be accessible via abundance_types
+    #     '''
+    #     depth_grid = np.linspace(0, (altmax-1)*Rp, Npoints)
+    #     corresponding_Rgrid = altmax*Rp - depth_grid
+    #     depth_grid[0] = 10**-35
+
+    #     __constant_sum = sum(list(self.abundance_profiles[element][0]/self.abundance_profiles['H'][0] for element in self.elements if self.abundance_types[element]=='constant')) 
+    #     #maybe I could get hydrogen normalized profiles for constant elements beforehand?
+
+    #     for i in range(len(self.abundance_profiles)):
+    #         __fractionated_sum = sum(list(self.abundance_profiles[element][i] for element in self.elements if self.abundance_types[element]=='fractionated'))
+    #         self.abundance_profiles['H'][i] = (1-__fractionated_sum)/__constant_sum
+        
+    #     #__count_fracelements = sum(1 for value in self.abundance_types.values() if value=='fractionated')
+    #     abundances_relH_on_Rgrid = []
+    #     for element in element_list:
+    #         if element!='H':
+    #             self.abundance_profiles[element]/= self.abundance_profiles['H']
+    #         if(self.abundance_types[element]=='fractionated'):
+    #             abundances_relH_on_Rgrid.append(interp1d(self.abundance_profiles.index.values * Rp, self.abundance_profiles[element])(corresponding_Rgrid))    
             
                             
-        # normalize it to Hydrogen, because that is how Cloudy expects abundances:
-        abundance_relH_stack = np.column_stack(abundances_relH_on_Rgrid)
-        self.__normalize_abundances() #Now, all elements are normalized. But for writing Cloudy input, we need to make sure get_abundance_constant_Cloudy is used before to write non-fractionated elements
-        #abundances_relH_on_Rgrid = abundances_on_Rgrid # WRONG! write code ! (should be done now)
+    #     # normalize it to Hydrogen, because that is how Cloudy expects abundances:
+    #     abundance_relH_stack = np.column_stack(abundances_relH_on_Rgrid)
+    #     self.__normalize_abundances() #Now, all elements are normalized. But for writing Cloudy input, we need to make sure get_abundance_constant_Cloudy is used before to write non-fractionated elements
+    #     #abundances_relH_on_Rgrid = abundances_on_Rgrid # WRONG! write code ! (should be done now)
 
-        return np.log10(np.column_stack((depth_grid, abundance_relH_stack))) #alternatively, could make it a pd dataframe so we know which element has which profile, although this output should already be ordered
+    #     return np.log10(np.column_stack((depth_grid, abundance_relH_stack))) #alternatively, could make it a pd dataframe so we know which element has which profile, although this output should already be ordered
     
     def set_constant_abundance_from_relH(self, element_list, abundance_relH_list):
         '''
