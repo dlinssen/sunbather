@@ -77,7 +77,7 @@ def cloudy_spec_to_pwinds(SEDfilename, dist_SED, dist_planet):
         "flux_lambda": flux,
         "wavelength_unit": u.angstrom,
         "flux_unit": u.erg / u.s / u.cm**2 / u.angstrom,
-        "SEDname": SEDfilename.split("/")[-1][:-5],
+        "sed_name": SEDfilename.split("/")[-1][:-5],
     }  # SEDname added by me (without extension)
 
     return spectrum
@@ -110,8 +110,8 @@ def calc_neutral_mu(zdict):
 
 def save_plain_parker_profile(
     planet,
-    Mdot,
-    T,
+    mdot,
+    temp,
     spectrum,
     h_fraction=0.9,
     pdir="fH_0.9",
@@ -133,9 +133,9 @@ def save_plain_parker_profile(
     ----------
     planet : tools.Planet
         Planet parameters.
-    Mdot : str or numeric
+    mdot : str or numeric
         log of the mass-loss rate in units of g s-1.
-    T : str or numeric
+    temp : str or numeric
         Temperature in units of K.
     spectrum : dict
         SED at the planet distance in the dictionary format that p-winds expects.
@@ -158,30 +158,30 @@ def save_plain_parker_profile(
         Maximum altitude of the profile in units of the planet radius. By default 20.
     """
 
-    Mdot = float(Mdot)
-    T = int(T)
+    mdot = float(mdot)
+    temp = int(temp)
 
     projectpath = tools.get_sunbather_project_path()
     save_name = (
         f"{projectpath}/parker_profiles/{planet.name}/{pdir}/"
-        f"pprof_{planet.name}_T={str(T)}_M={Mdot:.3f}.txt"
+        f"pprof_{planet.name}_T={str(temp)}_M={mdot:.3f}.txt"
     )
     if os.path.exists(save_name) and not overwrite:
         print(
             "Parker profile already exists and overwrite = False:",
             planet.name,
             pdir,
-            f"{Mdot:.3f}",
-            T,
+            f"{mdot:.3f}",
+            temp,
         )
         # this quits the function but if we're running a grid, it doesn't quit
         # the whole Python code
-        return  
+        return
 
     R_pl = planet.R / tools.RJ  # convert from cm to Rjup
     M_pl = planet.M / tools.MJ  # convert from g to Mjup
 
-    m_dot = 10**Mdot  # Total atmospheric escape rate in g / s
+    m_dot = 10**mdot  # Total atmospheric escape rate in g / s
     r = np.logspace(
         0, np.log10(altmax), 1000
     )  # Radial distance profile in unit of planetary radii
@@ -200,7 +200,7 @@ def save_plain_parker_profile(
     f_r, mu_bar = pw_hydrogen.ion_fraction(
         r,
         R_pl,
-        T,
+        temp,
         h_fraction,
         m_dot,
         M_pl,
@@ -215,7 +215,7 @@ def save_plain_parker_profile(
     )
 
     vs = pw_parker.sound_speed(
-        T, mu_bar
+        temp, mu_bar
     )  # Speed of sound (km/s, assumed to be constant)
     if no_tidal:
         rs = pw_parker.radius_sonic_point(
@@ -262,8 +262,8 @@ def save_plain_parker_profile(
 
 def save_temp_parker_profile(
     planet,
-    Mdot,
-    T,
+    mdot,
+    temp,
     spectrum,
     zdict,
     pdir,
@@ -271,6 +271,7 @@ def save_temp_parker_profile(
     mu_struc=None,
     no_tidal=False,
     altmax=20,
+    projectpath=None,
 ):
     """
     Uses the p-winds code (dos Santos et al. 2022)
@@ -285,9 +286,9 @@ def save_temp_parker_profile(
     ----------
     planet : tools.Planet
         Object storing the planet parameters.
-    Mdot : str or numeric
+    mdot : str or numeric
         log of the mass-loss rate in units of g s-1.
-    T : str or numeric
+    temp : str or numeric
         Temperature in units of K.
     spectrum : dict
         SED at the planet distance in the dictionary format that p-winds expects.
@@ -330,15 +331,15 @@ def save_temp_parker_profile(
         assumption of a transonic wind is not valid anymore.
     """
 
-    Mdot = float(Mdot)
-    T = int(T)
+    mdot = float(mdot)
+    temp = int(temp)
 
     # convert from cm to Rjup
     R_pl = planet.R / tools.RJ
     # convert from g to Mjup
     M_pl = planet.M / tools.MJ
 
-    m_dot = 10**Mdot  # Total atmospheric escape rate in g / s
+    m_dot = 10**mdot  # Total atmospheric escape rate in g / s
     r = np.logspace(
         0, np.log10(altmax), 1000
     )  # Radial distance profile in unit of planetary radii
@@ -369,7 +370,7 @@ def save_temp_parker_profile(
         f_r, mu_bar = pw_hydrogen.ion_fraction(
             r,
             R_pl,
-            T,
+            temp,
             h_fraction,
             m_dot,
             M_pl,
@@ -399,7 +400,7 @@ def save_temp_parker_profile(
         mu_array = interp1d(mu_struc[:, 0], mu_struc[:, 1], fill_value="extrapolate")(r)
 
     vs = pw_parker.sound_speed(
-        T, mu_bar
+        temp, mu_bar
     )  # Speed of sound (km/s, assumed to be constant)
     if no_tidal:
         rs = pw_parker.radius_sonic_point(
@@ -427,7 +428,7 @@ def save_temp_parker_profile(
     )
     save_name = (
         f"{projectpath}/parker_profiles/{planet.name}/{pdir}/temp/"
-        f"pprof_{planet.name}_T={str(T)}_M={Mdot:.3f}.txt"
+        f"pprof_{planet.name}_T={str(temp)}_M={mdot:.3f}.txt"
     )
     zdictstr = "abundance scale factors relative to solar:"
     for sp in zdict.keys():
@@ -441,7 +442,7 @@ def save_temp_parker_profile(
     return save_name, mu_bar, launch_velocity
 
 
-def run_parker_with_cloudy(filename, T, planet, zdict):
+def run_parker_with_cloudy(filename, temp, planet, zdict):
     """
     Runs an isothermal Parker wind profile through Cloudy, using the isothermal
     temperature profile.
@@ -451,7 +452,7 @@ def run_parker_with_cloudy(filename, T, planet, zdict):
     filename : str
         Full path + filename of the isothermal Parker wind profile.
         Typically $SUNBATHER_PROJECT_PATH/parker_profiles/*planetname*/*pdir*/*filename*
-    T : numeric
+    temp : numeric
         Isothermal temperature value.
     planet : tools.Planet
         Object storing the planet parameters.
@@ -477,7 +478,7 @@ def run_parker_with_cloudy(filename, T, planet, zdict):
     hden = tools.rho_to_hden(pprof.rho.values, abundances=tools.get_abundances(zdict))
     dlaw = tools.alt_array_to_Cloudy(alt, hden, altmax, planet.R, 1000, log=True)
 
-    nuFnu_1AU_linear, Ryd = tools.get_SED_norm_1AU(planet.SEDname)
+    nuFnu_1AU_linear, Ryd = tools.get_SED_norm_1AU(planet.sed_name)
     nuFnu_a_log = np.log10(
         nuFnu_1AU_linear / ((planet.a - altmax * planet.R) / tools.AU) ** 2
     )
@@ -488,12 +489,12 @@ def run_parker_with_cloudy(filename, T, planet, zdict):
         title="Simulation of " + filename,
         overwrite=True,
         flux_scaling=[nuFnu_a_log, Ryd],
-        SED=planet.SEDname,
+        SED=planet.sed_name,
         dlaw=dlaw,
         double_tau=True,
         cosmic_rays=True,
         zdict=zdict,
-        constantT=T,
+        constant_temp=temp,
         outfiles=[".ovr"],
     )
 
@@ -549,8 +550,8 @@ def calc_mu_bar(sim):
 
 def save_cloudy_parker_profile(
     planet,
-    Mdot,
-    T,
+    mdot,
+    temp,
     spectrum,
     zdict,
     pdir,
@@ -577,9 +578,9 @@ def save_cloudy_parker_profile(
     ----------
     planet : tools.Planet
         Object storing the planet parameters.
-    Mdot : str or numeric
+    mdot : str or numeric
         log of the mass-loss rate in units of g s-1.
-    T : str or numeric
+    temp : str or numeric
         Temperature in units of K.
     spectrum : dict
         SED at the planet distance in the dictionary format that p-winds expects.
@@ -622,32 +623,22 @@ def save_cloudy_parker_profile(
 
     projectpath = tools.get_sunbather_project_path()
     save_name = (
-        projectpath
-        + "/parker_profiles/"
-        + planet.name
-        + "/"
-        + pdir
-        + "/pprof_"
-        + planet.name
-        + "_T="
-        + str(T)
-        + "_M="
-        + "%.3f" % Mdot
-        + ".txt"
+        f"{projectpath}/parker_profiles/{planet.name}/{pdir}/pprof_{planet.name}"
+        f"_T={str(temp)}_M={mdot:.3f}.txt"
     )
     if os.path.exists(save_name) and not overwrite:
         print(
-            "Parker profile already exists and overwrite = False:",
-            planet.name,
-            pdir,
-            "%.3f" % Mdot,
-            T,
+            f"Parker profile already exists and overwrite = False:"
+            f"{planet.name} {pdir} {mdot:.3f} {temp}",
         )
-        return  # this quits the function but if we're running a grid, it doesn't quit the whole Python code
+        # returning here quits the function but if we're running a grid, it
+        # doesn't quit the whole Python code
+        return
 
     if avoid_pwinds_mubar:
         tools.verbose_print(
-            "Making initial parker profile while assuming a completely neutral mu_bar...",
+            "Making initial parker profile while assuming a completely neutral "
+            "mu_bar...",
             verbose=verbose,
         )
         neutral_mu_bar = calc_neutral_mu(zdict)
@@ -656,8 +647,8 @@ def save_cloudy_parker_profile(
         )  # set up an array with constant mu(r) at the neutral value
         filename, previous_mu_bar, launch_velocity = save_temp_parker_profile(
             planet,
-            Mdot,
-            T,
+            mdot,
+            temp,
             spectrum,
             zdict,
             pdir,
@@ -665,6 +656,7 @@ def save_cloudy_parker_profile(
             mu_struc=neutral_mu_struc,
             no_tidal=no_tidal,
             altmax=altmax,
+            projectpath=projectpath,
         )
         tools.verbose_print(
             f"Saved temp parker profile with neutral mu_bar: {previous_mu_bar}",
@@ -676,14 +668,15 @@ def save_cloudy_parker_profile(
         )
         filename, previous_mu_bar, launch_velocity = save_temp_parker_profile(
             planet,
-            Mdot,
-            T,
+            mdot,
+            temp,
             spectrum,
             zdict,
             pdir,
             mu_bar=None,
             no_tidal=no_tidal,
             altmax=altmax,
+            projectpath=projectpath,
         )
         tools.verbose_print(
             f"Saved temp parker profile with p-winds's mu_bar: {previous_mu_bar}",
@@ -694,7 +687,7 @@ def save_cloudy_parker_profile(
         tools.verbose_print(f"Iteration number: {itno+1}", verbose=verbose)
 
         tools.verbose_print("Running parker profile through Cloudy...", verbose=verbose)
-        simname, pprof = run_parker_with_cloudy(filename, T, planet, zdict)
+        simname, pprof = run_parker_with_cloudy(filename, temp, planet, zdict)
         tools.verbose_print("Cloudy run done.", verbose=verbose)
 
         sim = tools.Sim(simname, altmax=altmax, planet=planet)
@@ -713,8 +706,8 @@ def save_cloudy_parker_profile(
         )  # pass Cloudy's mu structure to save in the pprof
         filename, mu_bar, launch_velocity = save_temp_parker_profile(
             planet,
-            Mdot,
-            T,
+            mdot,
+            temp,
             spectrum,
             zdict,
             pdir,
@@ -722,6 +715,7 @@ def save_cloudy_parker_profile(
             mu_struc=mu_struc,
             no_tidal=no_tidal,
             altmax=altmax,
+            projectpath=projectpath,
         )
         tools.verbose_print("Saved temp parker profile.", verbose=verbose)
 
@@ -747,20 +741,20 @@ def save_cloudy_parker_profile(
         tools.verbose_print("Temporary files removed.", verbose=verbose)
 
 
-def run_s(
-    plname,
-    pdir,
-    Mdot,
-    T,
-    SEDname,
-    fH,
-    zdict,
-    mu_conv,
-    mu_maxit,
-    overwrite,
-    verbose,
-    avoid_pwinds_mubar,
-    no_tidal,
+def run(
+    plname=None,
+    pdir=None,
+    mdot=None,
+    temp=None,
+    sed_name=None,
+    fraction_hydrogen=None,
+    zdict=None,
+    mu_conv=None,
+    mu_maxit=None,
+    overwrite=None,
+    verbose=None,
+    avoid_pwinds_mubar=None,
+    no_tidal=None,
 ):
     """
     Calculates a single isothermal Parker wind profile.
@@ -776,15 +770,15 @@ def run_s(
         Different folders may exist there for a given planet, to separate for
         example profiles with different assumptions such as stellar
         SED/semi-major axis/composition.
-    Mdot : str or numeric
+    mdot : str or numeric
         log of the mass-loss rate in units of g s-1.
-    T : str or numeric
+    temp : str or numeric
         Temperature in units of K.
-    SEDname : str
-        Name of SED file to use. If SEDname is 'real', we use the name as
-        given in the planets.txt file, but if SEDname is something else,
+    sed_name : str
+        Name of SED file to use. If sed_name is 'real', we use the name as
+        given in the planets.txt file, but if sed_name is something else,
         we advice to use a separate pdir folder for this.
-    fH : float or None
+    fraction_hydrogen : float or None
         Hydrogen abundance expressed as a fraction of the total. If a value is given,
         Parker wind profiles will be calculated using p-winds standalone with a H/He
         composition. If None is given, Parker wind profiles will be calculated
@@ -819,8 +813,8 @@ def run_s(
     """
 
     p = tools.Planet(plname)
-    if SEDname != "real":
-        p.set_var(SEDname=SEDname)
+    if sed_name != "real":
+        p.set_var(SEDname=sed_name)
     altmax = min(
         20, int((p.a - p.Rstar) / p.R)
     )  # solve profile up to 20 Rp, unless the star is closer than that
@@ -830,13 +824,13 @@ def run_s(
         (p.a - altmax * p.R) / tools.AU,
     )  # assumes SED is at 1 AU
 
-    if fH is not None:  # then run p_winds standalone
+    if fraction_hydrogen is not None:  # then run p_winds standalone
         save_plain_parker_profile(
             p,
-            Mdot,
-            T,
+            mdot,
+            temp,
             spectrum,
-            h_fraction=fH,
+            h_fraction=fraction_hydrogen,
             pdir=pdir,
             overwrite=overwrite,
             no_tidal=no_tidal,
@@ -845,8 +839,8 @@ def run_s(
     else:  # then run p_winds/Cloudy iterative scheme
         save_cloudy_parker_profile(
             p,
-            Mdot,
-            T,
+            mdot,
+            temp,
             spectrum,
             zdict,
             pdir,
@@ -861,41 +855,37 @@ def run_s(
         )
 
 
-def catch_errors_run_s(*args):
+def catch_errors_run(*args):
     """
-    Executes the run_s() function with provided arguments, while catching
+    Executes the run() function with provided arguments, while catching
     errors more gracefully.
     """
 
     try:
-        run_s(*args)
-    except Exception as e:
+        run(*args)
+    except Exception:
         traceback.print_exc()
 
 
-def run_g(
-    plname,
-    pdir,
-    cores,
-    Mdot_l,
-    Mdot_u,
-    Mdot_s,
-    T_l,
-    T_u,
-    T_s,
-    SEDname,
-    fH,
-    zdict,
-    mu_conv,
-    mu_maxit,
-    overwrite,
-    verbose,
-    avoid_pwinds_mubar,
-    no_tidal,
+def run_models(
+    plname=None,
+    pdir=None,
+    cores=1,
+    mdot_list=None,
+    temp_list=None,
+    sed_name="real",
+    fraction_hydrogen=None,
+    zdict=None,
+    mu_conv=None,
+    mu_maxit=None,
+    overwrite=False,
+    verbose=False,
+    avoid_pwinds_mubar=False,
+    no_tidal=False,
 ):
     """
     Calculates a grid of isothermal Parker wind models, by executing the
-    run_s() function in parallel.
+    run() function in parallel.
 
     Parameters
     ----------
@@ -910,23 +900,15 @@ def run_g(
         SED/semi-major axis/composition.
     cores : int
         Number of parallel processes to spawn (i.e., number of CPU cores).
-    Mdot_l : str or numeric
-        Lower bound on the log10(mass-loss rate) grid in units of g s-1.
-    Mdot_u : str or numeric
-        Upper bound on the log10(mass-loss rate) grid in units of g s-1.
-    Mdot_s : str or numeric
-        Step size of the log10(mass-loss rate) grid in units of g s-1.
-    T_l : str or numeric
-        Lower bound on the temperature grid in units of K.
-    T_u : str or numeric
-        Upper bound on the temperature grid in units of K.
-    T_s : str or numeric
-        Step size of the temperature grid in units of K.
-    SEDname : str
-        Name of SED file to use. If SEDname is 'real', we use the name as
-        given in the planets.txt file, but if SEDname is something else,
+    mdot_list : list
+        The log10(mass-loss rate) grid in units of g s-1.
+    temp_list : list
+        The temperature grid in units of K.
+    sed_name : str
+        Name of SED file to use. If sed_name is 'real', we use the name as
+        given in the planets.txt file, but if sed_name is something else,
         we advice to use a separate pdir folder for this.
-    fH : float or None
+    fraction_hydrogen : float or None
         Hydrogen abundance expressed as a fraction of the total. If a value is given,
         Parker wind profiles will be calculated using p-winds standalone with a H/He
         composition. If None is given, Parker wind profiles will be calculated
@@ -935,22 +917,23 @@ def run_g(
     zdict : dict
         Dictionary with the scale factors of all elements relative
         to the default solar composition. Can be easily created with tools.get_zdict().
-        Will only be used if fH is None, in which case the p-winds/Cloudy
-        iterative method is applied.
+        Will only be used if fraction_hydrogen is None, in which case the
+        p-winds/Cloudy iterative method is applied.
     mu_conv : float
         Convergence threshold expressed as the relative change in mu_bar
-        between iterations.  Will only be used if fH is None, in which case the
-        p-winds/Cloudy iterative method is applied.
+        between iterations.  Will only be used if fraction_hydrogen is None, in
+        which case the p-winds/Cloudy iterative method is applied.
     mu_maxit : int
         Maximum number of iterations for the p-winds/Cloudy iterative method. Will only
-        be used if fH is None.
+        be used if fraction_hydrogen is None.
     overwrite : bool
         Whether to overwrite existing models.
     verbose : bool
         Whether to print diagnostics about the convergence of mu_bar.
     avoid_pwinds_mubar : bool
         Whether to avoid using p-winds to calculate mu_bar during the first iteration,
-        when using the p-winds/Cloudy iterative method. Will only be used if fH is None.
+        when using the p-winds/Cloudy iterative method. Will only be used if
+        fraction_hydrogen is None.
         If True, we guess the mu_bar of the first iteration based on a
         completely neutral atmosphere. This can be helpful in cases where
         p-winds solver cannot find a solution, but Cloudy typically can.
@@ -960,21 +943,17 @@ def run_g(
         p-winds implementation.
     """
 
-    p = multiprocessing.Pool(cores)
-
     pars = []
-    for Mdot in np.arange(
-        float(Mdot_l), float(Mdot_u) + 1e-6, float(Mdot_s)
-    ):  # 1e-6 so that upper bound is inclusive
-        for T in np.arange(int(T_l), int(T_u) + 1e-6, int(T_s)).astype(int):
+    for mdot in mdot_list:
+        for temp in temp_list:
             pars.append(
                 (
                     plname,
                     pdir,
-                    Mdot,
-                    T,
-                    SEDname,
-                    fH,
+                    mdot,
+                    temp,
+                    sed_name,
+                    fraction_hydrogen,
                     zdict,
                     mu_conv,
                     mu_maxit,
@@ -985,26 +964,20 @@ def run_g(
                 )
             )
 
-    p.starmap(catch_errors_run_s, pars)
-    p.close()
-    p.join()
+    with multiprocessing.Pool(cores) as p:
+        p.starmap(catch_errors_run, pars)
+        p.close()
+        p.join()
 
 
 def new_argument_parser():
+    """
+    Creates an argument parser for the main function.
+    """
     parser = argparse.ArgumentParser(
         description="Creates 1D Parker profile(s) using the p_winds code and Cloudy.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-
-    class OneOrThreeAction(argparse.Action):
-        """
-        Custom class for an argparse argument with exactly 1 or 3 values.
-        """
-
-        def __call__(self, parser, namespace, values, option_string=None):
-            if len(values) not in (1, 3):
-                parser.error("Exactly one or three values are required.")
-            setattr(namespace, self.dest, values)
 
     class AddDictAction(argparse.Action):
         """
@@ -1022,10 +995,13 @@ def new_argument_parser():
                 getattr(namespace, self.dest)[key] = float(val)
 
     parser.add_argument(
-        "-plname", required=True, help="planet name (must be in planets.txt)"
+        "-p",
+        "--plname",
+        required=True,
+        help="planet name (must be in planets.txt)"
     )
     parser.add_argument(
-        "-pdir",
+        "--pdir",
         required=True,
         help=(
             "directory where the profiles are saved. It is advised to choose a name "
@@ -1034,30 +1010,61 @@ def new_argument_parser():
         ),
     )
     parser.add_argument(
-        "-Mdot",
+        "-m",
+        "--mdot_lower",
         required=True,
         type=float,
-        nargs="+",
-        action=OneOrThreeAction,
         help=(
-            "log10(mass-loss rate), or three values specifying a grid of "
-            "mass-loss rates: lowest, highest, stepsize. -Mdot will be rounded to "
-            "three decimal places."
+            "log10(mass-loss rate) (lower limit, in log10(g s-1)). "
+            "Will be rounded to three decimal places."
+        ),
+    )
+    parser.add_argument(
+        "-M",
+        "--mdot_upper",
+        default=None,
+        type=float,
+        help=(
+            "log10(mass-loss rate) (upper limit, in log10(g s-1)). "
+            "Will be rounded to three decimal places."
+        ),
+    )
+    parser.add_argument(
+        "--mdot_step",
+        default=None,
+        type=float,
+        help=(
+            "step size to take for the mass loss rate grid (in log10(g s-1))."
+        ),
+    )
+    parser.add_argument(
+        "-t",
+        "--temp_lower",
+        required=True,
+        type=float,
+        help=(
+            "temperature lower limit, in K"
         ),
     )
     parser.add_argument(
         "-T",
-        required=True,
-        type=int,
-        nargs="+",
-        action=OneOrThreeAction,
+        "--temp_upper",
+        default=None,
+        type=float,
         help=(
-            "temperature, or three values specifying a grid of temperatures: lowest, "
-            "highest, stepsize."
+            "temperature upper limit, in K"
         ),
     )
     parser.add_argument(
-        "-SEDname",
+        "--temp_step",
+        default=None,
+        type=float,
+        help=(
+            "temperature step size, in K"
+        ),
+    )
+    parser.add_argument(
+        "--sed_name",
         type=str,
         default="real",
         help=(
@@ -1066,13 +1073,14 @@ def new_argument_parser():
         ),
     )
     parser.add_argument(
-        "-overwrite",
+        "--overwrite",
         action="store_true",
         help="overwrite existing profile if passed [default=False]",
     )
     composition_group = parser.add_mutually_exclusive_group(required=True)
     composition_group.add_argument(
-        "-fH",
+        "--fH",
+        dest="fraction_hydrogen",
         type=float,
         help=(
             "hydrogen fraction by number. Using this command results in running "
@@ -1081,6 +1089,7 @@ def new_argument_parser():
     )
     composition_group.add_argument(
         "-z",
+        "--metallicity",
         type=float,
         help=(
             "metallicity (=scale factor relative to solar for all elements except H "
@@ -1089,7 +1098,7 @@ def new_argument_parser():
         ),
     )
     parser.add_argument(
-        "-zelem",
+        "--zelem",
         action=AddDictAction,
         nargs="+",
         default={},
@@ -1101,10 +1110,10 @@ def new_argument_parser():
         ),
     )
     parser.add_argument(
-        "-cores", type=int, default=1, help="number of parallel runs [default=1]"
+        "--cores", type=int, default=1, help="number of parallel runs"
     )
     parser.add_argument(
-        "-mu_conv",
+        "--mu_conv",
         type=float,
         default=0.01,
         help=(
@@ -1113,7 +1122,7 @@ def new_argument_parser():
         ),
     )
     parser.add_argument(
-        "-mu_maxit",
+        "--mu_maxit",
         type=int,
         default=7,
         help=(
@@ -1122,12 +1131,13 @@ def new_argument_parser():
         ),
     )
     parser.add_argument(
-        "-verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="print out mu-bar values of each iteration",
     )
     parser.add_argument(
-        "-avoid_pwinds_mubar",
+        "--avoid_pwinds_mubar",
         action="store_true",
         help=(
             "avoid using the mu-bar value predicted by p-winds for the first "
@@ -1137,7 +1147,7 @@ def new_argument_parser():
         ),
     )
     parser.add_argument(
-        "-no_tidal",
+        "--no_tidal",
         action="store_true",
         help="neglect the stellar tidal gravity term",
     )
@@ -1153,17 +1163,14 @@ def main(**kwargs):
     if not kwargs:
         args = parser.parse_args(sys.argv[1:])
     else:
-        # This is a bit ugly, but it allows us to either call main directly or
-        # to call the script with command line arguments
-        print(f"-{key}={value}" for key, value in kwargs.items())
-        args = parser.parse_args([f'-{key}={value}' for key, value in kwargs.items()])
+        args = kwargs
 
     if args.z is not None:
         zdict = tools.get_zdict(z=args.z, zelem=args.zelem)
     else:  # if z==None we should not pass that to the tools.get_zdict function
         zdict = tools.get_zdict(zelem=args.zelem)
 
-    if args.fH is not None and (
+    if args.fraction_hydrogen is not None and (
         args.zelem != {}
         or args.mu_conv != 0.01
         or args.mu_maxit != 7
@@ -1171,7 +1178,8 @@ def main(**kwargs):
     ):
         warnings.warn(
             "The 'zelem', 'mu_conv', 'mu_maxit', and 'avoid_pwinds_mubar' arguments "
-            "only combine with 'z', not with 'fH', so I will ignore their input."
+            "only combine with 'z', not with 'fraction_hydrogen', so I will "
+            "ignore their input."
         )
 
     # set up the folder structure if it doesn't exist yet
@@ -1195,87 +1203,29 @@ def main(**kwargs):
             f"{projectpath}/parker_profiles/{args.plname}/{args.pdir}/temp"
         )
 
-    if len(args.T) == 1 and len(args.Mdot) == 1:  # then we run a single model
-        run_s(
-            args.plname,
-            args.pdir,
-            args.Mdot[0],
-            args.T[0],
-            args.SEDname,
-            args.fH,
-            zdict,
-            args.mu_conv,
-            args.mu_maxit,
-            args.overwrite,
-            args.verbose,
-            args.avoid_pwinds_mubar,
-            args.no_tidal,
-        )
-    elif (
-        len(args.T) == 3 and len(args.Mdot) == 3
-    ):  # then we run a grid over both parameters
-        run_g(
-            args.plname,
-            args.pdir,
-            args.cores,
-            args.Mdot[0],
-            args.Mdot[1],
-            args.Mdot[2],
-            args.T[0],
-            args.T[1],
-            args.T[2],
-            args.SEDname,
-            args.fH,
-            zdict,
-            args.mu_conv,
-            args.mu_maxit,
-            args.overwrite,
-            args.verbose,
-            args.avoid_pwinds_mubar,
-            args.no_tidal,
-        )
-    elif len(args.T) == 3 and len(args.Mdot) == 1:  # then we run a grid over only T
-        run_g(
-            args.plname,
-            args.pdir,
-            args.cores,
-            args.Mdot[0],
-            args.Mdot[0],
-            args.Mdot[0],
-            args.T[0],
-            args.T[1],
-            args.T[2],
-            args.SEDname,
-            args.fH,
-            zdict,
-            args.mu_conv,
-            args.mu_maxit,
-            args.overwrite,
-            args.verbose,
-            args.avoid_pwinds_mubar,
-            args.no_tidal,
-        )
-    elif len(args.T) == 1 and len(args.Mdot) == 3:  # then we run a grid over only Mdot
-        run_g(
-            args.plname,
-            args.pdir,
-            args.cores,
-            args.Mdot[0],
-            args.Mdot[1],
-            args.Mdot[2],
-            args.T[0],
-            args.T[0],
-            args.T[0],
-            args.SEDname,
-            args.fH,
-            zdict,
-            args.mu_conv,
-            args.mu_maxit,
-            args.overwrite,
-            args.verbose,
-            args.avoid_pwinds_mubar,
-            args.no_tidal,
-        )
+    mdot = np.arange(
+        args.mdot_lower, args.mdot_upper + 1e-6, args.mdot_step
+    )  # 1e-6 so that upper bound is inclusive
+    temp = np.arange(
+        args.temp_lower, args.temp_upper + 1e-6, args.temp_step
+    ).astype(int)
+
+    run_models(
+        args.plname,
+        args.pdir,
+        args.cores,
+        mdot,
+        temp,
+        args.sed_name,
+        args.fraction_hydrogen,
+        zdict,
+        args.mu_conv,
+        args.mu_maxit,
+        args.overwrite,
+        args.verbose,
+        args.avoid_pwinds_mubar,
+        args.no_tidal,
+    )
 
     print(
         "\nCalculations took",
@@ -1289,4 +1239,4 @@ def main(**kwargs):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()
