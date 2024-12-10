@@ -937,10 +937,12 @@ class Abundances:
                                 for k, v in self.__solar_abundances_relH.items()}
         self.elements = list(self.__solar_abundances.keys()) # List of all 30 elements
 
-        self.abundance_profiles = pd.DataFrame(index=np.linspace(1, 20, num=500), 
+        self.abundance_profiles = pd.DataFrame(index=np.logspace(0, np.log10(20), num=500), 
                                                 columns=self.elements, dtype=float)
 
         self.set_solar() # Start with solar constant composition
+
+        self.alaw = {} #To store the abundances to be written into Cloudy
 
     def set_solar(self):
         # Set all abundances types to constant w.r.t. hydrogen
@@ -956,45 +958,14 @@ class Abundances:
         
         __columns_exclude = [element for element in self.elements if self.abundance_types[element]=='fractionated']
         __constant_df = self.abundance_profiles.loc[:,~self.abundance_profiles.columns.isin(__columns_exclude)]
-        #__constant_df = __constant_df.div(__constant_df['H'],axis=0)
         __fractionated_df = self.abundance_profiles.loc[:,self.abundance_profiles.columns.isin(__columns_exclude)]
         __constant_sum = (__constant_df.sum(axis=1)).values
         __fractionated_sum = (__fractionated_df.sum(axis=1)).values
         self.abundance_profiles.loc[:, ~self.abundance_profiles.columns.isin(__columns_exclude)] = self.abundance_profiles.loc[:, ~self.abundance_profiles.columns.isin(__columns_exclude)].multiply((1-__fractionated_sum)/__constant_sum, axis=0)
 
-
-    
-    # def __normalize_abundances(self):
-        
-    #     #Cannot give this values relative to hydrogen
-    #     if("fractionated" not in self.abundance_types.values()):
-
-    #         __total__ = sum(list(self.abundance_profiles[element][0] for element in self.elements))
-    #         for element in self.elements:
-    #             self.abundance_profiles[element] =  np.repeat(self.abundance_profiles[element][0]/__total__, len(self.abundance_profiles))
-        
-    #     #self.abundance_profiles should have all elements w.r.t hydrogen (take care not to normalize hydrogen with itself)
-    #     else:
-    #         __scale_factor_dict ={}
-    #         for element in self.elements:
-    #             if self.abundance_types[element]=='constant' and element!='H':
-    #                 __scale_factor_dict[element]= self.abundance_profiles[element][0]
-
-    #         __constant_sum__ = 1 + sum(__scale_factor_dict.values())
-    #         for i in range(len(self.abundance_profiles)):
-    #             __fractionated_sum__ = sum(list(self.abundance_profiles[element][i] for element in self.elements if self.abundance_types[element]=='fractionated'))
-    #             for element in self.elements:
-    #                 if element=='H':
-    #                     self.abundance_profiles[element][i] = 1/(__constant_sum__+__fractionated_sum__)
-    #                 elif self.abundance_types[element]=='constant':
-    #                     self.abundance_profiles[element][i] = __scale_factor_dict[element] * self.abundance_profiles['H'][i]
-    #                 else:
-    #                     self.abundance_profiles[element][i]*= self.abundance_profiles['H'][i]
-
-
-
-    def set_metallicity(self, metallicity=1., scale_factor_dictionary={}):
-        self.set_solar() # revert to constant solar
+    def set_metallicity(self, metallicity=1., scale_factor_dictionary={}, setsolar = True):
+        if setsolar==True:
+            self.set_solar() # revert to constant solar
         
         for element in self.elements:
             if element not in ['H', 'He']:
@@ -1006,7 +977,6 @@ class Abundances:
             assert isinstance(scale_factor_dictionary[element], (int, float)), "Use single numeric values for the element scale factors."
             self.abundance_profiles[element] *= scale_factor_dictionary[element]
                 # NOT NORMALIZED YET!
-        #print(self.abundance_profiles)
         self.__normalize_abundances() # Normalize to 1 at every radius
 
     
@@ -1054,9 +1024,12 @@ class Abundances:
         Used to write constant abundances into Cloudy
         '''
         assert self.abundance_types[element] == "constant", "This element does not have a constant abundance but is fractionated."
-    
+        if self.abundance_profiles[element].iloc[0] == 0.0:
+            self.alaw[element] = -100
+            return self.alaw[element]
         abundance_relH = self.abundance_profiles[element].iloc[0] / self.abundance_profiles['H'].iloc[0] # convert relative to Hydrogen because that's what Cloudy expects
-        return np.log10(abundance_relH) # Returns the log of the value!
+        self.alaw[element] = np.log10(abundance_relH)
+        return self.alaw[element] # Returns the log of the value!
     
     
     def get_abundance_profile_Cloudy(self,altmax,Rp,element=None,Npoints=50):
@@ -1064,14 +1037,15 @@ class Abundances:
         Used to write abundance profiles for fractionted elements. Can pass a single element or a list. However, if calling multiple times, Npoints should be the same (Cloudy bug)
         If element is None and there are some fractionated elements, we return for all fractionated. If not, it gives an error (constant abundance atmosphere)
         '''
-        if element!=None:
+        if type(element)!=list: #need to make this more robust (move it into the next if and convert to list of separate elements)
+            element = [element]
+        if element!=[None]:
             #Need to add code to convert element to list if needed
             for ele in element:
                 assert self.abundance_types[ele] == "fractionated", "This element is not fractionated"
         else:
             element = [ele for ele in self.elements if self.abundance_types[ele]=='fractionated']
             assert element!=[], "No element is fractionated"
-            
         
         depth_grid = np.linspace(0, (altmax-1)*Rp, Npoints)
         corresponding_Rgrid = altmax*Rp - depth_grid
@@ -1081,73 +1055,61 @@ class Abundances:
         abundances_relH_reindexed = pd.DataFrame(index=np.log10(depth_grid),columns=element)
         for col in abundances_relH.columns:
             abundances_relH_reindexed[col] = interp1d(self.abundance_profiles.index.values * Rp,abundances_relH[col])(corresponding_Rgrid) #Is there a way to do this without a loop? df.interpolate gives NANs
-        
-        return np.log10(abundances_relH_reindexed)
+        abundances_relH_reindexed = np.log10(abundances_relH_reindexed)
+        for ele in element:
+            self.alaw[ele] = np.column_stack((abundances_relH_reindexed.index.values,abundances_relH_reindexed[ele].values))
+        return abundances_relH_reindexed
 
-
-    # def get_abundance_profile_Cloudy(self, element_list, altmax, Rp, Npoints=50):
-    #     '''
-    #     Used to write abundance profiles into Cloudy. Interpolates from Rgrid to Cloudy input grid. 
-    #     All elements being fractionated need to be given at once as otherwise getting relative to hydrogen is difficult(?).
-    #     We could remove the element_list argument because the fractionated elements should be accessible via abundance_types
-    #     '''
-    #     depth_grid = np.linspace(0, (altmax-1)*Rp, Npoints)
-    #     corresponding_Rgrid = altmax*Rp - depth_grid
-    #     depth_grid[0] = 10**-35
-
-    #     __constant_sum = sum(list(self.abundance_profiles[element][0]/self.abundance_profiles['H'][0] for element in self.elements if self.abundance_types[element]=='constant')) 
-    #     #maybe I could get hydrogen normalized profiles for constant elements beforehand?
-
-    #     for i in range(len(self.abundance_profiles)):
-    #         __fractionated_sum = sum(list(self.abundance_profiles[element][i] for element in self.elements if self.abundance_types[element]=='fractionated'))
-    #         self.abundance_profiles['H'][i] = (1-__fractionated_sum)/__constant_sum
-        
-    #     #__count_fracelements = sum(1 for value in self.abundance_types.values() if value=='fractionated')
-    #     abundances_relH_on_Rgrid = []
-    #     for element in element_list:
-    #         if element!='H':
-    #             self.abundance_profiles[element]/= self.abundance_profiles['H']
-    #         if(self.abundance_types[element]=='fractionated'):
-    #             abundances_relH_on_Rgrid.append(interp1d(self.abundance_profiles.index.values * Rp, self.abundance_profiles[element])(corresponding_Rgrid))    
-            
-                            
-    #     # normalize it to Hydrogen, because that is how Cloudy expects abundances:
-    #     abundance_relH_stack = np.column_stack(abundances_relH_on_Rgrid)
-    #     self.__normalize_abundances() #Now, all elements are normalized. But for writing Cloudy input, we need to make sure get_abundance_constant_Cloudy is used before to write non-fractionated elements
-    #     #abundances_relH_on_Rgrid = abundances_on_Rgrid # WRONG! write code ! (should be done now)
-
-    #     return np.log10(np.column_stack((depth_grid, abundance_relH_stack))) #alternatively, could make it a pd dataframe so we know which element has which profile, although this output should already be ordered
-    
-    def set_constant_abundance_from_relH(self, element_list, abundance_relH_list):
-        '''
-        Used to read a line like element helium abundance -0.5, then translate that to a true normalized abundance by figuring out the scale factor w.r.t solar 
-        For multiple elements this should be a list, or we need to remove the self.set_solar in set_metallicity (for now I am using list)
-        This is only used if no fractionation in input file so we could remove the element_list argument maybe (and loop over all elements other than hydrogen which is not set in input file)
-        '''
-        #Write code to make element_list and abundance_relH_list lists if they are given as string/float
-        __scale_factor_dict = {}
-        for element,abundance_relH in zip(element_list,abundance_relH_list):
-            __scale_factor_dict[element]=10**abundance_relH/self.__solar_abundances_relH[element]
-        
-        self.set_metallicity(1.,__scale_factor_dict)
-        
-
-    def set_abundance_profile_Cloudy(self, element_list, log_depths, log_abundances_list):
+    def set_abundance_profile_Cloudy(self, element, log_depths, log_abundance, altmax=8):
         '''
         Should be used to read from a Cloudy input file and interpolate abundances onto Rgrid
-        element_list should have list of all elements in the input file
-        log_depths has depth points -35., 9.12, 10., etc.
-        log_abundances_list should have all the abundances, so either a float for constant ones or an array for the fractionated ones
         '''
-        
-        __depths = 10**log_depths
-        for element,log_abundance in zip(element_list,log_abundances_list):
-            if(self.abundance_types[element]=='constant'):
-                self.abundance_profiles[element]= np.repeat(10**log_abundance,len(self.abundance_profiles))
-            else:
-                self.abundance_profiles[element]= interp1d(__depths,10**log_abundance)(self.abundance_profiles.index.values)
-        #Above this point, abundances are relative to hydrogen and not normalized
-        self.__normalize_abundances() 
+        log_depths[0] = 0
+        Rp = (10**(log_depths[-1]))/(altmax-1)
+        __corr_Rgrid = altmax*Rp - 10**log_depths
+        __interp_abundances = interp1d(__corr_Rgrid,log_abundance,bounds_error = False,fill_value=(log_abundance[-1],log_abundance[0]))(self.abundance_profiles.index.values * Rp) #Need a more robust fill value
+        __base_scale_factor = self.get_element_scalefactor(element,__interp_abundances[0])
+        tempobj = Abundances()
+        tempobj.set_metallicity(1.,{element:__base_scale_factor})
+        self.abundance_profiles[element] = tempobj.abundance_profiles[element].iloc[0]/10**__interp_abundances[0] * 10**__interp_abundances
+        self.__normalize_abundances()
+
+    def get_element_scalefactor(self,element,abundance_relH=None):
+        '''
+        Can be used to determine the scale factor of an element w.r.t its solar abundance. This has 2 use cases:
+        1. For writing a general abundance object, all elements with constant abundance that do not have a solar abundance (scale factor not 1) are written into the file.
+        2. While reading from an input file, we can use this function to obtain the scale factor of an element w.r.t solar and therefore update the abundance_profiles.
+        '''
+        if abundance_relH == None:
+            abundance_relH = self.get_abundance_constant_Cloudy(element)
+        return 10**abundance_relH/self.__solar_abundances_relH[element]
+
+
+    def parse_abundances_Cloudy(self,abundances_text,altmax=8):        
+
+        __scale_factor_dictionary ={}
+        for index in range(len(abundances_text)):
+            if 'off' in abundances_text[index]:
+                element = element_symbols[abundances_text[index].split(' ')[1]]
+                self.abundance_types[element] = 'constant'
+                __scale_factor_dictionary[element] = 0.0
+            elif 'abundance' in abundances_text[index]:
+                element = element_symbols[abundances_text[index].split(' ')[1]]
+                self.abundance_types[element] = 'constant'
+                __scale_factor_dictionary[element] = self.get_element_scalefactor(element,float(abundances_text[index].split(' ')[3]))
+            elif 'element' in abundances_text[index] and 'table depth' in abundances_text[index]:
+                element = element_symbols[abundances_text[index].split(' ')[1]]
+                self.abundance_types[element] = 'fractionated'
+                __log_depths = []
+                __log_abundance = []
+                for index2 in range(index+1, len(abundances_text)):
+                    if 'end of table' in abundances_text[index2]:
+                        break
+                    __log_depths.append(float(abundances_text[index2].split(' ')[0]))
+                    __log_abundance.append(float(abundances_text[index2].split(' ')[1]))
+                index = index2
+                self.set_abundance_profile_Cloudy(element, np.array(__log_depths[:-1]), np.array(__log_abundance[:-1]), altmax)
+        self.set_metallicity(1.,__scale_factor_dictionary,False)
 
 
 
@@ -1627,7 +1589,7 @@ def write_Cloudy_in(simname, title=None, flux_scaling=None,
                     dlaw=None, tlaw=None, cextra=None, hextra=None,
                     othercommands=None, overwrite=False, iterate='convergence',
                     nend=3000, outfiles=['.ovr', '.cool'], denspecies=[], selected_den_levels=False,
-                    constantT=None, double_tau=False, cosmic_rays=False, zdict=None, hcfrac=None,
+                    constantT=None, double_tau=False, cosmic_rays=False, abundances=None, hcfrac=None,
                     comments=None, cloudy_version="17"):
     """
     Writes a Cloudy input file for simulating an exoplanet atmosphere.
@@ -1736,12 +1698,29 @@ def write_Cloudy_in(simname, title=None, flux_scaling=None,
             f.write('\ncosmic rays background')
         f.write("\n# ========= chemistry      ================")
         f.write("\n# solar abundances and metallicity is standard")
-        if zdict != None:
-            for element in zdict.keys():
-                if zdict[element] == 0.:
-                    f.write("\nelement "+element_names[element]+" off")
-                elif zdict[element] != 1.: #only write it to Cloudy if the scale factor is not 1
-                    f.write("\nelement scale factor "+element_names[element]+" "+str(zdict[element]))
+        if abundances != None: 
+            # for element in zdict.keys():
+            #     if zdict[element] == 0.:
+            #         f.write("\nelement "+element_names[element]+" off")
+            #     elif zdict[element] != 1.: #only write it to Cloudy if the scale factor is not 1
+            #         f.write("\nelement scale factor "+element_names[element]+" "+str(zdict[element]))
+            f.write("\n# ========= abundance laws ===========")
+            alaw = abundances.alaw
+            for element in alaw:
+                if (element!='H' and abundances.abundance_types[element]=='constant'):
+                    if(np.abs(alaw[element]-1)>0.001):
+                        if(alaw[element]==-100):
+                            f.write("\nelement "+element_names[element]+" off")
+                        else:
+                            f.write("\nelement "+element_names[element]+" abundance "+'{:.2f}'.format(alaw[element]))
+                            
+                elif (abundances.abundance_types[element]=='fractionated'):
+                    f.write("\n# ======= " + element_names[element] + " fractionation law ====")
+                    f.write("\nelement " + element_names[element] + " table depth\n" )
+                    np.savetxt(f,alaw[element],fmt='%1.7f')
+                    f.write('{:.7f}'.format(alaw[element][-1,0]+0.1)+
+                    ' '+'{:.7f}'.format(alaw[element][-1,1]))             
+                    f.write("\nend of table")
         f.write("\n# ========= other          ================")
         if nend != None:
             f.write("\nset nend "+str(nend)+"   #models at high density need >1400 zones")
@@ -2237,6 +2216,7 @@ class Sim:
         self.disabled_elements = []
         zelem = {}
         _parker_T, _parker_Mdot, _parker_dir = None, None, None #temp variables
+        __abundances_text = [] #variable to pass to parse_Cloudy to read abundances
         with open(simname+'.in', 'r') as f:
             for line in f:
                 if line[0] == '#': #then it is a comment written by sunbather, extract info:
@@ -2261,15 +2241,27 @@ class Sim:
                     self.SEDname = line.split('"')[1]
                 
                 #read chemical composition
-                if 'element scale factor' in line.rstrip():
-                    zelem[element_symbols[line.split(' ')[3]]] = float(line.rstrip().split(' ')[-1])
-                elif 'element' in line.rstrip() and 'off' in line.rstrip():
-                    self.disabled_elements.append(element_symbols[line.split(' ')[1]])
-                    zelem[element_symbols[line.split(' ')[1]]] = 0.
-        
+                # if 'element scale factor' in line.rstrip():
+                #     zelem[element_symbols[line.split(' ')[3]]] = float(line.rstrip().split(' ')[-1])
+                # elif 'element' in line.rstrip() and 'off' in line.rstrip():
+                #     self.disabled_elements.append(element_symbols[line.split(' ')[1]])
+                #     zelem[element_symbols[line.split(' ')[1]]] = 0.
+                if 'element' in line.rstrip() and ('abundance' in line.rstrip() or 'off' in line.rstrip()):
+                    __abundances_text.append(line.rstrip())
+                elif 'element' in line.rstrip() and 'table depth' in line.rstrip():
+                    __abundances_text.append(line.rstrip())
+                    for line in f:
+                        __abundances_text.append(line.rstrip())
+                        if 'end of table' in line.rstrip():
+                            break
         #set zdict and abundances as attributes
-        self.zdict = get_zdict(zelem=zelem)
-        self.abundances = get_abundances(zdict=self.zdict)
+        #self.zdict = get_zdict(zelem=zelem)
+        #self.abundances = get_abundances(zdict=self.zdict)
+        self.abundances = Abundances()
+        if self.altmax!=None:
+            self.abundances.parse_abundances_Cloudy(__abundances_text,self.altmax) #Have not tested this within this class, but the function itself should work
+        else:
+            self.abundances.parse_abundances_Cloudy(__abundances_text) #default altmax of 8 if no altmax defined in input file
 
         #overwrite/set manually given Planet object
         if planet != None:
