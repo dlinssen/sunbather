@@ -932,7 +932,7 @@ class Abundances:
                                 'Sc': 1.48e-9, 'Ti': 1.05e-7, 'V': 1e-8, 'Cr': 4.68e-7, 'Mn': 2.88e-7,
                                 'Fe': 2.82e-5, 'Co': 8.32e-8, 'Ni': 1.78e-6, 'Cu': 1.62e-8, 'Zn': 3.98e-8}
         # Normalize abundances to 1: (This should eventually be replaced with self.__normalize_abundances() as well at the end of __init__) 
-        # (I think we can do this now)
+
         self.__solar_abundances = {k: v / sum(list(self.__solar_abundances_relH.values())) 
                                 for k, v in self.__solar_abundances_relH.items()}
         self.elements = list(self.__solar_abundances.keys()) # List of all 30 elements
@@ -1001,16 +1001,31 @@ class Abundances:
         abundance = self.abundance_profiles[element].iloc[0] # Return first value as it is constant anyway
         return abundance
 
-    def get_abundance_profile(self, element, grid=None):
+    def get_abundance_profile(self, element=None, grid=None, Rp=None):
         '''
         Returns the abundance profile or interpolates from Rgrid to Cloudy output grid
+        Rp (or alternatively maybe altmax) is needed to get the corresponding Rgrid to interpolate from Rgrid to Cloudy grid
         '''
         if grid is None: # Then we return it on the standard (1,20) Rp grid:
+            if element is None:
+                return self.abundance_profiles
+            
             return np.column_stack((self.abundance_profiles.index.values, self.abundance_profiles[element]))
+
         else:
             assert isinstance(grid, np.ndarray), "Please pass a numpy 1D array as a grid"
-            
-            abundance_profile_ongrid = interp1d(self.abundance_profiles.index.values, self.abundance_profiles[element])(grid)
+            assert Rp != None, "If you want to interpolate onto a Cloudy output grid please provide planetary radius in cm as well"
+
+            #get corresponding Rgrid
+            altmax = round(grid[-1]/Rp) + 1
+            __corresponding_Rgrid = altmax * Rp - grid    
+            if element is None:
+                abundance_profile_ongrid = pd.DataFrame(index=grid,columns=self.elements)
+                for element in self.elements:
+                    abundance_profile_ongrid[element] = interp1d(self.abundance_profiles.index.values * Rp, self.abundance_profiles[element])(__corresponding_Rgrid)
+            else:
+                abundance_profile_ongrid = pd.DataFrame(index=grid,columns=element)
+                abundance_profile_ongrid = interp1d(self.abundance_profiles.index.values * Rp, self.abundance_profiles[element])(__corresponding_Rgrid)
             return abundance_profile_ongrid
 
     def get_abundance_dictionary(self):
@@ -1019,20 +1034,22 @@ class Abundances:
         '''
         return dict((element,self.abundance_profiles[element].values) for element in self.elements)
 
-    def get_abundance_constant_Cloudy(self, element):
+    def get_abundance_constant_Cloudy(self, element,write_alaw = True):
         '''
         Used to write constant abundances into Cloudy
         '''
         assert self.abundance_types[element] == "constant", "This element does not have a constant abundance but is fractionated."
         if self.abundance_profiles[element].iloc[0] == 0.0:
-            self.alaw[element] = -100
-            return self.alaw[element]
+            if write_alaw is True:
+                self.alaw[element] = -100
+            return -100
         abundance_relH = self.abundance_profiles[element].iloc[0] / self.abundance_profiles['H'].iloc[0] # convert relative to Hydrogen because that's what Cloudy expects
-        self.alaw[element] = np.log10(abundance_relH)
-        return self.alaw[element] # Returns the log of the value!
+        if write_alaw is True:
+            self.alaw[element] = np.log10(abundance_relH)
+        return np.log10(abundance_relH) # Returns the log of the value!
     
     
-    def get_abundance_profile_Cloudy(self,altmax,Rp,element=None,Npoints=50):
+    def get_abundance_profile_Cloudy(self,altmax,Rp,element=None,Npoints=50,write_alaw=True):
         '''
         Used to write abundance profiles for fractionted elements. Can pass a single element or a list. However, if calling multiple times, Npoints should be the same (Cloudy bug)
         If element is None and there are some fractionated elements, we return for all fractionated. If not, it gives an error (constant abundance atmosphere)
@@ -1056,8 +1073,9 @@ class Abundances:
         for col in abundances_relH.columns:
             abundances_relH_reindexed[col] = interp1d(self.abundance_profiles.index.values * Rp,abundances_relH[col])(corresponding_Rgrid) #Is there a way to do this without a loop? df.interpolate gives NANs
         abundances_relH_reindexed = np.log10(abundances_relH_reindexed)
-        for ele in element:
-            self.alaw[ele] = np.column_stack((abundances_relH_reindexed.index.values,abundances_relH_reindexed[ele].values))
+        if write_alaw is True:
+            for ele in element:
+                self.alaw[ele] = np.column_stack((abundances_relH_reindexed.index.values,abundances_relH_reindexed[ele].values))
         return abundances_relH_reindexed
 
     def set_abundance_profile_Cloudy(self, element, log_depths, log_abundance, altmax=8):
@@ -2258,7 +2276,7 @@ class Sim:
         #self.zdict = get_zdict(zelem=zelem)
         #self.abundances = get_abundances(zdict=self.zdict)
         self.abundances = Abundances()
-        if self.altmax!=None:
+        if hasattr(self,'altmax'):
             self.abundances.parse_abundances_Cloudy(__abundances_text,self.altmax) #Have not tested this within this class, but the function itself should work
         else:
             self.abundances.parse_abundances_Cloudy(__abundances_text) #default altmax of 8 if no altmax defined in input file
