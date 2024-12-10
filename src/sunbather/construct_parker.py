@@ -162,9 +162,10 @@ def save_plain_parker_profile(
     temp = int(temp)
 
     projectpath = tools.get_sunbather_project_path()
+
+    save_dir = f"{projectpath}/parker_profiles/{planet.name}/{pdir}"
     save_name = (
-        f"{projectpath}/parker_profiles/{planet.name}/{pdir}/"
-        f"pprof_{planet.name}_T={str(temp)}_M={mdot:.3f}.txt"
+        f"{save_dir}/pprof_{planet.name}_T={str(temp)}_M={mdot:.3f}.txt"
     )
     if os.path.exists(save_name) and not overwrite:
         print(
@@ -244,6 +245,7 @@ def save_plain_parker_profile(
     save_array = np.column_stack(
         (r * planet.R, rho_array * rhos, v_array * vs * 1e5, mu_array)
     )
+    os.makedirs(save_dir, exist_ok=True)
     np.savetxt(
         save_name,
         save_array,
@@ -426,13 +428,14 @@ def save_temp_parker_profile(
     save_array = np.column_stack(
         (r * planet.R, rho_array * rhos, v_array * vs * 1e5, mu_array)
     )
+    save_dir = f"{projectpath}/parker_profiles/{planet.name}/{pdir}/temp"
     save_name = (
-        f"{projectpath}/parker_profiles/{planet.name}/{pdir}/temp/"
-        f"pprof_{planet.name}_T={str(temp)}_M={mdot:.3f}.txt"
+        f"{save_dir}/pprof_{planet.name}_T={str(temp)}_M={mdot:.3f}.txt"
     )
     zdictstr = "abundance scale factors relative to solar:"
     for sp in zdict.keys():
         zdictstr += f" {sp}={zdict[sp]:.1f}"
+    os.makedirs(save_dir, exist_ok=True)
     np.savetxt(
         save_name, save_array, delimiter="\t", header=zdictstr + "\nalt rho v mu"
     )
@@ -478,7 +481,7 @@ def run_parker_with_cloudy(filename, temp, planet, zdict):
     hden = tools.rho_to_hden(pprof.rho.values, abundances=tools.get_abundances(zdict))
     dlaw = tools.alt_array_to_Cloudy(alt, hden, altmax, planet.R, 1000, log=True)
 
-    nuFnu_1AU_linear, Ryd = tools.get_SED_norm_1AU(planet.sed_name)
+    nuFnu_1AU_linear, Ryd = tools.get_SED_norm_1AU(planet.SEDname)
     nuFnu_a_log = np.log10(
         nuFnu_1AU_linear / ((planet.a - altmax * planet.R) / tools.AU) ** 2
     )
@@ -489,7 +492,7 @@ def run_parker_with_cloudy(filename, temp, planet, zdict):
         title="Simulation of " + filename,
         overwrite=True,
         flux_scaling=[nuFnu_a_log, Ryd],
-        SED=planet.sed_name,
+        SED=planet.SEDname,
         dlaw=dlaw,
         double_tau=True,
         cosmic_rays=True,
@@ -746,15 +749,15 @@ def run(
     pdir=None,
     mdot=None,
     temp=None,
-    sed_name=None,
+    sed_name="real",
     fraction_hydrogen=None,
     zdict=None,
-    mu_conv=None,
-    mu_maxit=None,
-    overwrite=None,
-    verbose=None,
-    avoid_pwinds_mubar=None,
-    no_tidal=None,
+    mu_conv=0.01,
+    mu_maxit=7,
+    overwrite=False,
+    verbose=False,
+    avoid_pwinds_mubar=False,
+    no_tidal=False,
 ):
     """
     Calculates a single isothermal Parker wind profile.

@@ -54,7 +54,9 @@ def check_cloudy(quiet=False, cloudy_version="23.01"):
 def make_workingdir(workingdir=None, quiet=False):
     """
     Checks if the SUNBATHER_PROJECT_PATH environment variable has been set and
-    asks for input if not. Also asks to copy the default files to the working dir.
+    asks for input if not.
+    If quiet is True and the working dir is not set, the current dir is used.
+    Copies the planets.txt file to the working dir if it does not exist..
 
     :workingdir: str, path to the working dir. If None, checks the
     SUNBATHER_PROJECT_PATH environment variable, and asks for input if this is
@@ -68,38 +70,18 @@ def make_workingdir(workingdir=None, quiet=False):
             if not quiet:
                 workingdir = input("Enter the working dir for Sunbather: ")
             else:
-                # if quiet, use the current dir
-                workingdir = "./"
-    if not quiet:
-        q = input(f"Copy default files to the working dir ({workingdir})? (y/n) ")
-        while q.lower() not in ["y", "n"]:
-            q = input("Please enter 'y' or 'n': ")
-        if q == "n":
-            return
-
-    sunbatherpath = f"{pathlib.Path(__file__).parent.resolve()}"
-    for file in os.listdir(f"{sunbatherpath}/data/workingdir"):
-        if not os.path.exists(f"{workingdir}/{file}"):
-            shutil.copyfile(
-                f"{sunbatherpath}/data/workingdir/{file}",
-                f"{workingdir}/{file}",
+                # if quiet, use the current dir (absolute path)
+                workingdir = os.path.abspath(".")
+            os.environ["SUNBATHER_PROJECT_PATH"] = workingdir
+            print(
+                f"Environment variable SUNBATHER_PROJECT_PATH set to {workingdir}"
             )
-        else:
-            if not quiet:
-                print("File already exists! Overwrite?")
-                q = input("(y/n) ")
-                while q.lower() not in ["y", "n"]:
-                    q = input("Please enter 'y' or 'n': ")
-                if q == "n":
-                    continue
-            else:
-                continue
-            shutil.copyfile(
-                f"{sunbatherpath}/data/workingdir/{file}",
-                f"{workingdir}/{file}",
-            )
-
-    return
+    if not os.path.exists(f"{workingdir}/planets.txt"):
+        sunbatherpath = f"{pathlib.Path(__file__).parent.resolve()}"
+        shutil.copyfile(
+            f"{sunbatherpath}/data/workingdir/planets.txt",
+            f"{workingdir}/planets.txt",
+        )
 
 
 def firstrun(quiet=False, workingdir=None, cloudy_version="23.01"):

@@ -58,6 +58,13 @@ class GetCloudy:
         """
         Compiles Cloudy.
         """
+        # move the gitversion.sh file to gitversion.sh.bak
+        # otherwise, Cloudy will report the current git hash as the version and
+        # we don't want that!
+        os.rename(
+            f"{self.cloudypath}/c{self.version}/source/gitversion.sh",
+            f"{self.cloudypath}/c{self.version}/source/gitversion.sh.bak"
+        )
         os.chdir(f"{self.cloudypath}/c{self.version}/source/")
         with subprocess.Popen(
             [
