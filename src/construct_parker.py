@@ -71,7 +71,7 @@ def cloudy_spec_to_pwinds(SEDfilename, dist_SED, dist_planet):
     return spectrum
 
 
-def calc_neutral_mu(zdict):
+def calc_neutral_mu(abundances):
     """Calculates the mean particle mass assuming a completely neutral (i.e., atomic)
     gas, for a given composition (specified through elemental scale factors that
     can be converted into abundances).
@@ -88,8 +88,10 @@ def calc_neutral_mu(zdict):
         Mean particle mass in units of amu.
     """
 
-    abundances = tools.get_abundances(zdict)
+    #abundances = tools.get_abundances(zdict)
     neutral_mu = tools.calc_mu(1., 0., abundances=abundances) #set ne=0 so completely neutral
+
+
 
     return neutral_mu
 
@@ -188,7 +190,7 @@ def save_plain_parker_profile(planet, Mdot, T, spectrum, h_fraction=0.9,
         warnings.warn(f"This Parker wind profile is supersonic already at Rp: {save_name}")
 
 
-def save_temp_parker_profile(planet, Mdot, T, zdict, pdir, 
+def save_temp_parker_profile(planet, Mdot, T, abundances, pdir, 
                              mu_bar, mu_struc=None, no_tidal=False, altmax=20):
     """
     Uses the p-winds code (dos Santos et al. 2022)
@@ -265,17 +267,24 @@ def save_temp_parker_profile(planet, Mdot, T, zdict, pdir,
 
     save_array = np.column_stack((r*planet.R, rho_array*rhos, v_array*vs*1e5, mu_array))
     save_name = tools.projectpath+'/parker_profiles/'+planet.name+'/'+pdir+'/temp/pprof_'+planet.name+'_T='+str(T)+'_M='+"%.3f" %Mdot +".txt"
-    zdictstr = "abundance scale factors relative to solar:"
-    for sp in zdict.keys():
-        zdictstr += " "+sp+"="+"%.1f" %zdict[sp]
-    np.savetxt(save_name, save_array, delimiter='\t', header=zdictstr+"\nalt rho v mu")
+    abundancestr = "Abundances at planet surface:"
+    #for sp in zdict.keys():
+    #    zdictstr += " "+sp+"="+"%.1f" %zdict[sp]
+    if abundances.alaw =={}:
+           abundancestr += " All elements have constant solar composition" 
+    else:
+        for element in abundances.alaw:
+            abundancestr += "\n"+element+"="+"%.2e" %abundances.abundance_profiles[element].iloc[0] + "," + abundances.abundance_types[element]
+        abundancestr += "\nAll other elements have constant solar composition"
+        
+    np.savetxt(save_name, save_array, delimiter='\t', header=abundancestr+"\nalt rho v mu")
 
     launch_velocity = v_array[0] #velocity at Rp in units of sonic speed
 
     return save_name, launch_velocity
 
 
-def run_parker_with_cloudy(filename, T, planet, zdict):
+def run_parker_with_cloudy(filename, T, planet, abundances):
     """Runs an isothermal Parker wind profile through Cloudy, using the isothermal temperature profile.
 
     Parameters
@@ -303,7 +312,7 @@ def run_parker_with_cloudy(filename, T, planet, zdict):
 
     altmax = pprof.alt.iloc[-1] / planet.R #maximum altitude of the profile in units of Rp
     alt = pprof.alt.values
-    hden = tools.rho_to_hden(pprof.rho.values, abundances=tools.get_abundances(zdict))
+    hden = tools.rho_to_hden(pprof.rho.values, abundances=abundances.abundance_profiles)
     dlaw = tools.alt_array_to_Cloudy(alt, hden, altmax, planet.R, 1000, log=True)
 
     nuFnu_1AU_linear, Ryd = tools.get_SED_norm_1AU(planet.SEDname)
@@ -312,7 +321,7 @@ def run_parker_with_cloudy(filename, T, planet, zdict):
     simname = filename.split('.txt')[0]
     tools.write_Cloudy_in(simname, title='Simulation of '+filename, overwrite=True,
                                 flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname,
-                                dlaw=dlaw, double_tau=True, cosmic_rays=True, zdict=zdict, constantT=T, outfiles=['.ovr'])
+                                dlaw=dlaw, double_tau=True, cosmic_rays=True, abundances=abundances, constantT=T, outfiles=['.ovr'])
 
     tools.run_Cloudy(simname)
 
@@ -364,7 +373,7 @@ def calc_mu_bar(sim):
     return mu_bar
 
 
-def save_cloudy_parker_profile(planet, Mdot, T, zdict, pdir, 
+def save_cloudy_parker_profile(planet, Mdot, T, abundances, pdir, 
                                convergence=0.01, maxit=7, cleantemp=False, 
                                overwrite=False, verbose=False,
                                no_tidal=False, altmax=20):
@@ -419,18 +428,18 @@ def save_cloudy_parker_profile(planet, Mdot, T, zdict, pdir,
         return #this quits the function but if we're running a grid, it doesn't quit the whole Python code
 
     tools.verbose_print("Making initial parker profile while assuming a completely neutral mu_bar...", verbose=verbose)
-    neutral_mu_bar = calc_neutral_mu(zdict)
-    neutral_mu_struc = np.array([[1., neutral_mu_bar], [altmax, neutral_mu_bar]]) #set up an array with constant mu(r) at the neutral value
-    filename, launch_velocity = save_temp_parker_profile(planet, Mdot, T, zdict, pdir, 
-                                                            neutral_mu_bar, mu_struc=neutral_mu_struc, no_tidal=no_tidal, altmax=altmax)
-    tools.verbose_print(f"Saved temp parker profile with neutral mu_bar: {neutral_mu_bar}" , verbose=verbose)
-    previous_mu_bar = neutral_mu_bar
+    neutral_mu_bar = calc_neutral_mu(abundances=abundances.abundance_profiles)
+    neutral_mu_struc = np.array([[1., neutral_mu_bar[0]], [altmax, neutral_mu_bar[0]]]) #set up an array with constant mu(r) at the neutral value
+    filename, launch_velocity = save_temp_parker_profile(planet, Mdot, T, abundances, pdir, 
+                                                            neutral_mu_bar[0], mu_struc=neutral_mu_struc, no_tidal=no_tidal, altmax=altmax)
+    tools.verbose_print(f"Saved temp parker profile with neutral mu_bar: {neutral_mu_bar[0]}" , verbose=verbose)
+    previous_mu_bar = neutral_mu_bar[0]
 
     for itno in range(maxit):
         tools.verbose_print(f"Iteration number: {itno+1}", verbose=verbose)
         
         tools.verbose_print("Running parker profile through Cloudy...", verbose=verbose)
-        simname, pprof = run_parker_with_cloudy(filename, T, planet, zdict)
+        simname, pprof = run_parker_with_cloudy(filename, T, planet, abundances)
         tools.verbose_print("Cloudy run done.", verbose=verbose)
 
         sim = tools.Sim(simname, altmax=altmax, planet=planet)
@@ -439,7 +448,7 @@ def save_cloudy_parker_profile(planet, Mdot, T, zdict, pdir,
         mu_bar = calc_mu_bar(sim)
         tools.verbose_print(f"Making new parker profile with p-winds based on Cloudy's reported mu_bar: {mu_bar}", verbose=verbose)
         mu_struc = np.column_stack((sim.ovr.alt.values[::-1]/planet.R, sim.ovr.mu[::-1].values)) #pass Cloudy's mu structure to save in the pprof
-        filename, launch_velocity = save_temp_parker_profile(planet, Mdot, T, zdict, pdir, 
+        filename, launch_velocity = save_temp_parker_profile(planet, Mdot, T, abundances, pdir, 
                                                     mu_bar, mu_struc=mu_struc, no_tidal=no_tidal, altmax=altmax)
         tools.verbose_print("Saved temp parker profile.", verbose=verbose)
 
@@ -462,7 +471,7 @@ def save_cloudy_parker_profile(planet, Mdot, T, zdict, pdir,
         tools.verbose_print("Temporary files removed.", verbose=verbose)
 
 
-def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, 
+def run_s(plname, pdir, Mdot, T, SEDname, fH, abundances, mu_conv, 
           mu_maxit, overwrite, verbose, no_tidal):
     """
     Calculates a single isothermal Parker wind profile.
@@ -519,7 +528,7 @@ def run_s(plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv,
         spectrum = cloudy_spec_to_pwinds(tools.cloudypath+'/data/SED/'+p.SEDname, 1., (p.a - altmax*p.R)/tools.AU) #assumes SED is at 1 AU
         save_plain_parker_profile(p, Mdot, T, spectrum, h_fraction=fH, pdir=pdir, overwrite=overwrite, no_tidal=no_tidal, altmax=altmax)
     else: #then run p_winds/Cloudy iterative scheme
-        save_cloudy_parker_profile(p, Mdot, T, zdict, pdir, 
+        save_cloudy_parker_profile(p, Mdot, T, abundances, pdir, 
                                    convergence=mu_conv, maxit=mu_maxit, cleantemp=True, 
                                    overwrite=overwrite, verbose=verbose,
                                    no_tidal=no_tidal, altmax=altmax)
@@ -537,7 +546,7 @@ def catch_errors_run_s(*args):
 
 
 def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s, 
-          T_l, T_u, T_s, SEDname, fH, zdict, mu_conv, 
+          T_l, T_u, T_s, SEDname, fH, abundances, mu_conv, 
           mu_maxit, overwrite, verbose, no_tidal):
     """
     Calculates a grid of isothermal Parker wind models, by executing the run_s() function in parallel.
@@ -600,7 +609,7 @@ def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s,
     pars = []
     for Mdot in np.arange(float(Mdot_l), float(Mdot_u)+1e-6, float(Mdot_s)): #1e-6 so that upper bound is inclusive
         for T in np.arange(int(T_l), int(T_u)+1e-6, int(T_s)).astype(int):
-            pars.append((plname, pdir, Mdot, T, SEDname, fH, zdict, mu_conv, mu_maxit, overwrite, verbose, no_tidal))
+            pars.append((plname, pdir, Mdot, T, SEDname, fH, abundances, mu_conv, mu_maxit, overwrite, verbose, no_tidal))
 
     p.starmap(catch_errors_run_s, pars)
     p.close()

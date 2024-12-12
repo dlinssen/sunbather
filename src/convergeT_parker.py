@@ -65,7 +65,7 @@ def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):
     return clconv
 
 
-def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdict=None, altmax=8, save_sp=[], constantT=False, maxit=16):
+def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, abundances=None, altmax=8, save_sp=[], constantT=False, maxit=16):
     """
     Solves for a nonisothermal temperature profile of a single isothermal Parker wind (density and velocity) profile.
 
@@ -154,7 +154,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
 
     #get profiles and parameters we need for the input file
     alt = pprof.alt.values
-    hden = tools.rho_to_hden(pprof.rho.values, abundances=tools.get_abundances(zdict))
+    hden = tools.rho_to_hden(pprof.rho.values, abundances=abundances.abundance_profiles)
     dlaw = tools.alt_array_to_Cloudy(alt, hden, altmax, planet.R, 1000, log=True)
 
     nuFnu_1AU_linear, Ryd = tools.get_SED_norm_1AU(planet.SEDname)
@@ -166,11 +166,11 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
         if save_sp == []:
             tools.write_Cloudy_in(path+'constantT', title=planet.name+' 1D Parker with T='+str(T)+' and log(Mdot)='+str(Mdot),
                                         flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=dlaw, double_tau=True,
-                                        overwrite=overwrite, cosmic_rays=True, zdict=zdict, comments=comments, constantT=T)
+                                        overwrite=overwrite, cosmic_rays=True, abundances=abundances, comments=comments, constantT=T)
         else:
             tools.write_Cloudy_in(path+'constantT', title=planet.name+' 1D Parker with T='+str(T)+' and log(Mdot)='+str(Mdot),
                                         flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=dlaw, double_tau=True,
-                                        overwrite=overwrite, cosmic_rays=True, zdict=zdict, comments=comments, constantT=T,
+                                        overwrite=overwrite, cosmic_rays=True, abundances=abundances, comments=comments, constantT=T,
                                         outfiles=['.den', '.en'], denspecies=save_sp, selected_den_levels=True)
         
         tools.run_Cloudy('constantT', folder=path) #run the Cloudy simulation
@@ -180,7 +180,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, zdic
     #write Cloudy template input file - each iteration will add their current temperature structure to this template
     tools.write_Cloudy_in(path+'template', title=planet.name+' 1D Parker with T='+str(T)+' and log(Mdot)='+str(Mdot),
                                 flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=dlaw, double_tau=True,
-                                overwrite=overwrite, cosmic_rays=True, zdict=zdict, comments=comments)
+                                overwrite=overwrite, cosmic_rays=True, abundances=abundances, comments=comments)
 
     if itno == 0: #this means we resume from the highest found previously ran iteration
         pattern = r'iteration(\d+)\.out' #search pattern: iteration followed by an integer
@@ -229,7 +229,7 @@ def catch_errors_run_s(*args):
         traceback.print_exc()
 
 
-def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname, overwrite, startT, pdir, zdict, altmax, save_sp, constantT, maxit):
+def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname, overwrite, startT, pdir, abundances, altmax, save_sp, constantT, maxit):
     """
     Solves for a nonisothermal temperature profile of a grid of isothermal Parker wind models,
     by executing the run_s() function in parallel.
@@ -300,7 +300,7 @@ def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname
     pars = []
     for Mdot in np.arange(float(Mdot_l), float(Mdot_u)+1e-6, float(Mdot_s)): #1e-6 so that upper bound is inclusive
         for T in np.arange(int(T_l), int(T_u)+1e-6, int(T_s)).astype(int):
-            pars.append((plname, Mdot, T, 1, fc, dir, SEDname, overwrite, startT, pdir, zdict, altmax, save_sp, constantT, maxit))
+            pars.append((plname, Mdot, T, 1, fc, dir, SEDname, overwrite, startT, pdir, abundances, altmax, save_sp, constantT, maxit))
 
     p.starmap(catch_errors_run_s, pars)
     p.close()
