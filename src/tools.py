@@ -1516,12 +1516,12 @@ def write_Cloudy_in(simname, title=None, flux_scaling=None,
             f.write("\n# ========= abundance laws ===========")
             alaw = abundances.alaw
             for element in alaw:
-                if (element!='H' and abundances.abundance_types[element]=='constant'):
-                    if(np.abs(alaw[element]-1)>0.001): #need to check this condition
-                        if(alaw[element]==-100):
-                            f.write("\nelement "+element_names[element]+" off")
-                        else:
-                            f.write("\nelement "+element_names[element]+" abundance "+'{:.2f}'.format(alaw[element]))
+            #May want to add a condition to ensure only non-solar composition elements are written, but those shouldn't be in alaw unless user adds it deliberately
+                if (element!='H' and abundances.abundance_types[element]=='constant'): 
+                    if(alaw[element]==-100):
+                        f.write("\nelement "+element_names[element]+" off")
+                    else:
+                        f.write("\nelement "+element_names[element]+" abundance "+'{:.2f}'.format(alaw[element]))
                             
                 elif (abundances.abundance_types[element]=='fractionated'):
                     f.write("\n# ======= " + element_names[element] + " fractionation law ====")
@@ -1712,22 +1712,26 @@ class Abundances:
         __fractionated_sum = (__fractionated_df.sum(axis=1)).values
         self.abundance_profiles.loc[:, ~self.abundance_profiles.columns.isin(__columns_exclude)] = self.abundance_profiles.loc[:, ~self.abundance_profiles.columns.isin(__columns_exclude)].multiply((1-__fractionated_sum)/__constant_sum, axis=0)
 
-    def set_metallicity(self, metallicity=1., scale_factor_dictionary={}, setsolar = True):
+    def set_metallicity(self, metallicity=1., scale_factor_dictionary={}, setsolar = True, write_alaw = True):
         if setsolar==True:
             self.set_solar() # revert to constant solar
         
         for element in self.elements:
             if element not in ['H', 'He']:
                 self.abundance_profiles[element] *= metallicity # Multiply with metallicity at all radii
-                # NOT NORMALIZED YET
+                self.__normalize_abundances() # Normalize to 1 at every radius
+                if write_alaw == True:
+                    self.get_abundance_constant_Cloudy(element)
+                
         
         for element in scale_factor_dictionary:
             assert 'H' not in scale_factor_dictionary.keys(), "You cannot scale hydrogen, scale everything else instead."
             assert isinstance(scale_factor_dictionary[element], (int, float)), "Use single numeric values for the element scale factors."
             self.abundance_profiles[element] *= scale_factor_dictionary[element]
-                # NOT NORMALIZED YET!
-        self.__normalize_abundances() # Normalize to 1 at every radius
-
+            self.__normalize_abundances() # Normalize to 1 at every radius
+            if write_alaw == True:
+                self.get_abundance_constant_Cloudy(element)
+                
     
     def set_fractionation_powerlaw(self, powerlaw_index_dictionary={}):
         
@@ -1777,9 +1781,9 @@ class Abundances:
                 abundance_profile_ongrid = interp1d(self.abundance_profiles.index.values * Rp, self.abundance_profiles[element])(__corresponding_Rgrid)
             return abundance_profile_ongrid
 
-    def get_abundance_dictionary(self):
+    def get_abundance_dictionary(self): #This function isn't needed anywhere
         '''
-            Returns dictionary in the form {'H':[0.904,0.903,....],'He':[0.092,0.093....],etc.}
+            Returns dictionary in the form {'H':[0.904,0.903,....],'He':[0.092,0.093....],etc.} 
         '''
         return dict((element,self.abundance_profiles[element].values) for element in self.elements)
 
@@ -1848,7 +1852,7 @@ class Abundances:
         2. While reading from an input file, we can use this function to obtain the scale factor of an element w.r.t solar and therefore update the abundance_profiles.
         '''
         if abundance_relH == None:
-            abundance_relH = self.get_abundance_constant_Cloudy(element)
+            abundance_relH = self.get_abundance_constant_Cloudy(element,write_alaw=False)
         return 10**abundance_relH/self.__solar_abundances_relH[element]
 
 
@@ -1876,7 +1880,7 @@ class Abundances:
                     __log_abundance.append(float(abundances_text[index2].split(' ')[1]))
                 index = index2
                 self.set_abundance_profile_Cloudy(element, np.array(__log_depths[:-1]), np.array(__log_abundance[:-1]), altmax)
-        self.set_metallicity(1.,__scale_factor_dictionary,False)
+        self.set_metallicity(1.,__scale_factor_dictionary,False,False)
 
 
 class Parker:
