@@ -6,11 +6,11 @@ table of contents.
 ![Sunbather logo](logo_text.png)
 
 ```{toctree} Table of Contents
-:depth: 2
+:maxdepth: 2
 installation
 glossary
 faq
 api
-Notebook: Fit Helium \<fit_helium.ipynb\>
-Notebook: Predict UV \<predict_UV.ipynb\>
+fit_helium
+predict_UV
 ```

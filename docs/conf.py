@@ -23,7 +23,8 @@ extensions = [
     "sphinx_rtd_theme",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
-    "myst_parser",
+    #"myst_parser",
+    "myst_nb",
 ]
 
 templates_path = ["_templates"]
