@@ -1153,3 +1153,4 @@ def convolve_spectrum_R(wavs, flux, R, verbose=False):
     convolved_spectrum = gaussian_filter1d(flux, sigma)
 
     return convolved_spectrum
+            # add the tau values to the total (of all species & lines together)

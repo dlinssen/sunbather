@@ -733,15 +733,18 @@ def new_argument_parser():
     return parser
 
 
-def main(*args, **kwargs):
+def main(**kwargs):
     """
-    Main function
+    Main function for the convergeT_parker.py script
     """
 
     t0 = time.time()
 
     parser = new_argument_parser()
-    args = parser.parse_args(*args, **kwargs)
+    if not kwargs:
+        args = parser.parse_args(sys.argv[1:])
+    else:
+        args = kwargs
 
     zdict = tools.get_zdict(z=args.z, zelem=args.zelem)
 
