@@ -1,22 +1,28 @@
-#sunbather imports
-import tools
-
-#other imports
+import warnings
 import pandas as pd
 import numpy as np
-import numpy.ma as ma
+from numpy import ma
 from scipy.interpolate import interp1d
 from scipy.special import voigt_profile
 from scipy.integrate import trapezoid
 from scipy.ndimage import gaussian_filter1d
-import warnings
+
+from sunbather import tools
+
+sigt0 = 2.654e-2  # cm2 s-1 = cm2 Hz, from Axner et al. 2004
 
 
-sigt0 = 2.654e-2 #cm2 s-1 = cm2 Hz, from Axner et al. 2004
-
-
-def project_1D_to_2D(r1, q1, Rp, numb=101, x_projection=False, cut_at=None, 
-                     skip_alt_range=None, skip_alt_range_dayside=None, skip_alt_range_nightside=None):
+def project_1D_to_2D(
+    r1,
+    q1,
+    Rp,
+    numb=101,
+    x_projection=False,
+    cut_at=None,
+    skip_alt_range=None,
+    skip_alt_range_dayside=None,
+    skip_alt_range_nightside=None,
+):
     """
     Projects a 1D sub-stellar solution onto a 2D grid. This function preserves
     the maximum altitude of the 1D ray, so that the 2D output looks like a half
@@ -81,30 +87,48 @@ def project_1D_to_2D(r1, q1, Rp, numb=101, x_projection=False, cut_at=None,
 
     assert r1[1] > r1[0], "arrays must be in order of ascending altitude"
 
-    b_edges = np.logspace(np.log10(0.1*Rp), np.log10(r1[-1] - 0.9*Rp), num=numb) + 0.9*Rp #impact parameters for 2D rays - these are the boundaries of the 'rays'
-    b_centers = (b_edges[1:] + b_edges[:-1]) / 2. #these are the actual positions of the rays and this is where the quantity is calculated at
-    xhalf = np.logspace(np.log10(0.101*Rp), np.log10(r1[-1]+0.1*Rp), num=numb) - 0.1*Rp #positive x grid
-    x = np.concatenate((-xhalf[::-1], xhalf)) #total x grid with both negative and positive values (for day- and nightside)
+    b_edges = (
+        np.logspace(np.log10(0.1 * Rp), np.log10(r1[-1] - 0.9 * Rp), num=numb)
+        + 0.9 * Rp
+    )  # impact parameters for 2D rays - these are the boundaries of the 'rays'
+    b_centers = (
+        b_edges[1:] + b_edges[:-1]
+    ) / 2.0  # these are the actual positions of the rays and this is where the quantity is calculated at
+    xhalf = (
+        np.logspace(np.log10(0.101 * Rp), np.log10(r1[-1] + 0.1 * Rp), num=numb)
+        - 0.1 * Rp
+    )  # positive x grid
+    x = np.concatenate(
+        (-xhalf[::-1], xhalf)
+    )  # total x grid with both negative and positive values (for day- and nightside)
     xx, bb = np.meshgrid(x, b_centers)
-    rr = np.sqrt(bb**2 + xx**2) #radii from planet core in 2D
+    rr = np.sqrt(bb**2 + xx**2)  # radii from planet core in 2D
 
-    q2 = interp1d(r1, q1, fill_value=0., bounds_error=False)(rr)
+    q2 = interp1d(r1, q1, fill_value=0.0, bounds_error=False)(rr)
     if x_projection:
-        q2 = q2 * xx / rr #now q2 is the projection in the x-direction
+        q2 = q2 * xx / rr  # now q2 is the projection in the x-direction
 
-    if cut_at != None: #set values to zero outside the cut_at boundary
-        q2[rr > cut_at] = 0.
+    if cut_at is not None:  # set values to zero outside the cut_at boundary
+        q2[rr > cut_at] = 0.0
 
-    #some options that were used in Linssen&Oklopcic (2023) to find where the line contribution comes from:
+    # some options that were used in Linssen&Oklopcic (2023) to find where the line contribution comes from:
     if skip_alt_range is not None:
         assert skip_alt_range[0] < skip_alt_range[1]
-        q2[(rr > skip_alt_range[0]) & (rr < skip_alt_range[1])] = 0.
+        q2[(rr > skip_alt_range[0]) & (rr < skip_alt_range[1])] = 0.0
     if skip_alt_range_dayside is not None:
         assert skip_alt_range_dayside[0] < skip_alt_range_dayside[1]
-        q2[(rr > skip_alt_range_dayside[0]) & (rr < skip_alt_range_dayside[1]) & (xx < 0.)] = 0.
+        q2[
+            (rr > skip_alt_range_dayside[0])
+            & (rr < skip_alt_range_dayside[1])
+            & (xx < 0.0)
+        ] = 0.0
     if skip_alt_range_nightside is not None:
         assert skip_alt_range_nightside[0] < skip_alt_range_nightside[1]
-        q2[(rr > skip_alt_range_nightside[0]) & (rr < skip_alt_range_nightside[1]) & (xx > 0.)] = 0.
+        q2[
+            (rr > skip_alt_range_nightside[0])
+            & (rr < skip_alt_range_nightside[1])
+            & (xx > 0.0)
+        ] = 0.0
 
     return b_edges, b_centers, x, q2
 
@@ -138,9 +162,13 @@ def limbdark_quad(mu, ab):
         limb darkening law.
     """
 
-    a, b = ab[:,0], ab[:,1]
-    I = 1 - a[:,None,None]*(1-mu[None,:,:]) - b[:,None,None]*(1-mu[None,:,:])**2
-    
+    a, b = ab[:, 0], ab[:, 1]
+    I = (
+        1
+        - a[:, None, None] * (1 - mu[None, :, :])
+        - b[:, None, None] * (1 - mu[None, :, :]) ** 2
+    )
+
     return I
 
 
@@ -165,19 +193,21 @@ def avg_limbdark_quad(ab):
         the quadratic limb darkening law.
     """
 
-    a, b = ab[:,0], ab[:,1]
-    rf = np.linspace(0, 1, num=1000) #sample the stellar disk in 1000 rings
-    rfm = (rf[:-1] + rf[1:])/2 #midpoints
-    mu = np.sqrt(1 - rfm**2) #mu of each ring
-    I = 1 - a[:,None]*(1-mu[None,:]) - b[:,None]*(1-mu[None,:])**2 #I of each ring
-    projsurf = np.pi*(rf[1:]**2 - rf[:-1]**2) #area of each ring
+    a, b = ab[:, 0], ab[:, 1]
+    rf = np.linspace(0, 1, num=1000)  # sample the stellar disk in 1000 rings
+    rfm = (rf[:-1] + rf[1:]) / 2  # midpoints
+    mu = np.sqrt(1 - rfm**2)  # mu of each ring
+    I = (
+        1 - a[:, None] * (1 - mu[None, :]) - b[:, None] * (1 - mu[None, :]) ** 2
+    )  # I of each ring
+    projsurf = np.pi * (rf[1:] ** 2 - rf[:-1] ** 2)  # area of each ring
 
-    I_avg = np.sum(I * projsurf, axis=1) / np.pi #sum over the radial axis
+    I_avg = np.sum(I * projsurf, axis=1) / np.pi  # sum over the radial axis
 
     return I_avg
 
 
-def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, v_turb=0.):
+def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, v_turb=0.0):
     """
     Calculates optical depth using Eq. 19 from Oklopcic&Hirata 2018.
     Does this at once for all rays, lines and frequencies. When doing
@@ -230,16 +260,29 @@ def calc_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, v_turb=0.):
     if not isinstance(gamma, np.ndarray):
         gamma = np.array([gamma])
 
-    gaus_sigma = np.sqrt(tools.k * Te[None,None,:] / m + 0.5*v_turb**2) * nu0[None,:,None,None] / tools.c
-    #the following has a minus sign like in Eq. 21 of Oklopcic&Hirata (2018) because their formula is only correct if you take v_LOS from star->planet i.e. vx   
-    Delnu = (nu[:,None,None,None] - nu0[None,:,None,None]) - nu0[None,:,None,None] / tools.c * vx[None,None,:]
-    tau_cube = trapezoid(ndens[None,None,:] * sig0[None,:,None,None] * voigt_profile(Delnu, gaus_sigma, gamma[None,:,None,None]), x=x)
-    tau = np.sum(tau_cube, axis=1) #sum up the contributions of the different lines -> now tau has axis 0:freq, axis 1:rayno
+    gaus_sigma = (
+        np.sqrt(tools.k * Te[None, None, :] / m + 0.5 * v_turb**2)
+        * nu0[None, :, None, None]
+        / tools.c
+    )
+    # the following has a minus sign like in Eq. 21 of Oklopcic&Hirata (2018) because their formula is only correct if you take v_LOS from star->planet i.e. vx
+    Delnu = (nu[:, None, None, None] - nu0[None, :, None, None]) - nu0[
+        None, :, None, None
+    ] / tools.c * vx[None, None, :]
+    tau_cube = trapezoid(
+        ndens[None, None, :]
+        * sig0[None, :, None, None]
+        * voigt_profile(Delnu, gaus_sigma, gamma[None, :, None, None]),
+        x=x,
+    )
+    tau = np.sum(
+        tau_cube, axis=1
+    )  # sum up the contributions of the different lines -> now tau has axis 0:freq, axis 1:rayno
 
     return tau
 
 
-def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, v_turb=0.):
+def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, v_turb=0.0):
     """
     Calculates cumulative optical depth using Eq. 19 from Oklopcic&Hirata 2018,
     at one particular frequency. Does this at once for all rays and lines.
@@ -291,19 +334,33 @@ def calc_cum_tau(x, ndens, Te, vx, nu, nu0, m, sig0, gamma, v_turb=0.):
     if not isinstance(gamma, np.ndarray):
         gamma = np.array([gamma])
 
-    gaus_sigma = np.sqrt(tools.k * Te[None,None,:] / m + 0.5*v_turb**2) * nu0[None,:,None,None] / tools.c
-    #the following has a minus sign like in Eq. 21 of Oklopcic&Hirata (2018) because their formula is only correct if you take v_LOS from star->planet i.e. vx   
-    Delnu = (nu - nu0[:,None,None]) - nu0[:,None,None] / tools.c * vx[None,:]
-    integrand = ndens[None,:] * sig0[:,None,None] * voigt_profile(Delnu, gaus_sigma, gamma[:,None,None])
+    gaus_sigma = (
+        np.sqrt(tools.k * Te[None, None, :] / m + 0.5 * v_turb**2)
+        * nu0[None, :, None, None]
+        / tools.c
+    )
+    # the following has a minus sign like in Eq. 21 of Oklopcic&Hirata (2018) because their formula is only correct if you take v_LOS from star->planet i.e. vx
+    Delnu = (nu - nu0[:, None, None]) - nu0[:, None, None] / tools.c * vx[None, :]
+    integrand = (
+        ndens[None, :]
+        * sig0[:, None, None]
+        * voigt_profile(Delnu, gaus_sigma, gamma[:, None, None])
+    )
     bin_tau = np.zeros_like(integrand)
-    bin_tau[:,:,1:] = (integrand[:,:,1:] + np.roll(integrand, 1, axis=2)[:,:,1:])/2. * np.diff(x)[None,None,:]
-    bin_tau = np.sum(bin_tau, axis=0) #sum up contribution of different lines, now bin_tau has same shape as Te
-    cum_tau = np.cumsum(bin_tau, axis=1) #do cumulative sum over the x-direction
+    bin_tau[:, :, 1:] = (
+        (integrand[:, :, 1:] + np.roll(integrand, 1, axis=2)[:, :, 1:])
+        / 2.0
+        * np.diff(x)[None, None, :]
+    )
+    bin_tau = np.sum(
+        bin_tau, axis=0
+    )  # sum up contribution of different lines, now bin_tau has same shape as Te
+    cum_tau = np.cumsum(bin_tau, axis=1)  # do cumulative sum over the x-direction
 
     return cum_tau, bin_tau
 
 
-def tau_to_FinFout(b_edges, tau, Rs, bp=0., ab=np.zeros(2), a=0., phase=0.):
+def tau_to_FinFout(b_edges, tau, Rs, bp=0.0, ab=np.zeros(2), a=0.0, phase=0.0):
     """
     Takes in optical depth values and calculates the Fin/Fout transit spectrum,
     using the stellar radius and optional limb darkening and transit phase
@@ -342,25 +399,47 @@ def tau_to_FinFout(b_edges, tau, Rs, bp=0., ab=np.zeros(2), a=0., phase=0.):
     """
 
     if ab.ndim == 1:
-        ab = ab[None,:]
-    
-    #add some impact parameters and tau=inf bins that make up the planet core:
-    b_edges = np.concatenate((np.linspace(0, b_edges[0], num=50, endpoint=False), b_edges))
-    b_centers = (b_edges[1:] + b_edges[:-1]) / 2 #calculate bin centers with the added planet core rays included
-    tau = np.concatenate((np.ones((np.shape(tau)[0], 50))*np.inf, tau), axis=1)
+        ab = ab[None, :]
 
-    projsurf = np.pi*(b_edges[1:]**2 - b_edges[:-1]**2) #ring surface of each ray (now has same length as b_centers)
-    phis = np.linspace(0, 2*np.pi, num=500, endpoint=False) #divide rings into different angles phi
-    #rc is the distance to stellar center. Axis 0: radial rings, axis 1: phi
-    rc = np.sqrt((bp*Rs + b_centers[:,None]*np.cos(phis[None,:]))**2 + (b_centers[:,None]*np.sin(phis[None,:]) + a*np.sin(2*np.pi*phase))**2)
-    rc = ma.masked_where(rc > Rs, rc) #will ensure I is masked (and later set to 0) outside stellar projected disk
-    mu = np.sqrt(1 - (rc/Rs)**2) #angle, see 'limbdark_quad' function
+    # add some impact parameters and tau=inf bins that make up the planet core:
+    b_edges = np.concatenate(
+        (np.linspace(0, b_edges[0], num=50, endpoint=False), b_edges)
+    )
+    b_centers = (
+        b_edges[1:] + b_edges[:-1]
+    ) / 2  # calculate bin centers with the added planet core rays included
+    tau = np.concatenate((np.ones((np.shape(tau)[0], 50)) * np.inf, tau), axis=1)
+
+    projsurf = np.pi * (
+        b_edges[1:] ** 2 - b_edges[:-1] ** 2
+    )  # ring surface of each ray (now has same length as b_centers)
+    phis = np.linspace(
+        0, 2 * np.pi, num=500, endpoint=False
+    )  # divide rings into different angles phi
+    # rc is the distance to stellar center. Axis 0: radial rings, axis 1: phi
+    rc = np.sqrt(
+        (bp * Rs + b_centers[:, None] * np.cos(phis[None, :])) ** 2
+        + (b_centers[:, None] * np.sin(phis[None, :]) + a * np.sin(2 * np.pi * phase))
+        ** 2
+    )
+    rc = ma.masked_where(
+        rc > Rs, rc
+    )  # will ensure I is masked (and later set to 0) outside stellar projected disk
+    mu = np.sqrt(1 - (rc / Rs) ** 2)  # angle, see 'limbdark_quad' function
     I = limbdark_quad(mu, ab)
-    Ir_avg = np.sum(I, axis=2) / len(phis) #average I per ray
-    Ir_avg = Ir_avg.filled(fill_value=0.) #convert back to regular numpy array
-    Is_avg = avg_limbdark_quad(ab) #average I of the full stellar disk
+    Ir_avg = np.sum(I, axis=2) / len(phis)  # average I per ray
+    Ir_avg = Ir_avg.filled(fill_value=0.0)  # convert back to regular numpy array
+    Is_avg = avg_limbdark_quad(ab)  # average I of the full stellar disk
 
-    FinFout = np.ones_like(tau[:,0]) - np.sum(((1 - np.exp(-tau)) * Ir_avg*projsurf[None,:]/(Is_avg[:,None]*np.pi*Rs**2)), axis=1)
+    FinFout = np.ones_like(tau[:, 0]) - np.sum(
+        (
+            (1 - np.exp(-tau))
+            * Ir_avg
+            * projsurf[None, :]
+            / (Is_avg[:, None] * np.pi * Rs**2)
+        ),
+        axis=1,
+    )
 
     return FinFout
 
@@ -383,28 +462,49 @@ def read_NIST_lines(species, wavlower=None, wavupper=None):
         Line coefficients needed for radiative transfer calculations.
     """
 
-    spNIST = pd.read_table(tools.sunbatherpath+'/RT_tables/'+species+'_lines_NIST.txt') #line info
-    #remove lines with nan fik or Aik values. Note that lineno doesn't change (uses index instead of rowno.)
+    spNIST = pd.read_table(
+        tools.sunbatherpath + "/RT_tables/" + species + "_lines_NIST.txt"
+    )  # line info
+    # remove lines with nan fik or Aik values. Note that lineno doesn't change (uses index instead of rowno.)
     spNIST = spNIST[spNIST.fik.notna()]
-    spNIST = spNIST[spNIST['Aki(s^-1)'].notna()]
+    spNIST = spNIST[spNIST["Aki(s^-1)"].notna()]
     if spNIST.empty:
         warnings.warn(f"No lines with necessary coefficients found for {species}")
         return spNIST
-    if type(spNIST['Ei(Ry)'].iloc[0]) == str: #if there are no [](), the datatype will be float already
-        spNIST['Ei(Ry)'] = spNIST['Ei(Ry)'].str.extract('(\d+)', expand=False).astype(float) #remove non-numeric characters such as [] and ()
-    spNIST['sig0'] = sigt0 * spNIST.fik
-    spNIST['nu0'] = tools.c*1e8 / (spNIST['ritz_wl_vac(A)']) #speed of light to AA/s
-    spNIST['lorgamma'] = spNIST['Aki(s^-1)'] / (4*np.pi) #lorentzian gamma is not function of depth or nu. Value in Hz
+    if isinstance(spNIST["Ei(Ry)"].iloc[0], str):  # if there are no [](), the datatype will be float already
+        spNIST["Ei(Ry)"] = (
+            spNIST["Ei(Ry)"].str.extract(r"(\d+)", expand=False).astype(float)
+        )  # remove non-numeric characters such as [] and ()
+    spNIST["sig0"] = sigt0 * spNIST.fik
+    spNIST["nu0"] = tools.c * 1e8 / (spNIST["ritz_wl_vac(A)"])  # speed of light to AA/s
+    spNIST["lorgamma"] = spNIST["Aki(s^-1)"] / (
+        4 * np.pi
+    )  # lorentzian gamma is not function of depth or nu. Value in Hz
 
-    if wavlower != None:
-        spNIST.drop(labels=spNIST.index[spNIST['ritz_wl_vac(A)'] <= wavlower], inplace=True)
-    if wavupper != None:
-        spNIST.drop(labels=spNIST.index[spNIST['ritz_wl_vac(A)'] >= wavupper], inplace=True)
+    if wavlower is not None:
+        spNIST.drop(
+            labels=spNIST.index[spNIST["ritz_wl_vac(A)"] <= wavlower], inplace=True
+        )
+    if wavupper is not None:
+        spNIST.drop(
+            labels=spNIST.index[spNIST["ritz_wl_vac(A)"] >= wavupper], inplace=True
+        )
 
     return spNIST
 
 
-def FinFout(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), phase=0., phase_bulkshift=False, v_turb=0., cut_at=None):
+def FinFout(
+    sim,
+    wavsAA,
+    species,
+    numrays=100,
+    width_fac=1.0,
+    ab=np.zeros(2),
+    phase=0.0,
+    phase_bulkshift=False,
+    v_turb=0.0,
+    cut_at=None,
+):
     """
     Calculates a transit spectrum in units of in-transit flux / out-of-transit flux (i.e., Fin/Fout).
     Only spectral lines originating from provided species will be calculated.
@@ -412,7 +512,7 @@ def FinFout(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), pha
     Parameters
     ----------
     sim : tools.Sim
-        Cloudy simulation output of an upper atmosphere. Needs to have tools.Planet and 
+        Cloudy simulation output of an upper atmosphere. Needs to have tools.Planet and
         tools.Parker class attributes.
     wavsAA : array-like
         Wavelengths to calculate transit spectrum on, in units of Å (1D array).
@@ -466,19 +566,27 @@ def FinFout(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), pha
         but which could not be calculated due to their excitation state not being reported by Cloudy.
     """
 
-    assert hasattr(sim, 'p'), "The sim must have an attributed Planet object"
-    assert 'v' in sim.ovr.columns, "We need a velocity structure, such as that from adding a Parker object to the sim"
-    assert hasattr(sim, 'den'), "The sim must have a .den file that stores the densities of the atomic/ionic excitation states. " \
-                                "Please re-run your Cloudy simulation while saving these. Either re-run sunbather.convergeT_parker.py " \
-                                "with the -save_sp flag, or use the tools.insertden_Cloudy_in() function with rerun=True."
-    
-    ab = np.array(ab) #turn possible list into array
+    assert hasattr(sim, "p"), "The sim must have an attributed Planet object"
+    assert (
+        "v" in sim.ovr.columns
+    ), "We need a velocity structure, such as that from adding a Parker object to the sim"
+    assert hasattr(sim, "den"), (
+        "The sim must have a .den file that stores the densities of the atomic/ionic excitation states. "
+        "Please re-run your Cloudy simulation while saving these. Either re-run sunbather.convergeT_parker.py "
+        "with the -save_sp flag, or use the tools.insertden_Cloudy_in() function with rerun=True."
+    )
+
+    ab = np.array(ab)  # turn possible list into array
     if ab.ndim == 1:
-        ab = ab[None,:] #add frequency axis
-    assert ab.ndim == 2 and np.shape(ab)[1] == 2 and (np.shape(ab)[0] == 1 or np.shape(ab)[0] == len(wavsAA)), "Give ab as shape (1,2) or (2,) or (len(wavsAA),2)"
+        ab = ab[None, :]  # add frequency axis
+    assert (
+        ab.ndim == 2
+        and np.shape(ab)[1] == 2
+        and (np.shape(ab)[0] == 1 or np.shape(ab)[0] == len(wavsAA))
+    ), "Give ab as shape (1,2) or (2,) or (len(wavsAA),2)"
 
     Rs, Rp = sim.p.Rstar, sim.p.R
-    nus = tools.c*1e8 / wavsAA #Hz, converted c to AA/s
+    nus = tools.c * 1e8 / wavsAA  # Hz, converted c to AA/s
 
     r1 = sim.ovr.alt.values[::-1]
     Te1 = sim.ovr.Te.values[::-1]
@@ -488,70 +596,119 @@ def FinFout(sim, wavsAA, species, numrays=100, width_fac=1., ab=np.zeros(2), pha
     be, _, x, vx = project_1D_to_2D(r1, v1, Rp, numb=numrays, x_projection=True)
 
     if phase_bulkshift:
-        assert hasattr(sim.p, 'Kp'), "The Planet object does not have a Kp attribute, likely because either a, Mp or Mstar is unknown"
-        vx = vx - sim.p.Kp * np.sin(phase * 2*np.pi) #negative sign because x is defined as positive towards the observer.
+        assert hasattr(
+            sim.p, "Kp"
+        ), "The Planet object does not have a Kp attribute, likely because either a, Mp or Mstar is unknown"
+        vx = vx - sim.p.Kp * np.sin(
+            phase * 2 * np.pi
+        )  # negative sign because x is defined as positive towards the observer.
 
     state_ndens = {}
-    tau = np.zeros((len(wavsAA), len(be)-1))
+    tau = np.zeros((len(wavsAA), len(be) - 1))
 
     if isinstance(species, str):
         species = [species]
 
-    found_lines = [] #will store nu0 of all lines that were used (might be nice to make it a dict per species in future!)
-    notfound_lines = [] #will store nu0 of all lines that were not found
+    found_lines = (
+        []
+    )  # will store nu0 of all lines that were used (might be nice to make it a dict per species in future!)
+    notfound_lines = []  # will store nu0 of all lines that were not found
 
     for spec in species:
         if spec in sim.den.columns:
-            warnings.warn(f"Your requested species {spec} is not resolved into multiple energy levels by Cloudy. " + \
-                    f"I will make the spectrum assuming all {spec} is in the ground-state.")
-        elif not any(spec+"[" in col for col in sim.den.columns):
-            warnings.warn(f"Your requested species {spec} is not present in Cloudy's output, so the spectrum will be flat. " + \
-                    "Please re-do your Cloudy simulation while saving this species. Either use the tools.insertden_Cloudy_in() " + \
-                    "function, or run convergeT_parker.py again with the correct -save_sp arguments.")
+            warnings.warn(
+                f"Your requested species {spec} is not resolved into multiple energy levels by Cloudy. "
+                + f"I will make the spectrum assuming all {spec} is in the ground-state."
+            )
+        elif not any(spec + "[" in col for col in sim.den.columns):
+            warnings.warn(
+                f"Your requested species {spec} is not present in Cloudy's output, so the spectrum will be flat. "
+                + "Please re-do your Cloudy simulation while saving this species. Either use the tools.insertden_Cloudy_in() "
+                + "function, or run convergeT_parker.py again with the correct -save_sp arguments."
+            )
             continue
 
         spNIST = read_NIST_lines(spec, wavlower=wavsAA[0], wavupper=wavsAA[-1])
-        
+
         if len(species) == 1 and len(spNIST) == 0:
-            warnings.warn(f"Your requested species {spec} does not have any lines in this wavelength range (according to the NIST database), " \
-                          "so the spectrum will be flat.")
+            warnings.warn(
+                f"Your requested species {spec} does not have any lines in this wavelength range (according to the NIST database), "
+                "so the spectrum will be flat."
+            )
 
-        for lineno in spNIST.index.values: #loop over all lines in the spNIST table.
-            gaus_sigma_max = np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec) + 0.5*v_turb**2) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
-            max_voigt_width = 5*(gaus_sigma_max+spNIST['lorgamma'].loc[lineno]) * width_fac #the max offset of Voigt components (=natural+thermal broad.)
-            linenu_low = (1 + np.min(vx)/tools.c) * spNIST.nu0.loc[lineno] - max_voigt_width
-            linenu_hi = (1 + np.max(vx)/tools.c) * spNIST.nu0.loc[lineno] + max_voigt_width
+        for lineno in spNIST.index.values:  # loop over all lines in the spNIST table.
+            gaus_sigma_max = (
+                np.sqrt(
+                    tools.k * np.nanmax(Te) / tools.get_mass(spec) + 0.5 * v_turb**2
+                )
+                * spNIST.nu0.loc[lineno]
+                / tools.c
+            )  # maximum stddev of Gaussian part
+            max_voigt_width = (
+                5 * (gaus_sigma_max + spNIST["lorgamma"].loc[lineno]) * width_fac
+            )  # the max offset of Voigt components (=natural+thermal broad.)
+            linenu_low = (1 + np.min(vx) / tools.c) * spNIST.nu0.loc[
+                lineno
+            ] - max_voigt_width
+            linenu_hi = (1 + np.max(vx) / tools.c) * spNIST.nu0.loc[
+                lineno
+            ] + max_voigt_width
 
-            nus_line = nus[(nus > linenu_low) & (nus < linenu_hi)] #the frequency values that make sense to calculate for this line
-            if nus_line.size == 0: #then this line is not in our wav range and we skip it
-                continue #to next spectral line
+            nus_line = nus[
+                (nus > linenu_low) & (nus < linenu_hi)
+            ]  # the frequency values that make sense to calculate for this line
+            if (
+                nus_line.size == 0
+            ):  # then this line is not in our wav range and we skip it
+                continue  # to next spectral line
 
-            #get all columns in .den file which energy corresponds to this Ei
-            colname, lineweight = tools.find_line_lowerstate_in_en_df(spec, spNIST.loc[lineno], sim.en)
-            if colname == None: #we skip this line if the line energy is not found.
-                notfound_lines.append(spNIST['ritz_wl_vac(A)'][lineno])
-                continue #to next spectral line
+            # get all columns in .den file which energy corresponds to this Ei
+            colname, lineweight = tools.find_line_lowerstate_in_en_df(
+                spec, spNIST.loc[lineno], sim.en
+            )
+            if colname is None:  # we skip this line if the line energy is not found.
+                notfound_lines.append(spNIST["ritz_wl_vac(A)"][lineno])
+                continue  # to next spectral line
 
-            found_lines.append((spNIST['ritz_wl_vac(A)'].loc[lineno], colname)) #if we got to here, we did find the spectral line
+            found_lines.append(
+                (spNIST["ritz_wl_vac(A)"].loc[lineno], colname)
+            )  # if we got to here, we did find the spectral line
 
             if colname in state_ndens.keys():
                 ndens = state_ndens[colname]
             else:
                 ndens1 = sim.den[colname].values[::-1]
-                be, _, x, ndens = project_1D_to_2D(r1, ndens1, Rp, numb=numrays, cut_at=cut_at)
-                state_ndens[colname] = ndens #add to dictionary for future reference
+                be, _, x, ndens = project_1D_to_2D(
+                    r1, ndens1, Rp, numb=numrays, cut_at=cut_at
+                )
+                state_ndens[colname] = ndens  # add to dictionary for future reference
 
-            ndens_lw = ndens*lineweight #important that we make this a new variable as otherwise state_ndens would change as well!
+            ndens_lw = (
+                ndens * lineweight
+            )  # important that we make this a new variable as otherwise state_ndens would change as well!
 
-            tau_line = calc_tau(x, ndens_lw, Te, vx, nus_line, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], v_turb=v_turb)
-            tau[(nus > linenu_low) & (nus < linenu_hi), :] += tau_line #add the tau values to the correct nu bins
+            tau_line = calc_tau(
+                x,
+                ndens_lw,
+                Te,
+                vx,
+                nus_line,
+                spNIST.nu0.loc[lineno],
+                tools.get_mass(spec),
+                spNIST.sig0.loc[lineno],
+                spNIST["lorgamma"].loc[lineno],
+                v_turb=v_turb,
+            )
+            tau[
+                (nus > linenu_low) & (nus < linenu_hi), :
+            ] += tau_line  # add the tau values to the correct nu bins
 
     FinFout = tau_to_FinFout(be, tau, Rs, bp=sim.p.bp, ab=ab, phase=phase, a=sim.p.a)
 
     return FinFout, found_lines, notfound_lines
 
 
-def tau_1D(sim, wavAA, species, width_fac=1., v_turb=0.):
+def tau_1D(sim, wavAA, species, width_fac=1.0, v_turb=0.0):
     """
     Maps out the optical depth at one specific wavelength.
     The running integral of the optical deph is calculated at each depth of the ray.
@@ -564,7 +721,7 @@ def tau_1D(sim, wavAA, species, width_fac=1., v_turb=0.):
     Parameters
     ----------
     sim : tools.Sim
-        Cloudy simulation output of an upper atmosphere. Needs to have tools.Planet and 
+        Cloudy simulation output of an upper atmosphere. Needs to have tools.Planet and
         tools.Parker class attributes.
     wavAA : numeric
         Wavelength to calculate the optical depths at, in units of Å.
@@ -597,56 +754,93 @@ def tau_1D(sim, wavAA, species, width_fac=1., v_turb=0.):
         but which could not be calculated due to their excitation state not being reported by Cloudy.
     """
 
-    assert isinstance(wavAA, float) or isinstance(wavAA, int), "Pass one wavelength in Å as a float or int"
-    assert hasattr(sim, 'p'), "The sim must have an attributed Planet object"
-    assert 'v' in sim.ovr.columns, "We need a velocity structure, such as that from adding a Parker object to the sim."
+    assert isinstance(wavAA, (float, int)), "Pass one wavelength in Å as a float or int"
+    assert hasattr(sim, "p"), "The sim must have an attributed Planet object"
+    assert (
+        "v" in sim.ovr.columns
+    ), "We need a velocity structure, such as that from adding a Parker object to the sim."
 
     Rs, Rp = sim.p.Rstar, sim.p.R
-    nu = tools.c*1e8 / wavAA #Hz, converted c to AA/s
+    nu = tools.c * 1e8 / wavAA  # Hz, converted c to AA/s
 
     d = sim.ovr.depth.values
     Te = sim.ovr.Te.values
-    v = sim.ovr.v.values #radial velocity
-    vx = -v #because we do the substellar ray which is towards the -x direction
+    v = sim.ovr.v.values  # radial velocity
+    vx = -v  # because we do the substellar ray which is towards the -x direction
 
     tot_cum_tau, tot_bin_tau = np.zeros_like(d), np.zeros_like(d)
 
     if isinstance(species, str):
         species = [species]
 
-    found_lines = [] #will store nu0 of all lines that were used (might be nice to make it a dict per species in future!)
-    notfound_lines = [] #will store nu0 of all lines that were not found
+    found_lines = (
+        []
+    )  # will store nu0 of all lines that were used (might be nice to make it a dict per species in future!)
+    notfound_lines = []  # will store nu0 of all lines that were not found
 
     for spec in species:
         spNIST = read_NIST_lines(spec)
 
-        for lineno in spNIST.index.values: #loop over all lines in the spNIST table.
-            gaus_sigma_max = np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec) + 0.5*v_turb**2) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
-            max_voigt_width = 5*(gaus_sigma_max+spNIST['lorgamma'].loc[lineno]) * width_fac #the max offset of Voigt components (=natural+thermal broad.)
-            linenu_low = (1 + np.min(vx)/tools.c) * spNIST.nu0.loc[lineno] - max_voigt_width
-            linenu_hi = (1 + np.max(vx)/tools.c) * spNIST.nu0.loc[lineno] + max_voigt_width
+        for lineno in spNIST.index.values:  # loop over all lines in the spNIST table.
+            gaus_sigma_max = (
+                np.sqrt(
+                    tools.k * np.nanmax(Te) / tools.get_mass(spec) + 0.5 * v_turb**2
+                )
+                * spNIST.nu0.loc[lineno]
+                / tools.c
+            )  # maximum stddev of Gaussian part
+            max_voigt_width = (
+                5 * (gaus_sigma_max + spNIST["lorgamma"].loc[lineno]) * width_fac
+            )  # the max offset of Voigt components (=natural+thermal broad.)
+            linenu_low = (1 + np.min(vx) / tools.c) * spNIST.nu0.loc[
+                lineno
+            ] - max_voigt_width
+            linenu_hi = (1 + np.max(vx) / tools.c) * spNIST.nu0.loc[
+                lineno
+            ] + max_voigt_width
 
-            if (nu < linenu_low) | (nu > linenu_hi): #then this line does not probe our requested wav and we skip it
-                continue #to next spectral line
+            if (nu < linenu_low) | (
+                nu > linenu_hi
+            ):  # then this line does not probe our requested wav and we skip it
+                continue  # to next spectral line
 
-            #get all columns in .den file which energy corresponds to this Ei
-            colname, lineweight = tools.find_line_lowerstate_in_en_df(spec, spNIST.loc[lineno], sim.en)
-            if colname == None: #we skip this line if the line energy is not found.
-                notfound_lines.append(spNIST['ritz_wl_vac(A)'][lineno])
-                continue #to next spectral line
+            # get all columns in .den file which energy corresponds to this Ei
+            colname, lineweight = tools.find_line_lowerstate_in_en_df(
+                spec, spNIST.loc[lineno], sim.en
+            )
+            if colname is None:  # we skip this line if the line energy is not found.
+                notfound_lines.append(spNIST["ritz_wl_vac(A)"][lineno])
+                continue  # to next spectral line
 
-            found_lines.append((spNIST['ritz_wl_vac(A)'].loc[lineno], colname)) #if we got to here, we did find the spectral line
+            found_lines.append(
+                (spNIST["ritz_wl_vac(A)"].loc[lineno], colname)
+            )  # if we got to here, we did find the spectral line
 
-            ndens = sim.den[colname].values * lineweight #see explanation in FinFout_2D function
+            ndens = (
+                sim.den[colname].values * lineweight
+            )  # see explanation in FinFout_2D function
 
-            cum_tau, bin_tau = calc_cum_tau(d, ndens, Te, vx, nu, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], v_turb=v_turb)
-            tot_cum_tau += cum_tau[0] #add the tau values to the total (of all species & lines together)
+            cum_tau, bin_tau = calc_cum_tau(
+                d,
+                ndens,
+                Te,
+                vx,
+                nu,
+                spNIST.nu0.loc[lineno],
+                tools.get_mass(spec),
+                spNIST.sig0.loc[lineno],
+                spNIST["lorgamma"].loc[lineno],
+                v_turb=v_turb,
+            )
+            tot_cum_tau += cum_tau[
+                0
+            ]  # add the tau values to the total (of all species & lines together)
             tot_bin_tau += bin_tau[0]
 
     return tot_cum_tau, tot_bin_tau, found_lines, notfound_lines
 
 
-def tau_12D(sim, wavAA, species, width_fac=1., v_turb=0., cut_at=None):
+def tau_12D(sim, wavAA, species, width_fac=1.0, v_turb=0.0, cut_at=None):
     """
     Maps out the optical depth at one specific wavelength.
     The running integral of the optical deph is calculated at each stellar light ray
@@ -656,7 +850,7 @@ def tau_12D(sim, wavAA, species, width_fac=1., v_turb=0., cut_at=None):
     Parameters
     ----------
     sim : tools.Sim
-        Cloudy simulation output of an upper atmosphere. Needs to have tools.Planet and 
+        Cloudy simulation output of an upper atmosphere. Needs to have tools.Planet and
         tools.Parker class attributes.
     wavAA : numeric
         Wavelength to calculate the optical depths at, in units of Å.
@@ -693,49 +887,91 @@ def tau_12D(sim, wavAA, species, width_fac=1., v_turb=0., cut_at=None):
         but which could not be calculated due to their excitation state not being reported by Cloudy.
     """
 
-    assert isinstance(wavAA, float) or isinstance(wavAA, int), "Pass one wavelength in Å as a float or int"
-    assert hasattr(sim, 'p')
-    assert 'v' in sim.ovr.columns, "We need a velocity structure, such as that from adding a Parker object to the sim."
+    assert isinstance(wavAA, (float, int)), "Pass one wavelength in Å as a float or int"
+    assert hasattr(sim, "p")
+    assert (
+        "v" in sim.ovr.columns
+    ), "We need a velocity structure, such as that from adding a Parker object to the sim."
 
-    nu = tools.c*1e8 / wavAA #Hz, converted c to AA/s
+    nu = tools.c * 1e8 / wavAA  # Hz, converted c to AA/s
 
-    be, bc, x, Te = project_1D_to_2D(sim.ovr.alt.values[::-1], sim.ovr.Te.values[::-1], sim.p.R)
-    be, bc, x, vx = project_1D_to_2D(sim.ovr.alt.values[::-1], sim.ovr.v.values[::-1], sim.p.R, x_projection=True)
+    be, bc, x, Te = project_1D_to_2D(
+        sim.ovr.alt.values[::-1], sim.ovr.Te.values[::-1], sim.p.R
+    )
+    be, bc, x, vx = project_1D_to_2D(
+        sim.ovr.alt.values[::-1], sim.ovr.v.values[::-1], sim.p.R, x_projection=True
+    )
 
     tot_cum_tau, tot_bin_tau = np.zeros_like(vx), np.zeros_like(vx)
 
     if isinstance(species, str):
         species = [species]
 
-    found_lines = [] #will store nu0 of all lines that were used (might be nice to make it a dict per species in future!)
-    notfound_lines = [] #will store nu0 of all lines that were not found
+    found_lines = (
+        []
+    )  # will store nu0 of all lines that were used (might be nice to make it a dict per species in future!)
+    notfound_lines = []  # will store nu0 of all lines that were not found
 
     for spec in species:
         spNIST = read_NIST_lines(spec)
 
-        for lineno in spNIST.index.values: #loop over all lines in the spNIST table.
-            gaus_sigma_max = np.sqrt(tools.k * np.nanmax(Te) / tools.get_mass(spec) + 0.5*v_turb**2) * spNIST.nu0.loc[lineno] / tools.c #maximum stddev of Gaussian part
-            max_voigt_width = 5*(gaus_sigma_max+spNIST['lorgamma'].loc[lineno]) * width_fac #the max offset of Voigt components (=natural+thermal broad.)
-            linenu_low = (1 + np.min(vx)/tools.c) * spNIST.nu0.loc[lineno] - max_voigt_width
-            linenu_hi = (1 + np.max(vx)/tools.c) * spNIST.nu0.loc[lineno] + max_voigt_width
+        for lineno in spNIST.index.values:  # loop over all lines in the spNIST table.
+            gaus_sigma_max = (
+                np.sqrt(
+                    tools.k * np.nanmax(Te) / tools.get_mass(spec) + 0.5 * v_turb**2
+                )
+                * spNIST.nu0.loc[lineno]
+                / tools.c
+            )  # maximum stddev of Gaussian part
+            max_voigt_width = (
+                5 * (gaus_sigma_max + spNIST["lorgamma"].loc[lineno]) * width_fac
+            )  # the max offset of Voigt components (=natural+thermal broad.)
+            linenu_low = (1 + np.min(vx) / tools.c) * spNIST.nu0.loc[
+                lineno
+            ] - max_voigt_width
+            linenu_hi = (1 + np.max(vx) / tools.c) * spNIST.nu0.loc[
+                lineno
+            ] + max_voigt_width
 
-            if (nu < linenu_low) | (nu > linenu_hi): #then this line does not probe our requested wav and we skip it
-                continue #to next spectral line
+            if (nu < linenu_low) | (
+                nu > linenu_hi
+            ):  # then this line does not probe our requested wav and we skip it
+                continue  # to next spectral line
 
-            #get all columns in .den file which energy corresponds to this Ei
-            colname, lineweight = tools.find_line_lowerstate_in_en_df(spec, spNIST.loc[lineno], sim.en)
-            if colname == None: #we skip this line if the line energy is not found.
-                notfound_lines.append(spNIST['ritz_wl_vac(A)'][lineno])
-                continue #to next spectral line
+            # get all columns in .den file which energy corresponds to this Ei
+            colname, lineweight = tools.find_line_lowerstate_in_en_df(
+                spec, spNIST.loc[lineno], sim.en
+            )
+            if colname is None:  # we skip this line if the line energy is not found.
+                notfound_lines.append(spNIST["ritz_wl_vac(A)"][lineno])
+                continue  # to next spectral line
 
-            found_lines.append((spNIST['ritz_wl_vac(A)'].loc[lineno], colname)) #if we got to here, we did find the spectral line
+            found_lines.append(
+                (spNIST["ritz_wl_vac(A)"].loc[lineno], colname)
+            )  # if we got to here, we did find the spectral line
 
-            #multiply with the lineweight! Such that for unresolved J, a line originating from J=1/2 does not also get density of J=3/2 state
-            _, _, _, ndens = project_1D_to_2D(sim.ovr.alt.values[::-1], sim.den[colname].values[::-1], sim.p.R, cut_at=cut_at)
+            # multiply with the lineweight! Such that for unresolved J, a line originating from J=1/2 does not also get density of J=3/2 state
+            _, _, _, ndens = project_1D_to_2D(
+                sim.ovr.alt.values[::-1],
+                sim.den[colname].values[::-1],
+                sim.p.R,
+                cut_at=cut_at,
+            )
             ndens *= lineweight
 
-            cum_tau, bin_tau = calc_cum_tau(x, ndens, Te, vx, nu, spNIST.nu0.loc[lineno], tools.get_mass(spec), spNIST.sig0.loc[lineno], spNIST['lorgamma'].loc[lineno], v_turb=v_turb)
-            tot_cum_tau += cum_tau #add the tau values to the total (of all species & lines together)
+            cum_tau, bin_tau = calc_cum_tau(
+                x,
+                ndens,
+                Te,
+                vx,
+                nu,
+                spNIST.nu0.loc[lineno],
+                tools.get_mass(spec),
+                spNIST.sig0.loc[lineno],
+                spNIST["lorgamma"].loc[lineno],
+                v_turb=v_turb,
+            )
+            tot_cum_tau += cum_tau  # add the tau values to the total (of all species & lines together)
             tot_bin_tau += bin_tau
 
     return tot_cum_tau, tot_bin_tau, found_lines, notfound_lines
@@ -759,7 +995,7 @@ def FinFout2RpRs(FinFout):
         Transit spectrum in units of planet size / star size.
     """
 
-    RpRs = np.sqrt(1-FinFout)
+    RpRs = np.sqrt(1 - FinFout)
 
     return RpRs
 
@@ -782,7 +1018,7 @@ def RpRs2FinFout(RpRs):
         In-transit / out-transit flux values
     """
 
-    FinFout = 1-RpRs**2
+    FinFout = 1 - RpRs**2
 
     return FinFout
 
@@ -829,7 +1065,12 @@ def air2vac(wavs_air):
     """
 
     s = 1e4 / wavs_air
-    n = 1 + 0.00008336624212083 + 0.02408926869968 / (130.1065924522 - s**2) + 0.0001599740894897 / (38.92568793293 - s**2)
+    n = (
+        1
+        + 0.00008336624212083
+        + 0.02408926869968 / (130.1065924522 - s**2)
+        + 0.0001599740894897 / (38.92568793293 - s**2)
+    )
     wavs_vac = wavs_air * n
 
     return wavs_vac
@@ -858,9 +1099,9 @@ def constantR_wavs(wav_lower, wav_upper, R):
     wavs = []
     while wav < wav_upper:
         wavs.append(wav)
-        wav += wav/R
+        wav += wav / R
     wavs = np.array(wavs)
-    
+
     return wavs
 
 
@@ -869,7 +1110,7 @@ def convolve_spectrum_R(wavs, flux, R, verbose=False):
     Convolves a spectrum with a Gaussian filter down to a lower spectral resolution.
     This function uses a constant gaussian width that is calculated from the middle wavelength point.
     This means that it only works properly when the wavs array spans a relatively small bandwidth.
-    Since R = delta-lambda / lambda, if the bandwidth is too large, the assumption made here that 
+    Since R = delta-lambda / lambda, if the bandwidth is too large, the assumption made here that
     delta-lambda is the same over the whole array will not be valid.
 
     Parameters
@@ -890,17 +1131,26 @@ def convolve_spectrum_R(wavs, flux, R, verbose=False):
     """
 
     assert wavs[1] > wavs[0], "Wavelengths must be in ascending order"
-    assert np.allclose(np.diff(wavs), np.diff(wavs)[0], atol=0., rtol=1e-5), "Wavelengths must be equidistant"
+    assert np.allclose(
+        np.diff(wavs), np.diff(wavs)[0], atol=0.0, rtol=1e-5
+    ), "Wavelengths must be equidistant"
     if wavs[-1] / wavs[0] > 1.05:
-        warnings.warn("The wavelengths change by more than 5 percent in your array. Converting R into a constant delta-lambda becomes questionable.")
+        warnings.warn(
+            "The wavelengths change by more than 5 percent in your array. Converting R into a constant delta-lambda becomes questionable."
+        )
 
-    delta_lambda = wavs[int(len(wavs)/2)] / R #width of the filter in wavelength - use middle wav point
-    FWHM = delta_lambda / np.diff(wavs)[0] #width of the filter in pixels
-    sigma = FWHM / (2*np.sqrt(2*np.log(2))) #std dev. of the gaussian in pixels
+    delta_lambda = (
+        wavs[int(len(wavs) / 2)] / R
+    )  # width of the filter in wavelength - use middle wav point
+    FWHM = delta_lambda / np.diff(wavs)[0]  # width of the filter in pixels
+    sigma = FWHM / (2 * np.sqrt(2 * np.log(2)))  # std dev. of the gaussian in pixels
 
     if verbose:
-        print(f"R={R}, lamb={wavs[0]}, delta-lamb={delta_lambda}, FWHM={FWHM} pix, sigma={sigma} pix")
+        print(
+            f"R={R}, lamb={wavs[0]}, delta-lamb={delta_lambda}, FWHM={FWHM} pix, sigma={sigma} pix"
+        )
 
     convolved_spectrum = gaussian_filter1d(flux, sigma)
 
     return convolved_spectrum
+            # add the tau values to the total (of all species & lines together)
