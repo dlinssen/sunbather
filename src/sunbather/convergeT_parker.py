@@ -214,7 +214,7 @@ def run_s(
             # quit the whole Python code
             return
     else:
-        os.mkdir(path[:-1])  # make the folder
+        os.makedirs(path[:-1])  # make the folder
 
     # get profiles and parameters we need for the input file
     alt = pprof.alt.values
@@ -375,6 +375,46 @@ def run_s(
 
     # with everything in order, run the actual temperature convergence scheme
     solveT.run_loop(path, itno, fc, save_sp, maxit)
+
+
+def run(
+    plname,
+    mdot=None,
+    temp=None,
+    itno=1,
+    fc=1.1,
+    workingdir=None,
+    sedname="real",
+    overwrite=False,
+    start_temp="nearby",
+    pdir=None,
+    z=None,
+    zelem=None,
+    altmax=8,
+    save_sp=None,
+    constant_temp=False,
+    maxit=20,
+):
+    if zelem is None:
+        zelem = {}
+    zdict = tools.get_zdict(z=z, zelem=zelem)
+    run_s(
+        plname,
+        mdot,
+        temp,
+        itno,
+        fc,
+        workingdir,
+        sedname,
+        overwrite,
+        start_temp,
+        pdir,
+        zdict=zdict,
+        altmax=altmax,
+        save_sp=save_sp,
+        constantT=constant_temp,
+        maxit=maxit,
+    )
 
 
 def catch_errors_run_s(*args):
@@ -648,7 +688,7 @@ def new_argument_parser():
             "abundance scale factor for specific elements, e.g. -zelem Fe=10 -zelem "
             "He=0.01. Can also be used to toggle elements off, e.g. -zelem Ca=0. "
             "Combines with -z argument. Using this command results in running p_winds "
-            "in an an iterative scheme where Cloudy updates the mu parameter."
+            "in an iterative scheme where Cloudy updates the mu parameter."
         ),
     )
     parser.add_argument(
