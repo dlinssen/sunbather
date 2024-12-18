@@ -78,9 +78,7 @@ def calc_neutral_mu(abundances):
 
     Parameters
     ----------
-    zdict : dict
-        Dictionary with the scale factors of all elements relative
-        to the default solar composition. Can be easily created with tools.get_zdict().
+    WRITE
 
     Returns
     -------
@@ -88,10 +86,7 @@ def calc_neutral_mu(abundances):
         Mean particle mass in units of amu.
     """
 
-    #abundances = tools.get_abundances(zdict)
     neutral_mu = tools.calc_mu(1., 0., abundances=abundances) #set ne=0 so completely neutral
-
-
 
     return neutral_mu
 
@@ -209,9 +204,9 @@ def save_temp_parker_profile(planet, Mdot, T, abundances, pdir,
         log of the mass-loss rate in units of g s-1.
     T : str or numeric
         Temperature in units of K.
-    zdict : dict
-        Dictionary with the scale factors of all elements relative
-        to the default solar composition. Can be easily created with tools.get_zdict().
+    abundances : tools.Abundances
+        Object storing abundances of all thirty elements.
+        Can be easily created with tools.Abundances().
     pdir : str
         Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/planetname/*pdir*/
         where the isothermal parker wind density and velocity profiles are saved.
@@ -268,8 +263,6 @@ def save_temp_parker_profile(planet, Mdot, T, abundances, pdir,
     save_array = np.column_stack((r*planet.R, rho_array*rhos, v_array*vs*1e5, mu_array))
     save_name = tools.projectpath+'/parker_profiles/'+planet.name+'/'+pdir+'/temp/pprof_'+planet.name+'_T='+str(T)+'_M='+"%.3f" %Mdot +".txt"
     abundancestr = "Abundances at planet surface:"
-    #for sp in zdict.keys():
-    #    zdictstr += " "+sp+"="+"%.1f" %zdict[sp]
     if abundances.alaw =={}:
            abundancestr += " All elements have constant solar composition" 
     else:
@@ -296,9 +289,9 @@ def run_parker_with_cloudy(filename, T, planet, abundances):
         Isothermal temperature value.
     planet : tools.Planet
         Object storing the planet parameters.
-    zdict : dict
-        Dictionary with the scale factors of all elements relative
-        to the default solar composition. Can be easily created with tools.get_zdict().
+    abundances : tools.Abundances
+        Object storing abundances of all thirty elements.
+        Can be easily created with tools.Abundances().
 
     Returns
     -------
@@ -314,14 +307,18 @@ def run_parker_with_cloudy(filename, T, planet, abundances):
     alt = pprof.alt.values
     hden = tools.rho_to_hden(pprof.rho.values, abundances=abundances.abundance_profiles)
     dlaw = tools.alt_array_to_Cloudy(alt, hden, altmax, planet.R, 1000, log=True)
+    alaw = abundances.get_alaw_Cloudy(altmax, planet.R)
 
     nuFnu_1AU_linear, Ryd = tools.get_SED_norm_1AU(planet.SEDname)
     nuFnu_a_log = np.log10(nuFnu_1AU_linear / ((planet.a - altmax*planet.R)/tools.AU)**2)
 
+    comments = '# plname='+planet.name+'\n# altmax='+str(altmax)
+
     simname = filename.split('.txt')[0]
     tools.write_Cloudy_in(simname, title='Simulation of '+filename, overwrite=True,
                                 flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname,
-                                dlaw=dlaw, double_tau=True, cosmic_rays=True, abundances=abundances, constantT=T, outfiles=['.ovr'])
+                                dlaw=dlaw, double_tau=True, cosmic_rays=True, alaw=alaw, 
+                                constantT=T, outfiles=['.ovr'], comments=comments)
 
     tools.run_Cloudy(simname)
 
@@ -394,9 +391,9 @@ def save_cloudy_parker_profile(planet, Mdot, T, abundances, pdir,
         log of the mass-loss rate in units of g s-1.
     T : str or numeric
         Temperature in units of K.
-    zdict : dict
-        Dictionary with the scale factors of all elements relative
-        to the default solar composition. Can be easily created with tools.get_zdict().
+    abundances : tools.Abundances
+        Object storing abundances of all thirty elements.
+        Can be easily created with tools.Abundances().
     pdir : str
         Directory as $SUNBATHER_PROJECT_PATH/parker_profiles/planetname/*pdir*/
         where the isothermal parker wind density and velocity profiles are saved.
@@ -497,10 +494,10 @@ def run_s(plname, pdir, Mdot, T, SEDname, fH, abundances, mu_conv,
         Hydrogen abundance expressed as a fraction of the total. If a value is given,
         Parker wind profiles will be calculated using p-winds standalone with a H/He
         composition. If None is given, Parker wind profiles will be calculated using the
-        p-winds/Cloudy iterative method and the composition is specified via the zdict argument.
-    zdict : dict
-        Dictionary with the scale factors of all elements relative
-        to the default solar composition. Can be easily created with tools.get_zdict().
+        p-winds/Cloudy iterative method and the composition is specified via the abundances argument.
+    abundances : tools.Abundances
+        Object storing abundances of all thirty elements.
+        Can be easily created with tools.Abundances().
         Will only be used if fH is None, in which case the p-winds/Cloudy iterative method
         is applied.
     mu_conv : float
@@ -582,10 +579,10 @@ def run_g(plname, pdir, cores, Mdot_l, Mdot_u, Mdot_s,
         Hydrogen abundance expressed as a fraction of the total. If a value is given,
         Parker wind profiles will be calculated using p-winds standalone with a H/He
         composition. If None is given, Parker wind profiles will be calculated using the
-        p-winds/Cloudy iterative method and the composition is specified via the zdict argument.
-    zdict : dict
-        Dictionary with the scale factors of all elements relative
-        to the default solar composition. Can be easily created with tools.get_zdict().
+        p-winds/Cloudy iterative method and the composition is specified via the abundances argument.
+    abundances : tools.Abundances
+        Object storing abundances of all thirty elements.
+        Can be easily created with tools.Abundances().
         Will only be used if fH is None, in which case the p-winds/Cloudy iterative method
         is applied.
     mu_conv : float
@@ -668,10 +665,11 @@ if __name__ == '__main__':
     parser.add_argument("-no_tidal", action='store_true', help="neglect the stellar tidal gravity term [default=False, i.e. tidal term included]")
     args = parser.parse_args()
 
+    abundances = tools.Abundances()
     if args.z != None:
-        zdict = tools.get_zdict(z=args.z, zelem=args.zelem)
-    else: #if z==None we should not pass that to the tools.get_zdict function
-        zdict = tools.get_zdict(zelem=args.zelem)
+        abundances.set_metallicity(metallicity=args.z, scale_factor_dictionary=args.zelem)
+    else: 
+        abundances.set_metallicity(scale_factor_dictionary=args.zelem)
 
     if args.fH != None and (args.zelem != {} or args.mu_conv != 0.01 or args.mu_maxit != 7):
         warnings.warn("The -zelem, -mu_conv, and -mu_maxit commands only combine with -z, not with -fH, so I will ignore their input.")
@@ -687,12 +685,12 @@ if __name__ == '__main__':
         os.mkdir(tools.projectpath+'/parker_profiles/'+args.plname+'/'+args.pdir+'/temp')
 
     if (len(args.T) == 1 and len(args.Mdot) == 1): #then we run a single model
-        run_s(args.plname, args.pdir, args.Mdot[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose, args.no_tidal)
+        run_s(args.plname, args.pdir, args.Mdot[0], args.T[0], args.SEDname, args.fH, abundances, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose, args.no_tidal)
     elif (len(args.T) == 3 and len(args.Mdot) == 3): #then we run a grid over both parameters
-        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose, args.no_tidal)
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, abundances, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose, args.no_tidal)
     elif (len(args.T) == 3 and len(args.Mdot) == 1): #then we run a grid over only T
-        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose, args.no_tidal)
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[0], args.Mdot[0], args.T[0], args.T[1], args.T[2], args.SEDname, args.fH, abundances, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose, args.no_tidal)
     elif (len(args.T) == 1 and len(args.Mdot) == 3): #then we run a grid over only Mdot
-        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.SEDname, args.fH, zdict, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose, args.no_tidal)
+        run_g(args.plname, args.pdir, args.cores, args.Mdot[0], args.Mdot[1], args.Mdot[2], args.T[0], args.T[0], args.T[0], args.SEDname, args.fH, abundances, args.mu_conv, args.mu_maxit, args.overwrite, args.verbose, args.no_tidal)
 
     print("\nCalculations took", int(time.time()-t0) // 3600, "hours, ", (int(time.time()-t0)%3600) // 60, "minutes and ", (int(time.time()-t0)%60), "seconds.\n")

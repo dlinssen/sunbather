@@ -65,7 +65,7 @@ def find_close_model(parentfolder, T, Mdot, tolT=2000, tolMdot=1.0):
     return clconv
 
 
-def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, abundances=None, altmax=8, save_sp=[], constantT=False, maxit=16):
+def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, abundances, altmax=8, save_sp=[], constantT=False, maxit=16):
     """
     Solves for a nonisothermal temperature profile of a single isothermal Parker wind (density and velocity) profile.
 
@@ -107,10 +107,9 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, abun
         where we take the isothermal parker wind density and velocity profiles from.
         Different folders may exist there for a given planet, to separate for example profiles
         with different assumptions such as stellar SED/semi-major axis/composition.
-    zdict : dict, optional
-        Dictionary with the scale factors of all elements relative
-        to the default solar composition. Can be easily created with tools.get_zdict().
-        Default is None, which results in a solar composition.
+    abundances : tools.Abundances
+        Object storing abundances of all thirty elements.
+        Can be easily created with tools.Abundances().
     altmax : int, optional
         Maximum altitude of the simulation in units of planet radius, by default 8
     save_sp : list, optional
@@ -156,6 +155,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, abun
     alt = pprof.alt.values
     hden = tools.rho_to_hden(pprof.rho.values, abundances=abundances.abundance_profiles)
     dlaw = tools.alt_array_to_Cloudy(alt, hden, altmax, planet.R, 1000, log=True)
+    alaw = abundances.get_alaw_Cloudy(altmax, planet.R)
 
     nuFnu_1AU_linear, Ryd = tools.get_SED_norm_1AU(planet.SEDname)
     nuFnu_a_log = np.log10(nuFnu_1AU_linear / ((planet.a - altmax*planet.R)/tools.AU)**2)
@@ -166,11 +166,11 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, abun
         if save_sp == []:
             tools.write_Cloudy_in(path+'constantT', title=planet.name+' 1D Parker with T='+str(T)+' and log(Mdot)='+str(Mdot),
                                         flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=dlaw, double_tau=True,
-                                        overwrite=overwrite, cosmic_rays=True, abundances=abundances, comments=comments, constantT=T)
+                                        overwrite=overwrite, cosmic_rays=True, alaw=alaw, comments=comments, constantT=T)
         else:
             tools.write_Cloudy_in(path+'constantT', title=planet.name+' 1D Parker with T='+str(T)+' and log(Mdot)='+str(Mdot),
                                         flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=dlaw, double_tau=True,
-                                        overwrite=overwrite, cosmic_rays=True, abundances=abundances, comments=comments, constantT=T,
+                                        overwrite=overwrite, cosmic_rays=True, alaw=alaw, comments=comments, constantT=T,
                                         outfiles=['.den', '.en'], denspecies=save_sp, selected_den_levels=True)
         
         tools.run_Cloudy('constantT', folder=path) #run the Cloudy simulation
@@ -180,7 +180,7 @@ def run_s(plname, Mdot, T, itno, fc, dir, SEDname, overwrite, startT, pdir, abun
     #write Cloudy template input file - each iteration will add their current temperature structure to this template
     tools.write_Cloudy_in(path+'template', title=planet.name+' 1D Parker with T='+str(T)+' and log(Mdot)='+str(Mdot),
                                 flux_scaling=[nuFnu_a_log, Ryd], SED=planet.SEDname, dlaw=dlaw, double_tau=True,
-                                overwrite=overwrite, cosmic_rays=True, abundances=abundances, comments=comments)
+                                overwrite=overwrite, cosmic_rays=True, alaw=alaw, comments=comments)
 
     if itno == 0: #this means we resume from the highest found previously ran iteration
         pattern = r'iteration(\d+)\.out' #search pattern: iteration followed by an integer
@@ -277,10 +277,9 @@ def run_g(plname, cores, Mdot_l, Mdot_u, Mdot_s, T_l, T_u, T_s, fc, dir, SEDname
         where we take the isothermal parker wind density and velocity profiles from.
         Different folders may exist there for a given planet, to separate for example profiles
         with different assumptions such as stellar SED/semi-major axis/composition.
-    zdict : dict, optional
-        Dictionary with the scale factors of all elements relative
-        to the default solar composition. Can be easily created with tools.get_zdict().
-        Default is None, which results in a solar composition.
+    abundances : tools.Abundances
+        Object storing abundances of all thirty elements.
+        Can be easily created with tools.Abundances().
     altmax : int, optional
         Maximum altitude of the simulation in units of planet radius, by default 8
     save_sp : list, optional
